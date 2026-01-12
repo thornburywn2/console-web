@@ -224,6 +224,25 @@ app.use('/api/search', createSearchRouter(prisma, PROJECTS_DIR));
 // Session templates
 app.use('/api/templates', createTemplatesRouter(prisma));
 
+// Persisted sessions endpoint (must be before sessions router to avoid 404)
+app.get('/api/sessions/persisted', async (req, res) => {
+  try {
+    const sessions = await prisma.session.findMany({
+      where: {
+        status: { in: ['ACTIVE', 'DISCONNECTED'] }
+      },
+      include: {
+        project: true
+      },
+      orderBy: { lastActiveAt: 'desc' }
+    });
+    res.json(sessions);
+  } catch (error) {
+    console.error('Error getting persisted sessions:', error);
+    res.status(500).json({ error: 'Failed to get sessions' });
+  }
+});
+
 // Session management
 app.use('/api/sessions', createSessionsRouter(prisma));
 
@@ -1882,27 +1901,6 @@ app.put('/api/settings', async (req, res) => {
   } catch (error) {
     console.error('Error updating user settings:', error);
     res.status(500).json({ error: 'Failed to update user settings' });
-  }
-});
-
-/**
- * Get active sessions from database
- */
-app.get('/api/sessions/persisted', async (req, res) => {
-  try {
-    const sessions = await prisma.session.findMany({
-      where: {
-        status: { in: ['ACTIVE', 'DISCONNECTED'] }
-      },
-      include: {
-        project: true
-      },
-      orderBy: { lastActiveAt: 'desc' }
-    });
-    res.json(sessions);
-  } catch (error) {
-    console.error('Error getting persisted sessions:', error);
-    res.status(500).json({ error: 'Failed to get sessions' });
   }
 });
 

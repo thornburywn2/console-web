@@ -44,15 +44,7 @@ const SOCKET_URL = '';
 function App() {
   const [socket, setSocket] = useState(null);
   const [projects, setProjects] = useState([]);
-  // Initialize selected project from localStorage for persistence across reloads
-  const [selectedProject, setSelectedProject] = useState(() => {
-    try {
-      const saved = localStorage.getItem('ccm-selected-project');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [selectedProject, setSelectedProject] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -119,31 +111,48 @@ function App() {
       setIsConnected(true);
       setError(null);
 
-      // Auto-reconnect to previously selected project after socket reconnection
+      // Check if we should auto-reconnect to a previous session
+      // First check if we already have a selected project (e.g., from socket reconnect)
       const currentProject = selectedProjectRef.current;
       if (currentProject) {
-        // Check if auto-reconnect is enabled in settings
-        try {
-          const settingsRes = await fetch('/api/settings');
-          if (settingsRes.ok) {
-            const settings = await settingsRes.json();
-            // Default to true if setting is undefined
-            if (settings.autoReconnect !== false) {
-              console.log('Auto-reconnecting to project:', currentProject.path);
-              newSocket.emit('reconnect-session', currentProject.path);
-            } else {
-              console.log('Auto-reconnect disabled in settings, skipping reconnection');
-            }
-          } else {
-            // If settings fail to load, still attempt reconnect
-            console.log('Failed to load settings, attempting reconnect anyway');
-            newSocket.emit('reconnect-session', currentProject.path);
-          }
-        } catch (err) {
-          // If settings check fails, still attempt reconnect
-          console.log('Error checking settings, attempting reconnect:', err);
-          newSocket.emit('reconnect-session', currentProject.path);
+        // Already have a project selected, just reconnect to it
+        console.log('Reconnecting to current project:', currentProject.path);
+        newSocket.emit('reconnect-session', currentProject.path);
+        return;
+      }
+
+      // No current project - check database for last active session
+      try {
+        const [settingsRes, sessionsRes] = await Promise.all([
+          fetch('/api/settings'),
+          fetch('/api/sessions/persisted')
+        ]);
+
+        const settings = settingsRes.ok ? await settingsRes.json() : { autoReconnect: true };
+        const sessions = sessionsRes.ok ? await sessionsRes.json() : [];
+
+        // Check if auto-reconnect is enabled (default to true)
+        if (settings.autoReconnect === false) {
+          console.log('Auto-reconnect disabled in settings');
+          return;
         }
+
+        // Get the most recent session (already sorted by lastActiveAt desc)
+        const lastSession = sessions[0];
+        if (lastSession && lastSession.project) {
+          console.log('Auto-reconnecting to last active session:', lastSession.project.path);
+          // Set the selected project in state so UI shows correctly
+          setSelectedProject({
+            name: lastSession.project.name,
+            path: lastSession.project.path
+          });
+          // Emit reconnect to attach to the tmux session
+          newSocket.emit('reconnect-session', lastSession.project.path);
+        } else {
+          console.log('No previous sessions to reconnect to');
+        }
+      } catch (err) {
+        console.error('Error checking for auto-reconnect:', err);
       }
     });
 
@@ -235,19 +244,6 @@ function App() {
     const interval = setInterval(fetchProjects, 30000);
     return () => clearInterval(interval);
   }, [fetchProjects]);
-
-  // Persist selected project to localStorage for auto-reconnect on page reload
-  useEffect(() => {
-    try {
-      if (selectedProject) {
-        localStorage.setItem('ccm-selected-project', JSON.stringify(selectedProject));
-      } else {
-        localStorage.removeItem('ccm-selected-project');
-      }
-    } catch {
-      // Ignore localStorage errors
-    }
-  }, [selectedProject]);
 
   // Handle project selection
   const handleSelectProject = useCallback((project) => {
