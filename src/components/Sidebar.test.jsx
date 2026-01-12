@@ -311,7 +311,7 @@ describe('Sidebar', () => {
       fireEvent.click(screen.getByText('Name (A-Z)'));
 
       // Verify localStorage.setItem was called with the right values
-      expect(localStorage.setItem).toHaveBeenCalledWith('ccm-sort-preference', 'name-asc');
+      expect(localStorage.setItem).toHaveBeenCalledWith('cw-sort-preference', 'name-asc');
     });
 
     it('should show sort menu with options', () => {

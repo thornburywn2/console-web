@@ -401,6 +401,7 @@ export default function AgentManager({ socket }) {
           </div>
         </div>
       )}
+
     </div>
   );
 }

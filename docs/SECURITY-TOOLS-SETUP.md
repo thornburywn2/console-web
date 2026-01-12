@@ -1,6 +1,6 @@
 # Security & Compliance Tools Setup Guide
 
-This guide explains how to install and configure the third-party security and compliance tools integrated with Command Portal's lifecycle agents.
+This guide explains how to install and configure the third-party security and compliance tools integrated with Console.web's lifecycle agents.
 
 ---
 
@@ -298,7 +298,7 @@ echo "Done!"
 
 ---
 
-## Using with Command Portal
+## Using with Console.web
 
 Once tools are installed, access them through:
 

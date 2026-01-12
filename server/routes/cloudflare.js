@@ -9,13 +9,14 @@ import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 
+import os from 'os';
 const execAsync = promisify(exec);
-const PROJECTS_DIR = process.env.PROJECTS_DIR || '/home/thornburywn/Projects';
+const PROJECTS_DIR = process.env.PROJECTS_DIR || `${os.homedir()}/Projects`;
 
 /**
  * Update vite.config.js to add hostname to allowedHosts
  * @param {string} projectPath - Path to the project directory
- * @param {string} hostname - Hostname to add (e.g., "myapp.wbtlabs.com")
+ * @param {string} hostname - Hostname to add (e.g., "myapp.example.com")
  * @returns {object} Result with success status and message
  */
 async function updateViteAllowedHosts(projectPath, hostname) {
@@ -233,6 +234,84 @@ export function createCloudflareRouter(prisma) {
     }
   }
 
+  /**
+   * Extract port number from a project's CLAUDE.md file
+   * Looks for **Port:** <number> pattern in the file
+   */
+  function getProjectPort(projectPath) {
+    try {
+      const claudeMdPath = path.join(projectPath, 'CLAUDE.md');
+      if (!fs.existsSync(claudeMdPath)) {
+        return null;
+      }
+      const content = fs.readFileSync(claudeMdPath, 'utf-8');
+      // Match **Port:** followed by a number (handles various formats)
+      const portMatch = content.match(/\*\*Port:\*\*\s*(\d+)/);
+      if (portMatch) {
+        return parseInt(portMatch[1], 10);
+      }
+      // Also try Port: without bold
+      const simpleMatch = content.match(/^Port:\s*(\d+)/m);
+      if (simpleMatch) {
+        return parseInt(simpleMatch[1], 10);
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Get all projects with their configured ports from CLAUDE.md
+   * Returns a map of port -> project info
+   */
+  async function getProjectPortMap() {
+    const portToProject = new Map();
+    const projectToPort = new Map();
+
+    try {
+      // Get projects from database
+      const dbProjects = await prisma.project.findMany();
+
+      // Also scan filesystem for projects not in DB
+      const entries = fs.readdirSync(PROJECTS_DIR);
+      const allProjects = new Set(dbProjects.map(p => p.name));
+
+      for (const name of entries) {
+        const fullPath = path.join(PROJECTS_DIR, name);
+        try {
+          const stat = fs.statSync(fullPath);
+          if (stat.isDirectory() && !name.startsWith('.')) {
+            allProjects.add(name);
+          }
+        } catch {}
+      }
+
+      // Extract port from each project's CLAUDE.md
+      for (const projectName of allProjects) {
+        const projectPath = path.join(PROJECTS_DIR, projectName);
+        const port = getProjectPort(projectPath);
+
+        if (port) {
+          const dbProject = dbProjects.find(p => p.name === projectName);
+          const projectInfo = {
+            name: projectName,
+            path: projectPath,
+            id: dbProject?.id || null,
+            port
+          };
+
+          portToProject.set(port, projectInfo);
+          projectToPort.set(projectName, port);
+        }
+      }
+    } catch (err) {
+      console.error('[Cloudflare] Error building project port map:', err);
+    }
+
+    return { portToProject, projectToPort };
+  }
+
   // ==================== AUTHENTIK HELPERS ====================
 
   /**
@@ -307,7 +386,7 @@ export function createCloudflareRouter(prisma) {
       slug: slug,
       provider: providerId,
       meta_launch_url: `https://${hostname}`,
-      meta_description: `Auto-created by Command Portal for ${hostname}`,
+      meta_description: `Auto-created by Console.web for ${hostname}`,
       policy_engine_mode: 'any'
     };
 
@@ -616,6 +695,7 @@ export function createCloudflareRouter(prisma) {
 
   /**
    * GET /api/cloudflare/routes/:projectId - Get routes for a specific project
+   * Matches by projectId OR by port from project's CLAUDE.md
    * Note: Skip reserved route names (mapped, orphaned) - those are handled by separate endpoints
    */
   router.get('/routes/:projectId', async (req, res, next) => {
@@ -625,11 +705,30 @@ export function createCloudflareRouter(prisma) {
       return next();
     }
     try {
-      const routes = await prisma.publishedRoute.findMany({
-        where: { projectId },
-        orderBy: { createdAt: 'desc' }
-      });
-      res.json({ routes });
+      // First, check if this project has a port configured in CLAUDE.md
+      const projectPath = path.join(PROJECTS_DIR, projectId);
+      const projectPort = getProjectPort(projectPath);
+
+      // Query routes by either projectId OR by matching port
+      let routes;
+      if (projectPort) {
+        routes = await prisma.publishedRoute.findMany({
+          where: {
+            OR: [
+              { projectId },
+              { localPort: projectPort }
+            ]
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+      } else {
+        routes = await prisma.publishedRoute.findMany({
+          where: { projectId },
+          orderBy: { createdAt: 'desc' }
+        });
+      }
+
+      res.json({ routes, projectPort });
     } catch (error) {
       console.error('Error getting project routes:', error);
       res.status(500).json({ error: error.message });
@@ -641,7 +740,7 @@ export function createCloudflareRouter(prisma) {
    */
   router.post('/publish', async (req, res) => {
     try {
-      const { subdomain, localPort, localHost = 'localhost', projectId, description, enableAuthentik = true } = req.body;
+      const { subdomain, localPort, localHost = 'localhost', projectId, description, enableAuthentik = true, websocket = false } = req.body;
 
       if (!subdomain || !localPort) {
         return res.status(400).json({ error: 'Subdomain and local port are required' });
@@ -660,16 +759,23 @@ export function createCloudflareRouter(prisma) {
       }
 
       // Step 1: Get current tunnel config
-      console.log(`[Cloudflare] Publishing ${hostname} -> ${service}`);
+      console.log(`[Cloudflare] Publishing ${hostname} -> ${service} (websocket: ${websocket})`);
       const config = await getTunnelConfig();
       const ingress = config.ingress || [];
 
       // Step 2: Add new route (before catch-all)
       const catchAll = ingress.pop(); // Remove catch-all (must be last)
+
+      // Build originRequest with websocket support if enabled
+      const originRequest = {};
+      if (websocket) {
+        originRequest.websocket = true;
+      }
+
       ingress.push({
         hostname: hostname,
         service: service,
-        originRequest: {}
+        originRequest
       });
       ingress.push(catchAll); // Re-add catch-all
 
@@ -708,6 +814,7 @@ export function createCloudflareRouter(prisma) {
           localHost,
           service,
           dnsRecordId,
+          websocketEnabled: Boolean(websocket),
           status: 'PENDING',
           description,
           authentikEnabled: authentikResult.enabled,
@@ -914,6 +1021,86 @@ export function createCloudflareRouter(prisma) {
   });
 
   /**
+   * PUT /api/cloudflare/routes/:hostname/websocket - Toggle WebSocket support for a route
+   * Updates tunnel config with originRequest.websocket setting
+   */
+  router.put('/routes/:hostname/websocket', async (req, res) => {
+    try {
+      const hostname = decodeURIComponent(req.params.hostname);
+      const { enabled } = req.body;
+
+      if (typeof enabled !== 'boolean') {
+        return res.status(400).json({ error: 'enabled (boolean) is required' });
+      }
+
+      // Get route from database
+      const route = await prisma.publishedRoute.findUnique({
+        where: { hostname }
+      });
+
+      if (!route) {
+        return res.status(404).json({ error: 'Route not found' });
+      }
+
+      console.log(`[Cloudflare] ${enabled ? 'Enabling' : 'Disabling'} WebSocket for ${hostname}`);
+
+      // Get current tunnel config
+      const config = await getTunnelConfig();
+      const ingress = config.ingress || [];
+
+      // Find and update the route in ingress
+      let updated = false;
+      for (let i = 0; i < ingress.length; i++) {
+        if (ingress[i].hostname === hostname) {
+          // Ensure originRequest exists
+          if (!ingress[i].originRequest) {
+            ingress[i].originRequest = {};
+          }
+
+          if (enabled) {
+            ingress[i].originRequest.websocket = true;
+          } else {
+            delete ingress[i].originRequest.websocket;
+          }
+          updated = true;
+          break;
+        }
+      }
+
+      if (!updated) {
+        return res.status(404).json({ error: 'Route not found in tunnel config' });
+      }
+
+      // Update tunnel configuration
+      await updateTunnelConfig({ ingress });
+      console.log(`[Cloudflare] Updated tunnel config with WebSocket ${enabled ? 'enabled' : 'disabled'} for ${hostname}`);
+
+      // Update database
+      await prisma.publishedRoute.update({
+        where: { hostname },
+        data: {
+          websocketEnabled: enabled,
+          updatedAt: new Date()
+        }
+      });
+
+      // Restart cloudflared
+      const restartResult = await restartCloudflared();
+      console.log(`[Cloudflare] Restart result:`, restartResult);
+
+      res.json({
+        success: true,
+        hostname,
+        websocketEnabled: enabled,
+        restartResult
+      });
+    } catch (error) {
+      console.error('Error updating route WebSocket setting:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
    * POST /api/cloudflare/restart - Manually restart cloudflared
    */
   router.post('/restart', async (req, res) => {
@@ -985,33 +1172,54 @@ export function createCloudflareRouter(prisma) {
   router.get('/validate', async (req, res) => {
     try {
       const settings = await getSettings();
+      let tunnelInfo = null;
+      let zoneInfo = null;
+      let tunnelError = null;
+      let zoneError = null;
 
-      // Test tunnel access
-      const tunnelInfo = await cfFetch(
-        `/accounts/${settings.accountId}/cfd_tunnel/${settings.tunnelId}`
-      );
+      // Test tunnel access (required)
+      try {
+        tunnelInfo = await cfFetch(
+          `/accounts/${settings.accountId}/cfd_tunnel/${settings.tunnelId}`
+        );
+      } catch (e) {
+        tunnelError = e.message;
+      }
 
-      // Test zone access
-      const zoneInfo = await cfFetch(`/zones/${settings.zoneId}`);
+      // Test zone access (optional - some tokens don't have zone permissions)
+      try {
+        zoneInfo = await cfFetch(`/zones/${settings.zoneId}`);
+      } catch (e) {
+        zoneError = e.message;
+        console.log('[Cloudflare] Zone access not available (token may lack Zone permissions):', e.message);
+      }
 
-      // Update last validated
-      await prisma.cloudflareSettings.update({
-        where: { id: 'default' },
-        data: { lastValidated: new Date() }
-      });
+      // Validation succeeds if tunnel access works
+      const valid = tunnelInfo?.result?.id ? true : false;
+
+      if (valid) {
+        // Update last validated
+        await prisma.cloudflareSettings.update({
+          where: { id: 'default' },
+          data: { lastValidated: new Date() }
+        });
+      }
 
       res.json({
-        valid: true,
-        tunnel: {
-          id: tunnelInfo.result?.id,
-          name: tunnelInfo.result?.name,
-          status: tunnelInfo.result?.status
-        },
-        zone: {
-          id: zoneInfo.result?.id,
-          name: zoneInfo.result?.name,
-          status: zoneInfo.result?.status
-        }
+        valid,
+        tunnel: tunnelInfo?.result ? {
+          id: tunnelInfo.result.id,
+          name: tunnelInfo.result.name,
+          status: tunnelInfo.result.status
+        } : null,
+        tunnelError,
+        zone: zoneInfo?.result ? {
+          id: zoneInfo.result.id,
+          name: zoneInfo.result.name,
+          status: zoneInfo.result.status
+        } : null,
+        zoneError,
+        warnings: zoneError ? ['Zone access limited - DNS records may need manual creation'] : []
       });
     } catch (error) {
       console.error('Error validating Cloudflare config:', error);
@@ -1021,7 +1229,8 @@ export function createCloudflareRouter(prisma) {
 
   /**
    * POST /api/cloudflare/sync - Sync routes from Cloudflare tunnel config to database
-   * Imports existing routes that were created outside of Command Portal
+   * Imports existing routes that were created outside of Console.web
+   * Automatically links routes to projects based on port matching from CLAUDE.md
    */
   router.post('/sync', async (req, res) => {
     try {
@@ -1029,7 +1238,10 @@ export function createCloudflareRouter(prisma) {
       const config = await getTunnelConfig();
       const ingress = config.ingress || [];
 
+      // Get project port mappings from CLAUDE.md files
+      const { portToProject } = await getProjectPortMap();
       console.log(`[Cloudflare] Syncing ${ingress.length} ingress rules from tunnel`);
+      console.log(`[Cloudflare] Found ${portToProject.size} projects with configured ports`);
 
       const synced = [];
       const skipped = [];
@@ -1043,35 +1255,52 @@ export function createCloudflareRouter(prisma) {
         }
 
         try {
+          // Parse service URL to extract port
+          let localPort = 80;
+          let localHost = 'localhost';
+
+          if (rule.service) {
+            const match = rule.service.match(/https?:\/\/([^:]+):?(\d+)?/);
+            if (match) {
+              localHost = match[1] || 'localhost';
+              localPort = parseInt(match[2], 10) || (rule.service.startsWith('https') ? 443 : 80);
+            }
+          }
+
+          // Match route to project by port
+          const matchedProject = portToProject.get(localPort);
+          const projectId = matchedProject?.name || null;
+
           // Check if route already exists in database
           const existing = await prisma.publishedRoute.findUnique({
             where: { hostname: rule.hostname }
           });
 
+          // Detect websocket setting from originRequest
+          const websocketEnabled = Boolean(rule.originRequest?.websocket);
+
           if (existing) {
-            // Update existing route
+            // Update existing route with project mapping
             await prisma.publishedRoute.update({
               where: { hostname: rule.hostname },
               data: {
                 service: rule.service,
+                localPort,
+                localHost,
+                projectId,
+                websocketEnabled,
                 status: 'ACTIVE',
                 lastCheckedAt: new Date()
               }
             });
-            synced.push({ hostname: rule.hostname, action: 'updated' });
+            synced.push({
+              hostname: rule.hostname,
+              action: 'updated',
+              websocketEnabled,
+              projectId,
+              projectName: matchedProject?.name || null
+            });
           } else {
-            // Parse service URL to extract port
-            let localPort = 80;
-            let localHost = 'localhost';
-
-            if (rule.service) {
-              const match = rule.service.match(/https?:\/\/([^:]+):?(\d+)?/);
-              if (match) {
-                localHost = match[1] || 'localhost';
-                localPort = parseInt(match[2], 10) || (rule.service.startsWith('https') ? 443 : 80);
-              }
-            }
-
             // Extract subdomain from hostname
             const subdomain = rule.hostname.replace(`.${settings.zoneName}`, '');
 
@@ -1084,7 +1313,7 @@ export function createCloudflareRouter(prisma) {
               console.warn(`[Cloudflare] Could not find DNS record for ${rule.hostname}`);
             }
 
-            // Create new route in database
+            // Create new route in database with project mapping
             await prisma.publishedRoute.create({
               data: {
                 hostname: rule.hostname,
@@ -1093,12 +1322,24 @@ export function createCloudflareRouter(prisma) {
                 localHost,
                 service: rule.service,
                 dnsRecordId,
+                projectId,
+                websocketEnabled,
                 status: 'ACTIVE',
-                description: `Imported from Cloudflare tunnel`,
+                description: matchedProject
+                  ? `Linked to ${matchedProject.name} (port ${localPort})`
+                  : `Imported from Cloudflare tunnel`,
                 lastCheckedAt: new Date()
               }
             });
-            synced.push({ hostname: rule.hostname, action: 'created', subdomain, localPort });
+            synced.push({
+              hostname: rule.hostname,
+              action: 'created',
+              subdomain,
+              localPort,
+              websocketEnabled,
+              projectId,
+              projectName: matchedProject?.name || null
+            });
           }
         } catch (ruleError) {
           errors.push({ hostname: rule.hostname, error: ruleError.message });
@@ -1135,12 +1376,11 @@ export function createCloudflareRouter(prisma) {
 
   /**
    * GET /api/cloudflare/routes/mapped - Get all routes with project cross-referencing
-   * Routes are mapped to projects primarily by matching local port to running project services
+   * Routes are mapped to projects primarily by matching local port to CLAUDE.md port config
    */
   router.get('/routes/mapped', async (req, res) => {
     try {
       console.log('[Cloudflare] Getting mapped routes...');
-      const PROJECTS_DIR = process.env.PROJECTS_DIR || '/home/thornburywn/Projects';
 
       // Get all routes from database
       const routes = await prisma.publishedRoute.findMany({
@@ -1148,24 +1388,23 @@ export function createCloudflareRouter(prisma) {
       });
       console.log(`[Cloudflare] Found ${routes.length} routes in database`);
 
-      // Get all projects from database
+      // Get project port mappings from CLAUDE.md (source of truth)
+      const { portToProject } = await getProjectPortMap();
+      console.log(`[Cloudflare] Found ${portToProject.size} projects with configured ports`);
+
+      // Get all projects from database for fallback matching
       const projects = await prisma.project.findMany();
 
       // Build a map of projectId -> project for quick lookup
-      const projectsById = new Map();
       const projectsByName = new Map();
       const projectsByPath = new Map();
 
       projects.forEach(p => {
-        projectsById.set(p.id, p);
         projectsByName.set(p.name.toLowerCase(), p);
         projectsByPath.set(p.path, p);
       });
 
       // Also scan the filesystem for projects not in DB
-      const fs = await import('fs');
-      const path = await import('path');
-
       try {
         const entries = fs.readdirSync(PROJECTS_DIR);
         for (const name of entries) {
@@ -1183,10 +1422,9 @@ export function createCloudflareRouter(prisma) {
         }
       } catch {}
 
-      // Get active ports (use lsof to find what's listening)
+      // Get active ports (use ss to find what's listening)
       const portToProcess = new Map();
       try {
-        const { execSync } = await import('child_process');
         const output = execSync('ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null', {
           encoding: 'utf-8',
           maxBuffer: 1024 * 1024,
@@ -1199,13 +1437,13 @@ export function createCloudflareRouter(prisma) {
             const port = parseInt(portMatch[1], 10);
 
             // Try to extract process info
-            let process = 'unknown';
+            let processName = 'unknown';
             let pid = null;
 
             // ss format: users:(("node",pid=12345,fd=19))
             const ssMatch = line.match(/users:\(\("([^"]+)",pid=(\d+)/);
             if (ssMatch) {
-              process = ssMatch[1];
+              processName = ssMatch[1];
               pid = ssMatch[2];
             }
 
@@ -1213,10 +1451,10 @@ export function createCloudflareRouter(prisma) {
             const netstatMatch = line.match(/(\d+)\/(\S+)/);
             if (netstatMatch) {
               pid = netstatMatch[1];
-              process = netstatMatch[2];
+              processName = netstatMatch[2];
             }
 
-            portToProcess.set(port, { process, pid });
+            portToProcess.set(port, { process: processName, pid });
           }
         }
       } catch {}
@@ -1227,14 +1465,28 @@ export function createCloudflareRouter(prisma) {
         let matchMethod = null;
         let isOrphaned = true;
 
-        // Method 1: Direct projectId match (if route was created with a project)
-        if (route.projectId && projectsByName.has(route.projectId.toLowerCase())) {
+        // Method 1 (PRIORITY): Match by port from CLAUDE.md configuration
+        // This is the most reliable method - the port in CLAUDE.md is the source of truth
+        const portProject = portToProject.get(route.localPort);
+        if (portProject) {
+          matchedProject = {
+            id: portProject.id,
+            name: portProject.name,
+            path: portProject.path,
+            displayName: portProject.name
+          };
+          matchMethod = 'claude-md-port';
+          isOrphaned = false;
+        }
+
+        // Method 2: Direct projectId match (if route was created with a project)
+        if (!matchedProject && route.projectId && projectsByName.has(route.projectId.toLowerCase())) {
           matchedProject = projectsByName.get(route.projectId.toLowerCase());
           matchMethod = 'projectId';
           isOrphaned = false;
         }
 
-        // Method 2: Try to match by subdomain to project name
+        // Method 3: Try to match by subdomain to project name
         if (!matchedProject && route.subdomain) {
           const normalizedSubdomain = route.subdomain.toLowerCase().replace(/-/g, '');
           for (const [name, project] of projectsByName) {
@@ -1250,12 +1502,12 @@ export function createCloudflareRouter(prisma) {
           }
         }
 
-        // Method 3: Check if port is actively being used by a project
+        // Get port activity info
         const portInfo = portToProcess.get(route.localPort);
         let portActive = !!portInfo;
         let portProcess = portInfo?.process || null;
 
-        // Check if we can determine project from the port process
+        // Method 4: Check if port is actively being used by a project (fallback)
         if (!matchedProject && portInfo?.pid) {
           try {
             // Try to get the working directory of the process
@@ -1291,7 +1543,8 @@ export function createCloudflareRouter(prisma) {
           matchMethod,
           isOrphaned,
           portActive,
-          portProcess
+          portProcess,
+          configuredPort: portProject?.port || null
         };
       });
 
@@ -1436,8 +1689,6 @@ export function createCloudflareRouter(prisma) {
           message: 'Send { "confirm": true } to delete all orphaned routes'
         });
       }
-
-      const PROJECTS_DIR = process.env.PROJECTS_DIR || '/home/thornburywn/Projects';
 
       // Get all routes and determine which are orphaned
       const routes = await prisma.publishedRoute.findMany();

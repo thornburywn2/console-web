@@ -19,6 +19,7 @@ function CloudflarePublishPanel({ project, onRefresh }) {
     localPort: '',
     description: ''
   });
+  const [syncing, setSyncing] = useState(false);
 
   // Reset all state when project changes
   const resetState = useCallback(() => {
@@ -160,6 +161,30 @@ function CloudflarePublishPanel({ project, onRefresh }) {
     }
   };
 
+  // Sync routes from Cloudflare to fix drift
+  const handleSync = async () => {
+    setSyncing(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const res = await fetch('/api/cloudflare/sync', { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Sync failed');
+      }
+      const data = await res.json();
+      setSuccess(`Synced ${data.synced} routes`);
+      // Refresh data after sync
+      await fetchData();
+      onRefresh?.();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const handleUpdatePort = async (newPort) => {
     if (!route || !newPort) return;
 
@@ -243,7 +268,7 @@ function CloudflarePublishPanel({ project, onRefresh }) {
 
   return (
     <div className="space-y-3">
-      {/* Tunnel Status Mini Banner */}
+      {/* Tunnel Status Mini Banner with Sync */}
       {tunnelStatus && (
         <div className={`p-2 rounded border flex items-center justify-between ${
           tunnelStatus.status === 'healthy'
@@ -258,6 +283,14 @@ function CloudflarePublishPanel({ project, onRefresh }) {
               {tunnelStatus.status === 'healthy' ? 'TUNNEL OK' : 'TUNNEL DOWN'}
             </span>
           </div>
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="text-[10px] font-mono text-hacker-cyan hover:text-hacker-green disabled:opacity-50 transition-colors"
+            title="Sync routes from Cloudflare"
+          >
+            {syncing ? '[...]' : '[SYNC]'}
+          </button>
         </div>
       )}
 

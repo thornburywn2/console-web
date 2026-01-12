@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+.bun/
+
+# Build outputs
+dist/
+build/
+.next/
+.nuxt/
+.output/
+
+# Environment files (NEVER commit secrets)
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Secrets (NEVER commit)
+*.pem
+*.key
+*.crt
+.secrets/
+secrets/
+
+# Prisma
+prisma/*.db
+prisma/*.db-journal
+
+# Docker
+.docker/
+
+# Temporary
+tmp/
+temp/
+.cache/

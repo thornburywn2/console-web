@@ -23,7 +23,7 @@ export function createPortsRouter() {
     { port: 5000, service: 'Flask/Python' },
     { port: 5173, service: 'Vite Dev' },
     { port: 5174, service: 'Vite Dev Alt' },
-    { port: 5275, service: 'Command Portal' },
+    { port: 5275, service: 'Console.web' },
     { port: 5432, service: 'PostgreSQL' },
     { port: 6379, service: 'Redis' },
     { port: 8000, service: 'Django/FastAPI' },
@@ -188,7 +188,11 @@ export function createEnvRouter() {
   // Get variables from env file
   router.get('/variables/:projectPath(*)/:filename', async (req, res) => {
     try {
-      const projectPath = decodeURIComponent(req.params.projectPath);
+      let projectPath = decodeURIComponent(req.params.projectPath);
+      // Handle __self__ as the console-web server directory
+      if (projectPath === '__self__') {
+        projectPath = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
+      }
       const filename = req.params.filename;
       const filePath = path.join(projectPath, filename);
 
@@ -217,7 +221,11 @@ export function createEnvRouter() {
   // Save env file
   router.post('/save/:projectPath(*)/:filename', async (req, res) => {
     try {
-      const projectPath = decodeURIComponent(req.params.projectPath);
+      let projectPath = decodeURIComponent(req.params.projectPath);
+      // Handle __self__ as the console-web server directory
+      if (projectPath === '__self__') {
+        projectPath = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
+      }
       const filename = req.params.filename;
       const filePath = path.join(projectPath, filename);
       const { variables } = req.body;

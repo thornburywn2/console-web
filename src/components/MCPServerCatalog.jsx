@@ -2,6 +2,8 @@
  * MCPServerCatalog Component
  * Browse and install pre-configured MCP servers from the catalog
  * Categories: Official, Cloud, Database, Developer, Productivity, Search
+ *
+ * Uses hacker theme to match Console.web styling
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -169,31 +171,31 @@ export default function MCPServerCatalog({ onInstall, onClose }) {
 
     return (
       <div
-        className={`p-4 bg-gray-800 border rounded-lg hover:border-blue-500 transition-all cursor-pointer ${
-          isInstalled ? 'border-green-500/50' : 'border-gray-700'
+        className={`p-4 bg-hacker-surface border rounded-lg hover:border-hacker-cyan/50 transition-all cursor-pointer font-mono ${
+          isInstalled ? 'border-hacker-green/50' : 'border-hacker-border'
         }`}
         onClick={() => !isInstalled && setSelectedServer(server)}
       >
         <div className="flex items-start gap-3">
-          <div className="p-2 bg-gray-700 rounded-lg text-blue-400">
+          <div className="p-2 bg-hacker-surface rounded-lg text-hacker-cyan border border-hacker-border">
             {CATEGORY_ICONS[server.category] || CATEGORY_ICONS.developer}
           </div>
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="font-medium text-gray-200">{server.name}</h3>
+              <h3 className="font-medium text-hacker-text">{server.name}</h3>
               {isInstalled && (
-                <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">
+                <span className="px-2 py-0.5 bg-hacker-green/20 text-hacker-green text-xs rounded-full border border-hacker-green/30">
                   Installed
                 </span>
               )}
             </div>
-            <p className="text-sm text-gray-400 line-clamp-2 mt-1">{server.description}</p>
+            <p className="text-sm text-hacker-text-dim line-clamp-2 mt-1">{server.description}</p>
 
             <div className="flex items-center gap-2 mt-3">
-              <span className="text-xs text-gray-500">{server.author}</span>
-              <span className="text-gray-600">|</span>
-              <span className="text-xs px-1.5 py-0.5 bg-gray-700 text-gray-400 rounded">
+              <span className="text-xs text-hacker-text-dim">{server.author}</span>
+              <span className="text-hacker-border">|</span>
+              <span className="text-xs px-1.5 py-0.5 bg-hacker-surface text-hacker-cyan rounded border border-hacker-border">
                 {server.transport}
               </span>
             </div>
@@ -201,7 +203,7 @@ export default function MCPServerCatalog({ onInstall, onClose }) {
             {server.tags && (
               <div className="flex flex-wrap gap-1 mt-2">
                 {server.tags.slice(0, 4).map(tag => (
-                  <span key={tag} className="text-xs px-1.5 py-0.5 bg-gray-700/50 text-gray-500 rounded">
+                  <span key={tag} className="text-xs px-1.5 py-0.5 bg-hacker-surface/50 text-hacker-text-dim rounded border border-hacker-border/50">
                     {tag}
                   </span>
                 ))}
@@ -220,7 +222,7 @@ export default function MCPServerCatalog({ onInstall, onClose }) {
                 }
               }}
               disabled={isCurrentlyInstalling}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm rounded transition-colors flex items-center gap-1"
+              className="px-3 py-1.5 bg-hacker-green/20 hover:bg-hacker-green/30 disabled:opacity-50 text-hacker-green text-sm rounded transition-colors flex items-center gap-1 border border-hacker-green/30"
             >
               {isCurrentlyInstalling ? (
                 <>
@@ -248,15 +250,15 @@ export default function MCPServerCatalog({ onInstall, onClose }) {
   // Configuration modal
   const ConfigModal = ({ server, onClose: closeConfig }) => (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-lg max-h-[90vh] overflow-hidden">
-        <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+      <div className="bg-hacker-bg border border-hacker-border rounded-xl w-full max-w-lg max-h-[90vh] overflow-hidden">
+        <div className="p-4 border-b border-hacker-border flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-medium text-gray-200">Configure {server.name}</h3>
-            <p className="text-sm text-gray-400 mt-1">{server.description}</p>
+            <h3 className="text-lg font-medium text-hacker-green font-mono">Configure {server.name}</h3>
+            <p className="text-sm text-hacker-text-dim mt-1 font-mono">{server.description}</p>
           </div>
           <button
             onClick={closeConfig}
-            className="p-2 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-lg"
+            className="p-2 text-hacker-text-dim hover:text-hacker-green hover:bg-hacker-surface rounded-lg"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -267,9 +269,9 @@ export default function MCPServerCatalog({ onInstall, onClose }) {
         <div className="p-4 overflow-auto max-h-[60vh] space-y-4">
           {server.configurable?.map(field => (
             <div key={field.key}>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-hacker-text mb-1 font-mono">
                 {field.label}
-                {field.required && <span className="text-red-400 ml-1">*</span>}
+                {field.required && <span className="text-hacker-error ml-1">*</span>}
               </label>
               {field.type === 'array' ? (
                 <textarea
@@ -277,7 +279,7 @@ export default function MCPServerCatalog({ onInstall, onClose }) {
                   onChange={(e) => setConfigValues(prev => ({ ...prev, [field.key]: e.target.value }))}
                   placeholder={field.placeholder || 'One per line...'}
                   rows={3}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-hacker-surface border border-hacker-border rounded-lg text-hacker-text placeholder-hacker-text-dim focus:outline-none focus:border-hacker-green/50 font-mono"
                 />
               ) : (
                 <input
@@ -285,21 +287,21 @@ export default function MCPServerCatalog({ onInstall, onClose }) {
                   value={configValues[field.key] || ''}
                   onChange={(e) => setConfigValues(prev => ({ ...prev, [field.key]: e.target.value }))}
                   placeholder={field.placeholder}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-hacker-surface border border-hacker-border rounded-lg text-hacker-text placeholder-hacker-text-dim focus:outline-none focus:border-hacker-green/50 font-mono"
                 />
               )}
               {field.description && (
-                <p className="text-xs text-gray-500 mt-1">{field.description}</p>
+                <p className="text-xs text-hacker-text-dim mt-1 font-mono">{field.description}</p>
               )}
             </div>
           ))}
 
           {server.tools && (
-            <div className="pt-4 border-t border-gray-700">
-              <h4 className="text-sm font-medium text-gray-400 mb-2">Available Tools</h4>
+            <div className="pt-4 border-t border-hacker-border">
+              <h4 className="text-sm font-medium text-hacker-text-dim mb-2 font-mono">Available Tools</h4>
               <div className="flex flex-wrap gap-1">
                 {server.tools.map(tool => (
-                  <span key={tool} className="text-xs px-2 py-1 bg-gray-800 text-gray-400 rounded-full font-mono">
+                  <span key={tool} className="text-xs px-2 py-1 bg-hacker-surface text-hacker-cyan rounded-full font-mono border border-hacker-border">
                     {tool}
                   </span>
                 ))}
@@ -308,13 +310,13 @@ export default function MCPServerCatalog({ onInstall, onClose }) {
           )}
         </div>
 
-        <div className="p-4 border-t border-gray-700 flex items-center justify-between">
+        <div className="p-4 border-t border-hacker-border flex items-center justify-between bg-hacker-surface/50">
           {server.repository && (
             <a
               href={server.repository}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-blue-400 hover:text-blue-300"
+              className="text-sm text-hacker-cyan hover:text-hacker-cyan/80 font-mono"
             >
               View Repository
             </a>
@@ -322,14 +324,14 @@ export default function MCPServerCatalog({ onInstall, onClose }) {
           <div className="flex gap-2">
             <button
               onClick={closeConfig}
-              className="px-4 py-2 text-gray-400 hover:text-gray-200 transition-colors"
+              className="px-4 py-2 text-hacker-text-dim hover:text-hacker-text transition-colors border border-hacker-border rounded-lg font-mono"
             >
               Cancel
             </button>
             <button
               onClick={() => handleInstall(server)}
               disabled={installing === server.id}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-hacker-green/20 hover:bg-hacker-green/30 disabled:opacity-50 text-hacker-green rounded-lg transition-colors flex items-center gap-2 border border-hacker-green/30 font-mono"
             >
               {installing === server.id ? (
                 <>
@@ -352,7 +354,7 @@ export default function MCPServerCatalog({ onInstall, onClose }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-400 flex items-center gap-2">
+        <div className="text-hacker-text-dim flex items-center gap-2 font-mono">
           <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -364,18 +366,20 @@ export default function MCPServerCatalog({ onInstall, onClose }) {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-hacker-bg">
       {/* Header */}
-      <div className="p-4 border-b border-gray-700">
+      <div className="p-4 border-b border-hacker-border">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg font-medium text-gray-200">MCP Server Catalog</h2>
-            <p className="text-sm text-gray-400">{catalog.totalServers} pre-configured servers available</p>
+            <h2 className="text-lg font-medium text-hacker-green font-mono uppercase tracking-wider">
+              {'>'} MCP_SERVER_CATALOG
+            </h2>
+            <p className="text-sm text-hacker-text-dim font-mono">{catalog.totalServers} pre-configured servers available</p>
           </div>
           {onClose && (
             <button
               onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-lg"
+              className="p-2 text-hacker-text-dim hover:text-hacker-green hover:bg-hacker-surface rounded-lg"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -386,7 +390,7 @@ export default function MCPServerCatalog({ onInstall, onClose }) {
 
         {/* Search */}
         <div className="relative mb-4">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-hacker-text-dim" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
@@ -394,7 +398,7 @@ export default function MCPServerCatalog({ onInstall, onClose }) {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search servers..."
-            className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-10 pr-4 py-2 bg-hacker-surface border border-hacker-border rounded-lg text-hacker-text placeholder-hacker-text-dim focus:outline-none focus:border-hacker-green/50 font-mono"
           />
         </div>
 
@@ -402,10 +406,10 @@ export default function MCPServerCatalog({ onInstall, onClose }) {
         <div className="flex gap-2 overflow-x-auto pb-2">
           <button
             onClick={() => setSelectedCategory('all')}
-            className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
+            className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors font-mono ${
               selectedCategory === 'all'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+                ? 'bg-hacker-green/20 text-hacker-green border border-hacker-green/30'
+                : 'bg-hacker-surface text-hacker-text-dim border border-hacker-border hover:border-hacker-green/30'
             }`}
           >
             All ({catalog.totalServers})
@@ -414,10 +418,10 @@ export default function MCPServerCatalog({ onInstall, onClose }) {
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
-              className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors flex items-center gap-2 ${
+              className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors flex items-center gap-2 font-mono ${
                 selectedCategory === cat.id
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+                  ? 'bg-hacker-green/20 text-hacker-green border border-hacker-green/30'
+                  : 'bg-hacker-surface text-hacker-text-dim border border-hacker-border hover:border-hacker-green/30'
               }`}
             >
               {CATEGORY_ICONS[cat.id]}
@@ -429,12 +433,12 @@ export default function MCPServerCatalog({ onInstall, onClose }) {
 
       {/* Error message */}
       {error && (
-        <div className="mx-4 mt-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400 text-sm flex items-center gap-2">
+        <div className="mx-4 mt-4 p-3 bg-hacker-error/10 border border-hacker-error/50 rounded-lg text-hacker-error text-sm flex items-center gap-2 font-mono">
           <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           {error}
-          <button onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-300">
+          <button onClick={() => setError(null)} className="ml-auto text-hacker-error hover:text-hacker-error/80">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -445,7 +449,7 @@ export default function MCPServerCatalog({ onInstall, onClose }) {
       {/* Server grid */}
       <div className="flex-1 overflow-auto p-4">
         {filteredServers.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500">
+          <div className="flex flex-col items-center justify-center h-full text-hacker-text-dim font-mono">
             <svg className="w-12 h-12 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -453,7 +457,7 @@ export default function MCPServerCatalog({ onInstall, onClose }) {
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="mt-2 text-blue-400 hover:text-blue-300 text-sm"
+                className="mt-2 text-hacker-cyan hover:text-hacker-cyan/80 text-sm"
               >
                 Clear search
               </button>

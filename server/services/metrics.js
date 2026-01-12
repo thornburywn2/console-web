@@ -5,6 +5,7 @@
 
 import os from 'os';
 import { execSync } from 'child_process';
+import { readFileSync } from 'fs';
 
 export class MetricsCollector {
   constructor(prisma, options = {}) {
@@ -13,6 +14,7 @@ export class MetricsCollector {
     this.retentionDays = options.retentionDays || 7;
     this.timer = null;
     this.isRunning = false;
+    this.prevCpuStats = null; // Store previous CPU stats for delta calculation
   }
 
   /**
@@ -53,8 +55,43 @@ export class MetricsCollector {
     const usedMem = totalMem - freeMem;
     const loadAvg = os.loadavg();
 
-    // CPU usage approximation from load average
-    const cpuUsage = Math.min(100, (loadAvg[0] / cpus.length) * 100);
+    // CPU usage using delta calculation from /proc/stat
+    let cpuUsage = 0;
+    try {
+      // Read CPU stats from /proc/stat
+      const stat = readFileSync('/proc/stat', 'utf-8');
+      const cpuLine = stat.split('\n')[0]; // "cpu  user nice system idle iowait irq softirq"
+      const parts = cpuLine.split(/\s+/).slice(1).map(Number);
+      const idle = parts[3] + (parts[4] || 0); // idle + iowait
+      const total = parts.reduce((a, b) => a + b, 0);
+
+      // Calculate CPU usage from delta between readings
+      if (this.prevCpuStats) {
+        const deltaIdle = idle - this.prevCpuStats.idle;
+        const deltaTotal = total - this.prevCpuStats.total;
+        if (deltaTotal > 0) {
+          const deltaBusy = deltaTotal - deltaIdle;
+          cpuUsage = (deltaBusy / deltaTotal) * 100;
+        }
+      } else {
+        // First reading - use load average as approximation
+        cpuUsage = Math.min(100, (loadAvg[0] / cpus.length) * 100);
+      }
+
+      // Store current stats for next delta calculation
+      this.prevCpuStats = { idle, total };
+
+      // Clamp to valid range
+      cpuUsage = Math.max(0, Math.min(100, cpuUsage));
+
+      // If that gives unrealistic values, fall back to load average
+      if (isNaN(cpuUsage)) {
+        cpuUsage = Math.min(100, (loadAvg[0] / cpus.length) * 100);
+      }
+    } catch {
+      // Fall back to load average
+      cpuUsage = Math.min(100, (loadAvg[0] / cpus.length) * 100);
+    }
 
     // Memory percentage
     const memoryUsage = (usedMem / totalMem) * 100;

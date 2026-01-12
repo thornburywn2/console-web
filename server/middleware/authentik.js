@@ -15,10 +15,10 @@ import jwt from 'jsonwebtoken';
 import { Router } from 'express';
 
 // Authentik configuration from environment
-const AUTHENTIK_URL = process.env.AUTHENTIK_URL || 'https://auth.wbtlabs.com';
+const AUTHENTIK_URL = process.env.AUTHENTIK_URL || 'http://localhost:9000';
 const AUTHENTIK_CLIENT_ID = process.env.AUTHENTIK_CLIENT_ID || 'claude-manager';
 const AUTHENTIK_CLIENT_SECRET = process.env.AUTHENTIK_CLIENT_SECRET;
-const CLIENT_URL = process.env.CLIENT_URL || 'https://manage.wbtlabs.com';
+const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5275';
 
 // CRITICAL: Shared secret for proxy validation
 // This MUST be set in production and configured in Authentik proxy
@@ -247,9 +247,11 @@ export function authentikAuth(options = {}) {
     // Check authentication result
     if (!user) {
       if (required) {
+        // For Proxy Provider setup, redirect to the proxy's sign-in endpoint
+        // This triggers Authentik's built-in authentication flow
         return res.status(401).json({
           error: 'Authentication required',
-          loginUrl: `${AUTHENTIK_URL}/application/o/authorize/?client_id=${AUTHENTIK_CLIENT_ID}&redirect_uri=${encodeURIComponent(CLIENT_URL + '/auth/callback')}&response_type=code&scope=openid%20profile%20email`,
+          loginUrl: `${CLIENT_URL}/outpost.goauthentik.io/start?rd=${encodeURIComponent(CLIENT_URL + '/')}`,
         });
       }
       req.user = null;
@@ -341,9 +343,10 @@ export function getCurrentUser(req, res) {
       },
     });
   } else {
+    // For Proxy Provider setup, use the proxy's sign-in endpoint
     res.json({
       authenticated: false,
-      loginUrl: `${AUTHENTIK_URL}/application/o/authorize/?client_id=${AUTHENTIK_CLIENT_ID}&redirect_uri=${encodeURIComponent(CLIENT_URL + '/auth/callback')}&response_type=code&scope=openid%20profile%20email`,
+      loginUrl: `${CLIENT_URL}/outpost.goauthentik.io/start?rd=${encodeURIComponent(CLIENT_URL + '/')}`,
     });
   }
 }
@@ -358,7 +361,8 @@ export function createAuthRouter() {
   router.get('/logout', handleLogout);
   router.get('/me', authentikAuth({ required: false }), getCurrentUser);
   router.get('/login', (req, res) => {
-    const loginUrl = `${AUTHENTIK_URL}/application/o/authorize/?client_id=${AUTHENTIK_CLIENT_ID}&redirect_uri=${encodeURIComponent(CLIENT_URL + '/auth/callback')}&response_type=code&scope=openid%20profile%20email`;
+    // For Proxy Provider setup, redirect to the proxy's sign-in endpoint
+    const loginUrl = `${CLIENT_URL}/outpost.goauthentik.io/start?rd=${encodeURIComponent(CLIENT_URL + '/')}`;
     res.redirect(loginUrl);
   });
 

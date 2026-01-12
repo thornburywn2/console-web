@@ -197,6 +197,15 @@ export default function DependencyDashboard({ projectPath, isOpen, onClose, embe
 
   if (!isOpen && !embedded) return null;
 
+  // Show message when no project is selected
+  if (!projectPath && embedded) {
+    return (
+      <div className="text-center py-8 text-muted">
+        <p className="text-sm">Select a project from the sidebar to view dependencies</p>
+      </div>
+    );
+  }
+
   // Embedded content for inline use
   const embeddedContent = (
     <div className="space-y-4">

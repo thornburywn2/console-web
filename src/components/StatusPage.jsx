@@ -202,7 +202,7 @@ export default function StatusPage({ isPublic = false }) {
       <div className="max-w-3xl mx-auto p-6 space-y-8">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-primary mb-2">Command Portal Status</h1>
+          <h1 className="text-3xl font-bold text-primary mb-2">Console.web Status</h1>
           <p className="text-muted">Real-time system status and incident reports</p>
         </div>
 

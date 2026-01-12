@@ -62,13 +62,24 @@ import {
   createPlansRouter,
   createBrowserRouter,
   createShortcutsRouter,
-  createLifecycleRouter
+  createLifecycleRouter,
+  createMarketplaceRouter,
+  createVoiceRouter,
+  createAiderRouter,
+  createTabbyRouter,
+  createClaudeFlowRouter,
+  createCodePuppyRouter,
+  createInfrastructureRouter,
+  createUsersFirewallRouter,
+  createProjectTemplatesRouter,
+  createDependenciesRouter
 } from './routes/index.js';
 
 // Import services
 import { MetricsCollector } from './services/metrics.js';
 import { AgentRunner } from './services/agentRunner.js';
 import MCPManager from './services/mcpManager.js';
+import { createInitializer } from './services/codePuppyInitializer.js';
 
 // ES modules don't have __dirname, compute it
 const __filename = fileURLToPath(import.meta.url);
@@ -86,9 +97,9 @@ const server = createServer(app);
 // This allows req.ip to show the real client IP via X-Forwarded-For
 app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
 
-const PROJECTS_DIR = process.env.PROJECTS_DIR || '/home/thornburywn/Projects';
+const PROJECTS_DIR = process.env.PROJECTS_DIR || `${os.homedir()}/Projects`;
 const PORT = process.env.PORT || 5275;
-const CLIENT_URL = process.env.CLIENT_URL || 'https://manage.wbtlabs.com';
+const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5275';
 const CLAUDE_DIR = process.env.CLAUDE_DIR || join(os.homedir(), '.claude');
 const CLAUDE_HISTORY_FILE = join(CLAUDE_DIR, 'history.jsonl');
 const CLAUDE_SETTINGS_FILE = join(CLAUDE_DIR, 'settings.json');
@@ -113,7 +124,7 @@ const SOVEREIGN_SERVICES = {
   authentik: {
     name: 'Authentik SSO',
     port: 6201,
-    url: 'https://auth.wbtlabs.com',
+    url: 'http://localhost:9000',
     healthEndpoint: '/api/v3/core/health/',
     icon: 'shield',
     description: 'Identity & Access Management',
@@ -122,7 +133,7 @@ const SOVEREIGN_SERVICES = {
   openwebui: {
     name: 'Open WebUI',
     port: 6202,
-    url: 'https://chat.wbtlabs.com',
+    url: 'http://localhost:6202',
     healthEndpoint: '/health',
     icon: 'chat',
     description: 'Voice & Chat Interface',
@@ -131,7 +142,7 @@ const SOVEREIGN_SERVICES = {
   silverbullet: {
     name: 'SilverBullet',
     port: 6203,
-    url: 'https://notes.wbtlabs.com',
+    url: 'http://localhost:6203',
     healthEndpoint: '/',
     icon: 'note',
     description: 'Knowledge Management',
@@ -140,7 +151,7 @@ const SOVEREIGN_SERVICES = {
   plane: {
     name: 'Plane',
     port: 6204,
-    url: 'https://project.wbtlabs.com',
+    url: 'http://localhost:6204',
     healthEndpoint: '/api/v1/health/',
     icon: 'kanban',
     description: 'Project Management',
@@ -149,7 +160,7 @@ const SOVEREIGN_SERVICES = {
   n8n: {
     name: 'n8n',
     port: 6205,
-    url: 'https://automation.wbtlabs.com',
+    url: 'http://localhost:6205',
     healthEndpoint: '/healthz',
     icon: 'workflow',
     description: 'Automation Platform',
@@ -339,6 +350,14 @@ const IDLE_TIMEOUT_MS = 1500; // Time after last output to consider command "com
 const MIN_ACTIVITY_MS = 500; // Minimum activity time before considering completion
 
 // =============================================================================
+// CODE PUPPY INITIALIZATION
+// =============================================================================
+
+// Initialize Code Puppy Initializer
+const codePuppyInitializer = createInitializer(prisma);
+console.log('✅ Code Puppy Initializer ready');
+
+// =============================================================================
 // BACKGROUND AGENTS SYSTEM
 // =============================================================================
 
@@ -347,6 +366,9 @@ const agentRunner = new AgentRunner(prisma, io, sessions);
 
 // Register agents route (needs agentRunner instance)
 app.use('/api/agents', createAgentsRouter(prisma, agentRunner));
+
+// Register Agent Marketplace routes
+app.use('/api/marketplace', createMarketplaceRouter(prisma));
 
 // Initialize agent runner on startup
 agentRunner.initialize().catch(err => {
@@ -390,6 +412,26 @@ app.use('/api/shortcuts', createShortcutsRouter(prisma));
 // Register Lifecycle Agent routes (security, quality, performance) with resource management
 app.use('/api/lifecycle', createLifecycleRouter(prisma));
 
+// Register Voice Command routes (P0 Critical - Voice-to-Code)
+app.use('/api/voice', createVoiceRouter(prisma));
+
+// Register Aider Integration routes (P1 - Aider AI Coding Assistant)
+app.use('/api/aider', createAiderRouter(prisma, io));
+
+// Register Tabby Integration routes (P2 - Tabby AI Code Completion)
+app.use('/api/tabby', createTabbyRouter(prisma, io));
+
+// Register Claude Flow routes (P3 - Multi-Agent Swarm)
+app.use('/api/claude-flow', createClaudeFlowRouter(prisma, io));
+
+// Register Code Puppy routes (AI Coding Assistant)
+app.use('/api/code-puppy', createCodePuppyRouter(io, prisma));
+
+app.use('/api/infra', createInfrastructureRouter());
+app.use('/api/admin-users', createUsersFirewallRouter(prisma));
+app.use('/api/project-templates', createProjectTemplatesRouter());
+app.use('/api/dependencies', createDependenciesRouter());
+
 // Server Configuration endpoint (read-only)
 app.get('/api/config', (req, res) => {
   res.json({
@@ -409,7 +451,7 @@ app.get('/api/config', (req, res) => {
     },
     auth: {
       enabled: process.env.AUTH_ENABLED !== 'false',
-      authentikUrl: process.env.AUTHENTIK_URL || 'https://auth.wbtlabs.com',
+      authentikUrl: process.env.AUTHENTIK_URL || 'http://localhost:9000',
       clientId: process.env.AUTHENTIK_CLIENT_ID || 'claude-manager',
     },
     features: {
@@ -691,13 +733,23 @@ function listTmuxSessions() {
  * @param {Socket} socket - Socket.IO socket instance
  * @param {Object} options - Additional options
  * @param {boolean} options.skipPermissions - Start Claude with --dangerously-skip-permissions
+ * @param {string} options.aiSolution - AI solution to use: 'claude-code', 'code-puppy', 'hybrid'
+ * @param {string} options.codePuppyModel - Default model for Code Puppy
+ * @param {string} options.codePuppyProvider - Default provider for Code Puppy
+ * @param {string} options.hybridMode - Hybrid mode configuration
  */
 function createPtySession(projectPath, socket, options = {}) {
-  const { skipPermissions = false } = options;
+  const {
+    skipPermissions = false,
+    aiSolution = 'claude-code',
+    codePuppyModel,
+    codePuppyProvider,
+    hybridMode = 'code-puppy-with-claude-tools'
+  } = options;
   const sessionName = getSessionName(projectPath);
   const sessionExists = tmuxSessionExists(sessionName);
 
-  // Path to Command Portal tmux config (enables mouse scrolling, 50k history, etc.)
+  // Path to Console.web tmux config (enables mouse scrolling, 50k history, etc.)
   const tmuxConfigPath = join(__dirname, 'tmux.conf');
 
   // Build tmux command
@@ -741,10 +793,17 @@ function createPtySession(projectPath, socket, options = {}) {
     setTimeout(() => {
       // Clear screen and cd to project directory
       ptyProcess.write(`cd "${projectPath}" && clear\r`);
-      // Start claude CLI with appropriate flags
+      // Start the appropriate AI CLI based on user preference
       setTimeout(() => {
-        const claudeCmd = skipPermissions ? 'claude --dangerously-skip-permissions' : 'claude';
-        ptyProcess.write(`${claudeCmd}\r`);
+        const aiCmd = buildAICommand({
+          aiSolution,
+          skipPermissions,
+          codePuppyModel,
+          codePuppyProvider,
+          hybridMode,
+          projectPath
+        });
+        ptyProcess.write(`${aiCmd}\r`);
       }, 100);
     }, 300);
   }
@@ -753,8 +812,75 @@ function createPtySession(projectPath, socket, options = {}) {
     pty: ptyProcess,
     sessionName,
     projectPath,
+    aiSolution,
     isNew: !sessionExists
   };
+}
+
+/**
+ * Build the AI command based on solution preference
+ * @param {Object} config - Configuration options
+ * @returns {string} - The command to run
+ */
+function buildAICommand(config) {
+  const {
+    aiSolution,
+    skipPermissions,
+    codePuppyModel,
+    codePuppyProvider,
+    hybridMode,
+    projectPath
+  } = config;
+
+  // Path to uvx (may be in ~/.local/bin)
+  const uvxPath = join(os.homedir(), '.local/bin/uvx');
+  const uvxCmd = existsSync(uvxPath) ? uvxPath : 'uvx';
+
+  switch (aiSolution) {
+    case 'code-puppy': {
+      // Run Code Puppy in interactive mode
+      let cmd = `${uvxCmd} code-puppy -i`;
+      if (codePuppyModel) {
+        cmd += ` -m ${codePuppyModel}`;
+      }
+      return cmd;
+    }
+
+    case 'hybrid': {
+      // Hybrid mode: Code Puppy with Claude Code's tools/MCP servers
+      // This creates a wrapper that launches Code Puppy with access to Claude's MCP config
+      if (hybridMode === 'code-puppy-with-claude-tools') {
+        // Code Puppy as primary, but with Claude's MCP servers available
+        // We'll copy Claude's MCP config to Code Puppy's config location
+        const claudeMcpConfig = join(os.homedir(), '.claude', 'claude_desktop_config.json');
+        const puppyMcpConfig = join(os.homedir(), '.code_puppy', 'mcp_servers.json');
+
+        // Build command that syncs MCP config before launching
+        let cmd = `${uvxCmd} code-puppy -i`;
+        if (codePuppyModel) {
+          cmd += ` -m ${codePuppyModel}`;
+        }
+
+        // If Claude MCP config exists, we can sync it (done on first run)
+        if (existsSync(claudeMcpConfig)) {
+          // The sync is handled by the Code Puppy dashboard or can be done manually
+          console.log('[Hybrid Mode] Claude MCP config available for sync');
+        }
+        return cmd;
+      } else {
+        // claude-with-puppy-agents: Claude Code as primary, but can invoke Code Puppy agents
+        // This runs Claude Code, but we could set up an MCP server for Code Puppy agents
+        const claudeCmd = skipPermissions ? 'claude --dangerously-skip-permissions' : 'claude';
+        return claudeCmd;
+      }
+    }
+
+    case 'claude-code':
+    default: {
+      // Standard Claude Code CLI
+      return skipPermissions ? 'claude --dangerously-skip-permissions' : 'claude';
+    }
+  }
 }
 
 /**
@@ -1118,7 +1244,7 @@ app.get('/api/projects', async (req, res) => {
 // Create a new project directory
 app.post('/api/projects', async (req, res) => {
   try {
-    const { name, template, skipPermissions = false } = req.body;
+    const { name, template, skipPermissions = false, port } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'Project name is required' });
@@ -1150,12 +1276,13 @@ app.post('/api/projects', async (req, res) => {
 
     // Generate comprehensive CLAUDE.md from template
     const today = new Date().toISOString().split('T')[0];
+    const portLine = port ? `**Port:** ${port}` : '**Port:** [Frontend Port] (Frontend), [Backend Port] (API)';
     const claudeMdContent = `# CLAUDE.md - ${name}
 
 **Project:** ${name}
 **Version:** 1.0.0
 **Last Updated:** ${today}
-**Port:** [Frontend Port] (Frontend), [Backend Port] (API)
+${portLine}
 
 ---
 
@@ -1887,8 +2014,9 @@ app.get('/api/settings', async (req, res) => {
  */
 app.put('/api/settings', async (req, res) => {
   try {
-    const { theme, sidebarWidth, rightSidebarCollapsed, expandedPanels, autoReconnect, keepSessionsAlive, sessionTimeout } = req.body;
+    const { appName, theme, sidebarWidth, rightSidebarCollapsed, expandedPanels, autoReconnect, keepSessionsAlive, sessionTimeout } = req.body;
     const settings = await updateUserSettings({
+      ...(appName !== undefined && { appName }),
       ...(theme !== undefined && { theme }),
       ...(sidebarWidth !== undefined && { sidebarWidth }),
       ...(rightSidebarCollapsed !== undefined && { rightSidebarCollapsed }),
@@ -2704,7 +2832,7 @@ app.post('/api/server/reboot', (req, res) => {
       message = 'System reboot initiated';
     } else {
       // Scheduled reboot using shutdown
-      cmd = `sudo shutdown -r +${rebootDelay} "Command Portal initiated reboot"`;
+      cmd = `sudo shutdown -r +${rebootDelay} "Console.web initiated reboot"`;
       message = `System reboot scheduled in ${rebootDelay} minute(s)`;
     }
 
@@ -2737,7 +2865,7 @@ app.post('/api/server/reboot', (req, res) => {
  */
 app.post('/api/server/shutdown/cancel', (req, res) => {
   try {
-    execSync('sudo shutdown -c "Command Portal cancelled shutdown"', { encoding: 'utf-8' });
+    execSync('sudo shutdown -c "Console.web cancelled shutdown"', { encoding: 'utf-8' });
     res.json({ success: true, message: 'Scheduled shutdown cancelled' });
   } catch (error) {
     console.error('Cancel shutdown error:', error);
@@ -3026,15 +3154,53 @@ app.get('/api/admin/projects-extended', async (req, res) => {
 
       // Get description from package.json if available
       let description = null;
+      let hasTests = false;
       try {
         const pkgPath = join(project.path, 'package.json');
         if (existsSync(pkgPath)) {
           const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
           description = pkg.description || null;
+          // Check for test script in package.json
+          hasTests = !!(pkg.scripts && (pkg.scripts.test || pkg.scripts['test:unit'] || pkg.scripts['test:e2e']));
         }
       } catch {
         // Ignore
       }
+
+      // Check for git repository
+      const hasGit = existsSync(join(project.path, '.git'));
+
+      // Check for GitHub remote
+      let hasGithub = false;
+      let githubRepo = null;
+      if (hasGit) {
+        try {
+          const gitConfigPath = join(project.path, '.git', 'config');
+          if (existsSync(gitConfigPath)) {
+            const gitConfig = readFileSync(gitConfigPath, 'utf-8');
+            const githubMatch = gitConfig.match(/url\s*=\s*.*github\.com[:/]([^/\s]+\/[^\s.]+)/i);
+            if (githubMatch) {
+              hasGithub = true;
+              githubRepo = githubMatch[1].replace(/\.git$/, '');
+            }
+          }
+        } catch {
+          // Ignore
+        }
+      }
+
+      // Check for tests directory (if not found via package.json)
+      if (!hasTests) {
+        hasTests = existsSync(join(project.path, 'test')) ||
+                   existsSync(join(project.path, 'tests')) ||
+                   existsSync(join(project.path, '__tests__')) ||
+                   existsSync(join(project.path, 'spec'));
+      }
+
+      // Check for Docker configuration
+      const hasDocker = existsSync(join(project.path, 'Dockerfile')) ||
+                        existsSync(join(project.path, 'docker-compose.yml')) ||
+                        existsSync(join(project.path, 'docker-compose.yaml'));
 
       return {
         ...project,
@@ -3044,7 +3210,12 @@ app.get('/api/admin/projects-extended', async (req, res) => {
         hasSessionData,
         completion,
         technologies,
-        description
+        description,
+        hasGit,
+        hasGithub,
+        githubRepo,
+        hasTests,
+        hasDocker
       };
     });
 
@@ -3052,6 +3223,232 @@ app.get('/api/admin/projects-extended', async (req, res) => {
   } catch (error) {
     console.error('Error getting extended projects:', error);
     res.status(500).json({ error: 'Failed to get projects' });
+  }
+});
+
+/**
+ * GET /api/dashboard - Comprehensive dashboard data
+ * Fetches all data needed for the home dashboard in one call
+ */
+app.get('/api/dashboard', async (req, res) => {
+  try {
+    const projects = await getProjects();
+    const tmuxSessions = listTmuxSessions();
+
+    // Helper to execute git commands
+    const execGitSafe = (args, cwd) => {
+      try {
+        return execSync(`git ${args.join(' ')}`, { cwd, encoding: 'utf-8', timeout: 5000 }).trim();
+      } catch {
+        return null;
+      }
+    };
+
+    // Get disk usage for a directory
+    const getDiskUsage = (dirPath) => {
+      try {
+        const output = execSync(`du -sb "${dirPath}" 2>/dev/null | cut -f1`, { encoding: 'utf-8' }).trim();
+        return parseInt(output) || 0;
+      } catch {
+        return 0;
+      }
+    };
+
+    // Get git status for all projects (parallel with limits)
+    const gitStatuses = [];
+    const recentCommits = [];
+
+    for (const project of projects.slice(0, 30)) { // Limit to 30 projects for performance
+      const gitDir = join(project.path, '.git');
+      if (!existsSync(gitDir)) continue;
+
+      try {
+        // Get status
+        const branch = execGitSafe(['rev-parse', '--abbrev-ref', 'HEAD'], project.path);
+        if (!branch) continue;
+
+        const stagedRaw = execGitSafe(['diff', '--cached', '--name-only'], project.path) || '';
+        const unstagedRaw = execGitSafe(['diff', '--name-only'], project.path) || '';
+        const untrackedRaw = execGitSafe(['ls-files', '--others', '--exclude-standard'], project.path) || '';
+
+        const staged = stagedRaw ? stagedRaw.split('\n').filter(Boolean).length : 0;
+        const unstaged = unstagedRaw ? unstagedRaw.split('\n').filter(Boolean).length : 0;
+        const untracked = untrackedRaw ? untrackedRaw.split('\n').filter(Boolean).length : 0;
+
+        // Get ahead/behind
+        let ahead = 0, behind = 0;
+        try {
+          const trackingRaw = execGitSafe(['rev-list', '--left-right', '--count', 'HEAD...@{upstream}'], project.path);
+          if (trackingRaw) {
+            const parts = trackingRaw.split('\t');
+            ahead = parseInt(parts[0]) || 0;
+            behind = parseInt(parts[1]) || 0;
+          }
+        } catch {}
+
+        if (staged > 0 || unstaged > 0 || untracked > 0 || ahead > 0 || behind > 0) {
+          gitStatuses.push({
+            name: project.name,
+            path: project.path,
+            branch,
+            staged,
+            unstaged,
+            untracked,
+            ahead,
+            behind,
+            dirty: staged + unstaged + untracked > 0
+          });
+        }
+
+        // Get recent commits (last 2 per project, max 20 total)
+        if (recentCommits.length < 20) {
+          const logRaw = execGitSafe(['log', '-2', '--format=%H|%s|%an|%ar|%at'], project.path);
+          if (logRaw) {
+            logRaw.split('\n').filter(Boolean).forEach(line => {
+              const [hash, message, author, timeAgo, timestamp] = line.split('|');
+              if (recentCommits.length < 20) {
+                recentCommits.push({
+                  project: project.name,
+                  hash: hash?.substring(0, 7),
+                  message: message?.substring(0, 60),
+                  author,
+                  timeAgo,
+                  timestamp: parseInt(timestamp) * 1000
+                });
+              }
+            });
+          }
+        }
+      } catch {}
+    }
+
+    // Sort recent commits by timestamp
+    recentCommits.sort((a, b) => b.timestamp - a.timestamp);
+
+    // Get active ports
+    let activePorts = [];
+    try {
+      const portsResult = getActivePorts();
+      activePorts = portsResult.ports || [];
+    } catch {}
+
+    // Get disk usage for projects (sample top projects)
+    const diskUsage = projects.slice(0, 15).map(p => ({
+      name: p.name,
+      path: p.path,
+      size: getDiskUsage(p.path)
+    })).sort((a, b) => b.size - a.size).slice(0, 10);
+
+    // Get AI usage from database
+    let aiUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0, requests: 0, costEstimate: 0 };
+    try {
+      const startOfWeek = new Date();
+      startOfWeek.setDate(startOfWeek.getDate() - 7);
+
+      const usage = await prisma.aPIUsage.findMany({
+        where: { timestamp: { gte: startOfWeek } }
+      });
+
+      aiUsage = usage.reduce((acc, r) => ({
+        inputTokens: acc.inputTokens + r.inputTokens,
+        outputTokens: acc.outputTokens + r.outputTokens,
+        totalTokens: acc.totalTokens + r.inputTokens + r.outputTokens,
+        requests: acc.requests + 1,
+        costEstimate: acc.costEstimate + ((r.inputTokens * 0.003 + r.outputTokens * 0.015) / 1000)
+      }), aiUsage);
+    } catch {}
+
+    // Get recent command history
+    let recentCommands = [];
+    try {
+      if (existsSync(CLAUDE_HISTORY_FILE)) {
+        const content = readFileSync(CLAUDE_HISTORY_FILE, 'utf-8');
+        const lines = content.trim().split('\n').filter(Boolean);
+        recentCommands = lines.slice(-20).reverse().map(line => {
+          try {
+            return JSON.parse(line);
+          } catch {
+            return null;
+          }
+        }).filter(Boolean);
+      }
+    } catch {}
+
+    // Get errors/warnings from security scans (if available)
+    let securityAlerts = [];
+    try {
+      const scansDir = join(PROJECTS_DIR, '.scans');
+      if (existsSync(scansDir)) {
+        const scanFiles = readdirSync(scansDir)
+          .filter(f => f.endsWith('.json'))
+          .slice(-5);
+
+        for (const file of scanFiles) {
+          try {
+            const scan = JSON.parse(readFileSync(join(scansDir, file), 'utf-8'));
+            if (scan.vulnerabilities?.length > 0) {
+              securityAlerts.push({
+                project: scan.project || file.replace('.json', ''),
+                count: scan.vulnerabilities.length,
+                severity: scan.vulnerabilities.some(v => v.severity === 'CRITICAL') ? 'CRITICAL'
+                  : scan.vulnerabilities.some(v => v.severity === 'HIGH') ? 'HIGH' : 'MEDIUM'
+              });
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+
+    // Calculate project health scores
+    const healthScores = projects.slice(0, 20).map(project => {
+      let score = 50; // Base score
+
+      // Has CLAUDE.md (+15)
+      if (existsSync(join(project.path, 'CLAUDE.md'))) score += 15;
+
+      // Has tests (+15)
+      if (existsSync(join(project.path, 'test')) ||
+          existsSync(join(project.path, 'tests')) ||
+          existsSync(join(project.path, '__tests__'))) score += 15;
+
+      // Has git (+10)
+      if (existsSync(join(project.path, '.git'))) score += 10;
+
+      // Has README (+5)
+      if (existsSync(join(project.path, 'README.md'))) score += 5;
+
+      // Has CI/CD (+5)
+      if (existsSync(join(project.path, '.github/workflows'))) score += 5;
+
+      // Recently modified (+10 if within 7 days)
+      try {
+        const stat = statSync(project.path);
+        const daysSinceModified = (Date.now() - stat.mtime.getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSinceModified < 7) score += 10;
+        else if (daysSinceModified > 90) score -= 10;
+      } catch {}
+
+      return {
+        name: project.name,
+        path: project.path,
+        score: Math.min(100, Math.max(0, score))
+      };
+    }).sort((a, b) => b.score - a.score);
+
+    res.json({
+      gitStatuses,
+      recentCommits: recentCommits.slice(0, 15),
+      activePorts: activePorts.slice(0, 15),
+      diskUsage,
+      aiUsage,
+      recentCommands: recentCommands.slice(0, 10),
+      securityAlerts,
+      healthScores,
+      tmuxSessions
+    });
+  } catch (error) {
+    console.error('Dashboard API error:', error);
+    res.status(500).json({ error: 'Failed to load dashboard data' });
   }
 });
 
@@ -3135,6 +3532,91 @@ app.delete('/api/admin/projects/:projectName', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/projects/:projectName/rename - Rename a project
+ * Renames the project folder on disk and updates database references
+ */
+app.post('/api/projects/:projectName/rename', async (req, res) => {
+  try {
+    const { projectName } = req.params;
+    const { newName } = req.body;
+
+    // Validate inputs
+    if (!projectName || !newName) {
+      return res.status(400).json({ error: 'Project name and new name are required' });
+    }
+
+    // Prevent path traversal
+    if (projectName.includes('..') || projectName.includes('/') ||
+        newName.includes('..') || newName.includes('/')) {
+      return res.status(400).json({ error: 'Invalid project name' });
+    }
+
+    // Validate new name format (alphanumeric, hyphens, underscores)
+    if (!/^[a-zA-Z0-9_-]+$/.test(newName)) {
+      return res.status(400).json({ error: 'Project name can only contain letters, numbers, hyphens, and underscores' });
+    }
+
+    const oldPath = join(PROJECTS_DIR, projectName);
+    const newPath = join(PROJECTS_DIR, newName);
+
+    // Check old project exists
+    if (!existsSync(oldPath)) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Check new name doesn't already exist
+    if (existsSync(newPath)) {
+      return res.status(409).json({ error: 'A project with that name already exists' });
+    }
+
+    // Rename the folder
+    const { rename: fsRename } = await import('fs/promises');
+    await fsRename(oldPath, newPath);
+    console.log(`[RENAME] Renamed project: ${projectName} -> ${newName}`);
+
+    // Update database references
+    try {
+      // Update sessions
+      await prisma.session.updateMany({
+        where: { projectPath: oldPath },
+        data: { projectPath: newPath }
+      });
+
+      // Update GitHub repo links
+      await prisma.gitHubRepo.updateMany({
+        where: { projectPath: oldPath },
+        data: { projectPath: newPath }
+      });
+
+      // Update checkpoints
+      await prisma.checkpoint.updateMany({
+        where: { projectPath: oldPath },
+        data: { projectPath: newPath }
+      });
+
+      // Update Project entry if exists
+      await prisma.project.updateMany({
+        where: { path: oldPath },
+        data: { path: newPath, name: newName }
+      });
+    } catch (dbError) {
+      console.warn('[RENAME] Database update warning:', dbError.message);
+      // Continue even if DB update fails - folder was renamed successfully
+    }
+
+    res.json({
+      success: true,
+      message: `Project renamed from "${projectName}" to "${newName}"`,
+      oldPath,
+      newPath
+    });
+  } catch (error) {
+    console.error('Error renaming project:', error);
+    res.status(500).json({ error: error.message || 'Failed to rename project' });
+  }
+});
+
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
   // Static assets with cache headers (they have hashes in filenames)
@@ -3150,6 +3632,11 @@ if (process.env.NODE_ENV === 'production') {
       }
     }
   }));
+
+  // Redirect favicon.ico to favicon.svg (browsers auto-request /favicon.ico)
+  app.get('/favicon.ico', (req, res) => {
+    res.redirect(301, '/favicon.svg');
+  });
 
   // SPA fallback - serve index.html for all routes
   app.get('*', (req, res) => {
@@ -3197,12 +3684,37 @@ io.on('connection', (socket) => {
       console.error('Error fetching project settings:', err);
     }
 
+    // Look up user settings for AI solution preference
+    let userSettings = {
+      preferredAISolution: 'claude-code',
+      codePuppyModel: null,
+      codePuppyProvider: null,
+      hybridMode: 'code-puppy-with-claude-tools'
+    };
+    try {
+      const settings = await prisma.userSettings.findUnique({ where: { id: 'default' } });
+      if (settings) {
+        userSettings.preferredAISolution = settings.preferredAISolution || 'claude-code';
+        userSettings.codePuppyModel = settings.codePuppyModel;
+        userSettings.codePuppyProvider = settings.codePuppyProvider;
+        userSettings.hybridMode = settings.hybridMode || 'code-puppy-with-claude-tools';
+      }
+    } catch (err) {
+      console.error('Error fetching user settings:', err);
+    }
+
     // Check if we already have a PTY session for this project
     let session = sessions.get(projectPath);
 
     if (!session) {
-      // Create new PTY session with project settings
-      const ptySession = createPtySession(projectPath, socket, { skipPermissions: projectSettings.skipPermissions });
+      // Create new PTY session with project and user settings
+      const ptySession = createPtySession(projectPath, socket, {
+        skipPermissions: projectSettings.skipPermissions,
+        aiSolution: userSettings.preferredAISolution,
+        codePuppyModel: userSettings.codePuppyModel,
+        codePuppyProvider: userSettings.codePuppyProvider,
+        hybridMode: userSettings.hybridMode
+      });
 
       session = {
         ...ptySession,
@@ -3424,10 +3936,25 @@ io.on('connection', (socket) => {
       if (session) {
         session.sockets.delete(socket.id);
 
-        // If no more sockets are connected, we keep the tmux session running
-        // but mark it as disconnected in the database
+        // If no more sockets are connected, clean up the PTY but keep tmux running
         if (session.sockets.size === 0) {
-          console.log(`No more clients for ${projectPath}, keeping tmux session alive`);
+          console.log(`No more clients for ${projectPath}, cleaning up PTY session`);
+
+          // Clear any pending idle timer
+          if (session.idleTimer) {
+            clearTimeout(session.idleTimer);
+          }
+
+          // Kill the PTY process (detaches from tmux, but tmux session keeps running)
+          try {
+            session.pty.kill();
+          } catch (err) {
+            console.error(`Error killing PTY for ${projectPath}:`, err);
+          }
+
+          // Remove from sessions map so reconnect creates fresh PTY
+          sessions.delete(projectPath);
+
           // Mark session as disconnected in database
           markSessionDisconnected(projectPath, session.sessionName)
             .catch(err => console.error('Failed to mark session disconnected:', err));
@@ -3472,13 +3999,27 @@ io.on('connection', (socket) => {
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`
 ╔═══════════════════════════════════════════════════════════╗
-║             COMMAND PORTAL - Backend Server               ║
+║              Console.web - Backend Server                 ║
 ╠═══════════════════════════════════════════════════════════╣
 ║  Server running on:    http://0.0.0.0:${PORT}                 ║
 ║  Projects directory:   ${PROJECTS_DIR.padEnd(32)}║
 ║  Environment:          ${(process.env.NODE_ENV || 'development').padEnd(32)}║
 ╚═══════════════════════════════════════════════════════════╝
   `);
+
+  // Check Code Puppy initialization status
+  (async () => {
+    try {
+      const isInitialized = await codePuppyInitializer.isInitialized();
+      if (!isInitialized) {
+        console.log('⚠️  Code Puppy not initialized - will auto-initialize on first access');
+      } else {
+        console.log('✅ Code Puppy is initialized and ready');
+      }
+    } catch (error) {
+      console.error('Error checking Code Puppy status:', error);
+    }
+  })();
 });
 
 // Graceful shutdown

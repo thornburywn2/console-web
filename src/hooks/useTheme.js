@@ -15,7 +15,7 @@ export const THEMES = [
   { id: 'light', name: 'Light', description: 'Clean off-white theme for bright environments' },
 ];
 
-const THEME_STORAGE_KEY = 'ccm-theme';
+const THEME_STORAGE_KEY = 'cw-theme';
 const DEFAULT_THEME = 'dark';
 
 /**

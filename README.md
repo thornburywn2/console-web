@@ -1,31 +1,51 @@
-# Claude Code Manager
+# Console.web
 
-A web-based GUI wrapper for the `claude-code` CLI with persistent tmux sessions. Manage multiple Claude coding sessions across your projects from a single interface.
+A comprehensive web-based management interface for Claude Code projects. Provides real-time terminal access, AI agent automation, GitHub integration, system monitoring, and project organization - your one-stop dashboard for managing development infrastructure.
 
 ## Features
 
 ### Core
 - **Project Sidebar**: Browse, search, and favorite projects from your configured directory
 - **Persistent Sessions**: Claude sessions run in tmux, surviving browser refreshes and disconnects
-- **Full Terminal Experience**: xterm.js provides complete terminal emulation (colors, spinners, vim keybindings)
+- **Full Terminal Experience**: xterm.js with complete terminal emulation (colors, spinners, vim keybindings)
 - **Multi-Session Support**: Switch between active Claude sessions without losing context
-- **Dark Mode**: Native dark theme optimized for terminal work
+- **11 Themes**: Glassmorphism themes including dark mode, ocean, sepia, and more
+
+### Admin Dashboard (v1.0.0)
+- **6 Main Tabs**: PROJECTS, INFRASTRUCTURE, AGENTS, MCP, SECURITY, HISTORY
+- **INFRASTRUCTURE**: Server services, Docker containers, Sovereign Stack health (with sub-tabs)
+- **DEVELOPMENT**: API Tester, Git Workflow, File Browser, Database Browser, Log Viewer
+- **AGENTS**: Custom agents + Marketplace with 13+ pre-built automation agents (with sub-tabs)
+
+### AI Agents
+- **Agent Marketplace**: Browse and install from 13+ pre-built automation agents
+- **Agent Categories**: Code Quality, Git Workflow, Security, Testing, Documentation, DevOps, Productivity
+- **One-Click Install**: Configure trigger type, project scope, and settings before installation
+- **Custom Agents**: Build your own agents with shell commands, API calls, or MCP tools
+
+### GitHub Integration (v2.5.0+)
+- **Repository Browser**: Browse all your GitHub repos with search
+- **Clone from GitHub**: Clone repos directly to local projects with one click
+- **Push to GitHub**: Create new GitHub repositories from local projects
+- **Sync Status**: Visual indicators showing ahead/behind/synced status
+- **GitHub Actions**: View workflow runs and CI/CD status per project
+
+### Security (v2.9.0+)
+- **Security Dashboard**: Integrated security scanning from the Admin Dashboard
+- **Push Sanitization**: Pre-push hooks scan for secrets, PII, and sensitive data
+- **Tool Integration**: Semgrep, Gitleaks, Trivy, License Checker support
+- **One-Click Scans**: Run security, quality gate, and performance scans
 
 ### Organization
 - **Folders & Tags**: Organize sessions with hierarchical folders and color-coded tags
 - **Session Notes**: Attach markdown notes to sessions
 - **Templates**: Create session templates for quick setup
-- **Favorites**: Pin frequently used projects for quick access
+- **Checkpoints**: Save and restore project state snapshots
 
 ### Libraries
 - **Prompt Library**: Reusable prompt templates with variable substitution
 - **Command Snippets**: Quick access to common commands
-- **Custom Shortcuts**: Configurable keyboard bindings
-
-### AI Features
-- **AI Personas**: Configure different AI personalities with custom system prompts
-- **Token Tracking**: Monitor API usage and costs
-- **Error Analysis**: AI-powered error explanations
+- **MCP Server Catalog**: 22+ pre-configured MCP servers with one-click installation
 
 ### Collaboration
 - **Session Sharing**: Share sessions with expiring links and optional passwords
@@ -38,12 +58,12 @@ A web-based GUI wrapper for the `claude-code` CLI with persistent tmux sessions.
 - **File Browser**: Explore project files with preview
 - **Database Browser**: Query and edit database tables
 - **Port Wizard**: Manage port allocations and conflicts
-- **Environment Sync**: Manage .env files across environments
+- **Embedded Browser**: Preview agent-built UIs with DevTools
 
 ### System Admin
 - **System Stats**: Real-time CPU, memory, and disk monitoring
 - **Docker Control**: Container lifecycle management
-- **Service Monitoring**: Uptime checks and alerts
+- **Cloudflare Tunnels**: One-click publish to Cloudflare with automatic DNS
 - **Workflow Automation**: Build automated task sequences
 
 ## Requirements
@@ -60,7 +80,7 @@ A web-based GUI wrapper for the `claude-code` CLI with persistent tmux sessions.
 
 ```bash
 # Clone the repository
-cd ~/Projects/claude-code-manager
+cd ~/Projects/console-web
 
 # Copy environment file
 cp .env.example .env
@@ -90,18 +110,18 @@ npm run dev
 docker-compose up -d
 
 # Or build manually
-docker build -t claude-code-manager .
+docker build -t command-portal .
 docker run -d \
   -p 5275:5275 \
   -v /path/to/your/projects:/projects \
   -e ANTHROPIC_API_KEY=your-key \
   -e DATABASE_URL=postgresql://... \
-  claude-code-manager
+  command-portal
 ```
 
-### Production URL
+### Access
 
-Access at: https://manage.wbtlabs.com
+After starting, open: http://localhost:7777
 
 ## Configuration
 
@@ -110,13 +130,13 @@ Access at: https://manage.wbtlabs.com
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `PORT` | Backend server port | `5275` |
-| `PROJECTS_DIR` | Directory containing your projects | `/home/thornburywn/Projects` |
-| `CLIENT_URL` | Frontend URL for CORS | `https://manage.wbtlabs.com` |
+| `PROJECTS_DIR` | Directory containing your projects | `~/Projects` |
+| `CLIENT_URL` | Frontend URL for CORS | `http://localhost:7777` |
 | `DATABASE_URL` | PostgreSQL connection string | Required |
 | `NODE_ENV` | Environment mode | `development` |
 | `ANTHROPIC_API_KEY` | API key for Claude CLI | Required |
 | `AUTH_ENABLED` | Enable Authentik authentication | `true` |
-| `AUTHENTIK_URL` | Authentik server URL | `https://auth.wbtlabs.com` |
+| `AUTHENTIK_URL` | Authentik server URL | `https://auth.example.com` |
 
 ## Architecture
 
@@ -148,7 +168,7 @@ Access at: https://manage.wbtlabs.com
 
 ## Session Persistence
 
-Sessions are managed by tmux with naming convention `ccm-{project_name}`. This means:
+Sessions are managed by tmux with naming convention `ccm-{project_name}` (Console.web). This means:
 
 - **Browser Refresh**: Sessions continue running, reconnect automatically
 - **Server Restart**: tmux sessions persist, reattach on startup
@@ -158,7 +178,7 @@ Sessions are managed by tmux with naming convention `ccm-{project_name}`. This m
 ### Manual Session Management
 
 ```bash
-# List all claude-code-manager sessions
+# List all Console.web sessions
 tmux list-sessions | grep ccm-
 
 # Attach to a session directly

@@ -12,7 +12,7 @@ const COMMON_PORTS = [
   { port: 5000, service: 'Flask/Python' },
   { port: 5173, service: 'Vite Dev' },
   { port: 5174, service: 'Vite Dev Alt' },
-  { port: 5275, service: 'Command Portal' },
+  { port: 5275, service: 'Console.web' },
   { port: 5432, service: 'PostgreSQL' },
   { port: 6379, service: 'Redis' },
   { port: 8000, service: 'Django/FastAPI' },

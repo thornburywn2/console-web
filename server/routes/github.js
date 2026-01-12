@@ -114,10 +114,11 @@ export function createGithubRouter(prisma) {
   }
 
   /**
-   * Get project by ID or name
+   * Get project by ID or name, auto-creating in DB if it exists on filesystem
    */
   async function getProject(projectId) {
-    const project = await prisma.project.findFirst({
+    // First try to find in database
+    let project = await prisma.project.findFirst({
       where: {
         OR: [
           { id: projectId },
@@ -126,6 +127,29 @@ export function createGithubRouter(prisma) {
       },
       include: { githubRepo: true }
     });
+
+    // If not in DB, check if it exists on filesystem and create entry
+    if (!project) {
+      const projectPath = path.join(PROJECTS_DIR, projectId);
+      try {
+        const stat = await fs.stat(projectPath);
+        if (stat.isDirectory()) {
+          // Create project entry in database
+          project = await prisma.project.create({
+            data: {
+              name: projectId,
+              path: projectPath,
+              displayName: projectId
+            },
+            include: { githubRepo: true }
+          });
+          console.log(`[GitHub] Auto-created project entry for: ${projectId}`);
+        }
+      } catch (e) {
+        // Project doesn't exist on filesystem either
+      }
+    }
+
     return project;
   }
 

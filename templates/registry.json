@@ -1,0 +1,272 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-01-13",
+  "templates": [
+    {
+      "id": "web-app-fullstack",
+      "name": "Full-Stack Web App",
+      "description": "React frontend with Fastify backend and PostgreSQL database",
+      "icon": "Layers",
+      "color": "#3B82F6",
+      "stack": ["React 18", "TypeScript", "Fastify", "Prisma", "PostgreSQL", "Tailwind CSS", "shadcn/ui"],
+      "category": "web",
+      "difficulty": "intermediate",
+      "estimatedSetupTime": "5 minutes",
+      "inheritsFrom": "base",
+      "variables": [
+        {
+          "name": "PROJECT_NAME",
+          "label": "Project Name",
+          "type": "text",
+          "required": true,
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "patternMessage": "Lowercase letters, numbers, and hyphens only",
+          "placeholder": "my-awesome-app"
+        },
+        {
+          "name": "PROJECT_DESCRIPTION",
+          "label": "Description",
+          "type": "textarea",
+          "required": true,
+          "maxLength": 500,
+          "placeholder": "A brief description of your project"
+        },
+        {
+          "name": "PORT",
+          "label": "Frontend Port",
+          "type": "number",
+          "required": true,
+          "default": 5175,
+          "min": 1024,
+          "max": 65535
+        },
+        {
+          "name": "API_PORT",
+          "label": "API Port",
+          "type": "number",
+          "required": true,
+          "default": 5176,
+          "min": 1024,
+          "max": 65535
+        }
+      ],
+      "postCreateCommands": [
+        "bun install",
+        "bunx prisma generate"
+      ],
+      "requiredFiles": [
+        "CLAUDE.md",
+        "package.json",
+        "tsconfig.json",
+        "vitest.config.ts",
+        "prisma/schema.prisma"
+      ]
+    },
+    {
+      "id": "web-app-frontend",
+      "name": "Frontend Only",
+      "description": "React frontend application without backend",
+      "icon": "Monitor",
+      "color": "#10B981",
+      "stack": ["React 18", "TypeScript", "Vite", "Tailwind CSS", "shadcn/ui"],
+      "category": "web",
+      "difficulty": "beginner",
+      "estimatedSetupTime": "2 minutes",
+      "inheritsFrom": "base",
+      "variables": [
+        {
+          "name": "PROJECT_NAME",
+          "label": "Project Name",
+          "type": "text",
+          "required": true,
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "patternMessage": "Lowercase letters, numbers, and hyphens only"
+        },
+        {
+          "name": "PROJECT_DESCRIPTION",
+          "label": "Description",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "name": "PORT",
+          "label": "Dev Server Port",
+          "type": "number",
+          "default": 5173,
+          "min": 1024,
+          "max": 65535
+        },
+        {
+          "name": "VITE_API_URL",
+          "label": "API URL",
+          "type": "text",
+          "default": "http://localhost:3000",
+          "placeholder": "https://api.example.com"
+        }
+      ],
+      "postCreateCommands": ["bun install"]
+    },
+    {
+      "id": "desktop-tauri",
+      "name": "Desktop App (Tauri)",
+      "description": "Cross-platform desktop application with Tauri and React",
+      "icon": "Monitor",
+      "color": "#8B5CF6",
+      "stack": ["Tauri 2", "React 18", "TypeScript", "Rust", "Tailwind CSS"],
+      "category": "desktop",
+      "difficulty": "advanced",
+      "estimatedSetupTime": "10 minutes",
+      "inheritsFrom": "base",
+      "requirements": ["rust", "cargo"],
+      "variables": [
+        {
+          "name": "PROJECT_NAME",
+          "label": "Project Name",
+          "type": "text",
+          "required": true,
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        {
+          "name": "PROJECT_DESCRIPTION",
+          "label": "Description",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "name": "BUNDLE_IDENTIFIER",
+          "label": "Bundle Identifier",
+          "type": "text",
+          "default": "com.example.{{PROJECT_NAME}}",
+          "placeholder": "com.company.appname"
+        }
+      ],
+      "postCreateCommands": ["bun install"]
+    },
+    {
+      "id": "infrastructure",
+      "name": "Infrastructure Stack",
+      "description": "Docker Compose infrastructure with services",
+      "icon": "Server",
+      "color": "#F59E0B",
+      "stack": ["Docker", "Docker Compose", "Cloudflare Tunnel"],
+      "category": "infrastructure",
+      "difficulty": "intermediate",
+      "estimatedSetupTime": "5 minutes",
+      "inheritsFrom": "base",
+      "variables": [
+        {
+          "name": "PROJECT_NAME",
+          "label": "Stack Name",
+          "type": "text",
+          "required": true,
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        {
+          "name": "PROJECT_DESCRIPTION",
+          "label": "Description",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "name": "DOMAIN",
+          "label": "Primary Domain",
+          "type": "text",
+          "default": "app.example.com",
+          "placeholder": "app.example.com"
+        }
+      ],
+      "postCreateCommands": []
+    },
+    {
+      "id": "cli-tool",
+      "name": "CLI Tool",
+      "description": "Command-line utility with Bun/Node.js",
+      "icon": "Terminal",
+      "color": "#EC4899",
+      "stack": ["Bun", "TypeScript", "Commander.js", "Zod"],
+      "category": "cli",
+      "difficulty": "beginner",
+      "estimatedSetupTime": "3 minutes",
+      "inheritsFrom": "base",
+      "variables": [
+        {
+          "name": "PROJECT_NAME",
+          "label": "CLI Name",
+          "type": "text",
+          "required": true,
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        {
+          "name": "PROJECT_DESCRIPTION",
+          "label": "Description",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "name": "BIN_NAME",
+          "label": "Binary Name",
+          "type": "text",
+          "default": "{{PROJECT_NAME}}",
+          "placeholder": "mycommand"
+        }
+      ],
+      "postCreateCommands": ["bun install", "bun link"]
+    },
+    {
+      "id": "mobile-flutter",
+      "name": "Mobile App (Flutter)",
+      "description": "Cross-platform mobile app with Flutter",
+      "icon": "Smartphone",
+      "color": "#06B6D4",
+      "stack": ["Flutter", "Dart", "Riverpod"],
+      "category": "mobile",
+      "difficulty": "intermediate",
+      "estimatedSetupTime": "5 minutes",
+      "inheritsFrom": null,
+      "requirements": ["flutter", "dart"],
+      "variables": [
+        {
+          "name": "PROJECT_NAME",
+          "label": "App Name",
+          "type": "text",
+          "required": true,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "patternMessage": "Lowercase letters, numbers, and underscores only"
+        },
+        {
+          "name": "PROJECT_DESCRIPTION",
+          "label": "Description",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "name": "BUNDLE_ID",
+          "label": "Bundle ID (iOS)",
+          "type": "text",
+          "default": "com.example.{{PROJECT_NAME}}"
+        },
+        {
+          "name": "PACKAGE_NAME",
+          "label": "Package Name (Android)",
+          "type": "text",
+          "default": "com.example.{{PROJECT_NAME}}"
+        }
+      ],
+      "postCreateCommands": ["flutter pub get"]
+    }
+  ],
+  "complianceWeights": {
+    "ci_workflow": 20,
+    "security_workflow": 20,
+    "pre_commit_hooks": 15,
+    "typescript_strict": 15,
+    "eslint_config": 10,
+    "prettier_config": 10,
+    "claude_md": 10
+  },
+  "complianceThresholds": {
+    "good": 90,
+    "warning": 70,
+    "critical": 0
+  }
+}

@@ -6,6 +6,10 @@
 import { Router } from 'express';
 import os from 'os';
 import { execSync } from 'child_process';
+import { readFileSync } from 'fs';
+
+// Store previous CPU stats for delta-based calculation
+let prevCpuStatsMonitoring = null;
 
 // ============================================
 // Metrics Router - Resource metrics API
@@ -51,11 +55,45 @@ export function createMetricsRouter(prisma) {
       const cpus = os.cpus();
       const totalMem = os.totalmem();
       const freeMem = os.freemem();
+      const loadAvg = os.loadavg();
 
-      // CPU usage (average load)
-      const loadAvg = os.loadavg()[0];
-      const cpuCount = cpus.length;
-      const cpuPercent = (loadAvg / cpuCount) * 100;
+      // CPU usage using delta calculation from /proc/stat
+      let cpuPercent = 0;
+      try {
+        // Read CPU stats from /proc/stat
+        const stat = readFileSync('/proc/stat', 'utf-8');
+        const cpuLine = stat.split('\n')[0]; // "cpu  user nice system idle iowait irq softirq"
+        const parts = cpuLine.split(/\s+/).slice(1).map(Number);
+        const idle = parts[3] + (parts[4] || 0); // idle + iowait
+        const total = parts.reduce((a, b) => a + b, 0);
+
+        // Calculate CPU usage from delta between readings
+        if (prevCpuStatsMonitoring) {
+          const deltaIdle = idle - prevCpuStatsMonitoring.idle;
+          const deltaTotal = total - prevCpuStatsMonitoring.total;
+          if (deltaTotal > 0) {
+            const deltaBusy = deltaTotal - deltaIdle;
+            cpuPercent = (deltaBusy / deltaTotal) * 100;
+          }
+        } else {
+          // First reading - use load average as approximation
+          cpuPercent = Math.min(100, (loadAvg[0] / cpus.length) * 100);
+        }
+
+        // Store current stats for next delta calculation
+        prevCpuStatsMonitoring = { idle, total };
+
+        // Clamp to valid range
+        cpuPercent = Math.max(0, Math.min(100, cpuPercent));
+
+        // If that gives unrealistic values, fall back to load average
+        if (isNaN(cpuPercent)) {
+          cpuPercent = Math.min(100, (loadAvg[0] / cpus.length) * 100);
+        }
+      } catch {
+        // Fall back to load average
+        cpuPercent = Math.min(100, (loadAvg[0] / cpus.length) * 100);
+      }
 
       // Memory usage
       const memoryPercent = ((totalMem - freeMem) / totalMem) * 100;
@@ -71,11 +109,11 @@ export function createMetricsRouter(prisma) {
       }
 
       res.json({
-        cpu: Math.min(cpuPercent, 100),
+        cpu: cpuPercent,
         memory: memoryPercent,
         disk: diskPercent,
         uptime: os.uptime(),
-        loadAverage: os.loadavg(),
+        loadAverage: loadAvg,
       });
     } catch (error) {
       console.error('Failed to get system metrics:', error);

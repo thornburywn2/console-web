@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { io } from 'socket.io-client';
-import Sidebar from './components/Sidebar';
+import LeftSidebar from './components/LeftSidebar';
 import Terminal from './components/Terminal';
 import AdminDashboard, { TABS as ADMIN_TABS } from './components/AdminDashboard';
 import RightSidebar from './components/RightSidebar';
@@ -35,8 +35,22 @@ import CheckpointPanel from './components/CheckpointPanel';
 import GitHubSettingsModal from './components/GitHubSettingsModal';
 import GitHubRepoList from './components/GitHubRepoList';
 
+// Phase 14: Voice Commands (P0 Critical)
+import VoiceCommandPanel, { VoiceButton } from './components/VoiceCommandPanel';
+
+// P1: Aider Integration
+import AiderSessionPanel from './components/AiderSessionPanel';
+import { AiderModeToggleCompact } from './components/AiderModeToggle';
+import { useAiderVoice } from './hooks/useAiderVoice';
+
+// Home Dashboard
+import HomeDashboard from './components/HomeDashboard';
+
 // Phase 12: Authentication (Authentik SSO)
 import { AuthProvider, RequireAuth } from './hooks/useAuth';
+
+// Home project marker - path will be computed from projects list
+export const HOME_PROJECT_ID = '__home__';
 
 // Socket.IO connection - always use relative path (Vite proxies /socket.io to backend)
 const SOCKET_URL = '';
@@ -89,6 +103,34 @@ function App() {
   const [showGitHubSettings, setShowGitHubSettings] = useState(false);
   const [showGitHubRepos, setShowGitHubRepos] = useState(false);
 
+  // Phase 14: Voice Commands state (P0 Critical)
+  const [showVoicePanel, setShowVoicePanel] = useState(false);
+  const [voicePanelCollapsed, setVoicePanelCollapsed] = useState(true);
+
+  // P1: Aider Integration state
+  const [codingMode, setCodingMode] = useState('claude'); // 'claude' or 'aider'
+  const [showAiderPanel, setShowAiderPanel] = useState(false);
+
+  // Home Dashboard state - default to showing dashboard on load
+  const [showHomeDashboard, setShowHomeDashboard] = useState(true);
+
+  // Application branding
+  const [appName, setAppName] = useState('Command Portal');
+
+  // Aider voice hook
+  const aiderVoice = useAiderVoice({
+    socket,
+    onModeSwitch: (mode) => {
+      setCodingMode(mode);
+      if (mode === 'aider') {
+        setShowAiderPanel(true);
+      }
+    },
+    onAiderCommand: (cmd) => {
+      console.log('Aider command:', cmd);
+    }
+  });
+
   // Track selected project for reconnection (ref to avoid stale closures)
   const selectedProjectRef = useRef(null);
   useEffect(() => {
@@ -116,8 +158,11 @@ function App() {
       const currentProject = selectedProjectRef.current;
       if (currentProject) {
         // Already have a project selected, just reconnect to it
+        // Small delay to ensure server has cleaned up any stale PTY sessions
         console.log('Reconnecting to current project:', currentProject.path);
-        newSocket.emit('reconnect-session', currentProject.path);
+        setTimeout(() => {
+          newSocket.emit('reconnect-session', currentProject.path);
+        }, 100);
         return;
       }
 
@@ -146,8 +191,10 @@ function App() {
             name: lastSession.project.name,
             path: lastSession.project.path
           });
-          // Emit reconnect to attach to the tmux session
-          newSocket.emit('reconnect-session', lastSession.project.path);
+          // Small delay to ensure server has cleaned up any stale PTY sessions
+          setTimeout(() => {
+            newSocket.emit('reconnect-session', lastSession.project.path);
+          }, 100);
         } else {
           console.log('No previous sessions to reconnect to');
         }
@@ -245,12 +292,52 @@ function App() {
     return () => clearInterval(interval);
   }, [fetchProjects]);
 
+  // Load app name from settings
+  useEffect(() => {
+    const loadAppSettings = async () => {
+      try {
+        const res = await fetch('/api/settings');
+        if (res.ok) {
+          const settings = await res.json();
+          if (settings.appName) {
+            setAppName(settings.appName);
+            document.title = settings.appName;
+          }
+        }
+      } catch (err) {
+        console.error('Error loading app settings:', err);
+      }
+    };
+    loadAppSettings();
+  }, []);
+
+  // Compute projects directory from projects list
+  const projectsDir = projects.length > 0
+    ? projects[0].path.split('/').slice(0, -1).join('/')
+    : null;
+
   // Handle project selection
   const handleSelectProject = useCallback((project) => {
     if (!socket || !isConnected) {
       setError('Not connected to server');
       return;
     }
+
+    // Handle Home selection
+    if (project.isHome || project.id === HOME_PROJECT_ID) {
+      setShowHomeDashboard(true);
+      // Connect to Projects directory terminal if not already there
+      const homePath = projectsDir || project.path;
+      if (homePath && selectedProject?.path !== homePath) {
+        setTerminalReady(false);
+        setSelectedProject({ name: 'Home', path: homePath, isHome: true });
+        socket.emit('select-project', homePath);
+      }
+      return;
+    }
+
+    // Regular project selection - close home dashboard if open
+    setShowHomeDashboard(false);
 
     if (selectedProject?.path === project.path) {
       // Already selected, do nothing
@@ -260,7 +347,7 @@ function App() {
     setTerminalReady(false);
     setSelectedProject(project);
     socket.emit('select-project', project.path);
-  }, [socket, isConnected, selectedProject]);
+  }, [socket, isConnected, selectedProject, projectsDir]);
 
   // Handle killing a session
   const handleKillSession = useCallback((projectPath) => {
@@ -372,10 +459,96 @@ function App() {
       case 'cycleTheme':
         cycleTheme();
         break;
+      case 'openVoice':
+      case 'toggleVoice':
+        setShowVoicePanel(prev => !prev);
+        setVoicePanelCollapsed(false);
+        break;
       default:
         console.log('Unknown command:', commandId);
     }
   }, [handleSelectProject, handleKillSession, selectedProject, fetchProjects, cycleTheme]);
+
+  // Handle voice commands (P0 Critical)
+  const handleVoiceCommand = useCallback((command) => {
+    if (!command) return;
+
+    switch (command.action) {
+      // UI actions
+      case 'toggle-sidebar':
+        // TODO: implement sidebar toggle
+        break;
+      case 'theme-dark':
+        setTheme('dark');
+        break;
+      case 'theme-light':
+        setTheme('light');
+        break;
+      case 'fullscreen-toggle':
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        } else {
+          document.documentElement.requestFullscreen();
+        }
+        break;
+      case 'command-palette':
+        setShowCommandPalette(true);
+        break;
+      case 'open-prompts':
+        setShowPromptLibrary(true);
+        break;
+      case 'open-snippets':
+        setShowSnippetPalette(true);
+        break;
+      case 'open-themes':
+        setShowThemePicker(true);
+        break;
+      case 'show-shortcuts':
+        setShowShortcutsModal(true);
+        break;
+      case 'refresh':
+        fetchProjects();
+        break;
+
+      // Navigation actions
+      case 'navigate-admin':
+        setShowAdmin(true);
+        break;
+      case 'navigate-home':
+        setShowHomeDashboard(true);
+        break;
+
+      // Session actions
+      case 'session-new':
+        setShowTemplateModal(true);
+        break;
+      case 'session-close':
+        if (selectedProject) {
+          handleKillSession(selectedProject.path);
+        }
+        break;
+      case 'checkpoint-create':
+      case 'checkpoint-list':
+        setShowCheckpointPanel(true);
+        break;
+
+      default:
+        // Terminal commands are handled by VoiceCommandPanel directly
+        console.log('Voice command:', command.action);
+    }
+  }, [setTheme, fetchProjects, selectedProject, handleKillSession]);
+
+  // Handle voice navigation
+  const handleVoiceNavigate = useCallback((type, target) => {
+    if (type === 'project' && target) {
+      const project = projects.find(
+        p => p.name.toLowerCase().includes(target.toLowerCase())
+      );
+      if (project) {
+        handleSelectProject(project);
+      }
+    }
+  }, [projects, handleSelectProject]);
 
   // Handle template selection
   const handleSelectTemplate = useCallback((template) => {
@@ -494,20 +667,18 @@ function App() {
     <div className="flex h-screen overflow-hidden relative" style={{ background: 'var(--bg-base)' }}>
       {/* Background is handled by CSS body::before */}
 
-      {/* Sidebar */}
-      <Sidebar
+      {/* Left Sidebar - Widget-based project navigation */}
+      <LeftSidebar
         projects={projects}
         selectedProject={selectedProject}
         onSelectProject={handleSelectProject}
         onKillSession={handleKillSession}
         onRefresh={fetchProjects}
         isLoading={isLoading}
-        searchInputRef={searchInputRef}
-        sessionManagement={sessionManagement}
         onOpenAdmin={handleOpenAdmin}
         onCreateProject={() => setShowCreateProject(true)}
         onOpenGitHubRepos={() => setShowGitHubRepos(true)}
-        socket={socket}
+        projectsDir={projectsDir}
       />
 
       {/* Main Content */}
@@ -517,10 +688,10 @@ function App() {
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <span className="text-accent text-lg font-bold font-mono">{'>'}_</span>
-              <h1 className="text-sm font-semibold text-primary tracking-wider">
-                COMMAND PORTAL
+              <h1 className="text-sm font-semibold text-primary tracking-wider uppercase">
+                {appName}
               </h1>
-              <span className="text-2xs font-mono px-1.5 py-0.5 rounded" style={{ color: 'var(--text-muted)', background: 'var(--bg-glass)' }}>v2.10.0</span>
+              <span className="text-2xs font-mono px-1.5 py-0.5 rounded" style={{ color: 'var(--text-muted)', background: 'var(--bg-glass)' }}>v1.0.0</span>
             </div>
             {selectedProject && (
               <span className="text-xs text-cyan font-mono" style={{ color: 'var(--accent-secondary)' }}>
@@ -553,6 +724,21 @@ function App() {
 
             {/* Changelog Badge */}
             <ChangelogBadge onClick={() => setShowChangelog(true)} />
+
+            {/* Voice Button (P0 Critical) */}
+            <button
+              onClick={() => {
+                setShowVoicePanel(prev => !prev);
+                setVoicePanelCollapsed(false);
+              }}
+              className={`btn-glass flex items-center gap-1.5 text-xs ${showVoicePanel ? 'ring-2 ring-purple-500/50' : ''}`}
+              title="Voice Commands (Ctrl+Shift+V)"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+              </svg>
+              <span className="hidden sm:inline">VOICE</span>
+            </button>
 
             {/* Theme Button */}
             <button
@@ -598,25 +784,15 @@ function App() {
             </div>
           )}
 
-          {!selectedProject ? (
-            <div className="h-full flex items-center justify-center">
-              <div className="glass-elevated text-center p-8 rounded-xl max-w-md mx-4">
-                <div className="text-6xl mb-4 opacity-50" style={{ color: 'var(--accent-primary)' }}>
-                  <svg className="w-20 h-20 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-bold tracking-wider mb-3" style={{ color: 'var(--accent-primary)' }}>
-                  SELECT PROJECT
-                </h2>
-                <p className="text-sm font-mono" style={{ color: 'var(--text-secondary)' }}>
-                  {'>'} Choose a project from the sidebar to initialize Claude session
-                </p>
-                <div className="mt-4 text-xs font-mono" style={{ color: 'var(--accent-secondary)' }}>
-                  <span className="animate-pulse">_</span>
-                </div>
-              </div>
-            </div>
+          {/* Show HomeDashboard when showHomeDashboard is true, otherwise show Terminal */}
+          {showHomeDashboard || !selectedProject ? (
+            <HomeDashboard
+              onSelectProject={(project) => {
+                setShowHomeDashboard(false);
+                handleSelectProject(project);
+              }}
+              projects={projects}
+            />
           ) : (
             <Terminal
               socket={socket}
@@ -650,8 +826,10 @@ function App() {
             setAdminInitialTab(null);
           }}
           initialTab={adminInitialTab}
+          currentProject={selectedProject}
         />
       )}
+
 
       {/* Command Palette */}
       <CommandPalette
@@ -861,6 +1039,56 @@ function App() {
 
       {/* Offline Indicator */}
       <OfflineIndicator />
+
+      {/* P1: Aider Session Panel (Floating) */}
+      {showAiderPanel && codingMode === 'aider' && selectedProject && (
+        <div className="fixed bottom-20 right-4 z-40 w-[500px] h-[400px]">
+          <AiderSessionPanel
+            projectPath={selectedProject.path}
+            socket={socket}
+            onModeChange={(mode) => {
+              setCodingMode(mode);
+              if (mode === 'claude') {
+                setShowAiderPanel(false);
+              }
+            }}
+          />
+        </div>
+      )}
+
+      {/* Voice Command Panel (P0 Critical - Floating) */}
+      {showVoicePanel && (
+        <div className="fixed bottom-4 right-4 z-50 w-80">
+          {/* Mode Toggle */}
+          <div className="mb-2 flex justify-end">
+            <AiderModeToggleCompact
+              currentMode={codingMode}
+              onModeChange={(mode) => {
+                setCodingMode(mode);
+                if (mode === 'aider') {
+                  setShowAiderPanel(true);
+                  // Auto-start Aider session if not already running
+                  if (!aiderVoice.hasActiveSession && selectedProject) {
+                    aiderVoice.startAiderSession(selectedProject.path);
+                  }
+                }
+              }}
+            />
+          </div>
+          <VoiceCommandPanel
+            sessionId={selectedProject?.id}
+            socket={socket}
+            isConnected={isConnected}
+            onCommand={handleVoiceCommand}
+            onNavigate={handleVoiceNavigate}
+            collapsed={voicePanelCollapsed}
+            onToggleCollapse={() => setVoicePanelCollapsed(prev => !prev)}
+            codingMode={codingMode}
+            aiderVoice={aiderVoice}
+            projectPath={selectedProject?.path}
+          />
+        </div>
+      )}
     </div>
   );
 }

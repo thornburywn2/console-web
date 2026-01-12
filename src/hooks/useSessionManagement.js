@@ -336,8 +336,8 @@ export function useSessionManagement() {
   // Persist view preferences
   useEffect(() => {
     try {
-      localStorage.setItem('ccm-view-mode', viewMode);
-      localStorage.setItem('ccm-show-archived', JSON.stringify(showArchived));
+      localStorage.setItem('cw-view-mode', viewMode);
+      localStorage.setItem('cw-show-archived', JSON.stringify(showArchived));
     } catch {
       // Ignore localStorage errors
     }
@@ -346,8 +346,8 @@ export function useSessionManagement() {
   // Load view preferences
   useEffect(() => {
     try {
-      const savedViewMode = localStorage.getItem('ccm-view-mode');
-      const savedShowArchived = localStorage.getItem('ccm-show-archived');
+      const savedViewMode = localStorage.getItem('cw-view-mode');
+      const savedShowArchived = localStorage.getItem('cw-show-archived');
       if (savedViewMode) setViewMode(savedViewMode);
       if (savedShowArchived) setShowArchived(JSON.parse(savedShowArchived));
     } catch {

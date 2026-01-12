@@ -22,7 +22,7 @@ function SystemStats() {
 
   useEffect(() => {
     fetchStats();
-    const interval = setInterval(fetchStats, 10000); // Refresh every 10s for real-time updates
+    const interval = setInterval(fetchStats, 2000); // Refresh every 2s for real-time CPU updates
     return () => clearInterval(interval);
   }, [fetchStats]);
 
@@ -71,12 +71,12 @@ function SystemStats() {
 
   return (
     <div className="space-y-2">
-      {/* CPU */}
+      {/* CPU - aggregated across all cores */}
       <StatBar
         label="CPU"
         value={cpu?.usage || 0}
         suffix="%"
-        detail={cpu?.model ? cpu.model.split(' ')[0] : null}
+        detail={cpu?.count ? `${cpu.count} cores` : null}
         color={getUsageColor(cpu?.usage || 0)}
       />
 

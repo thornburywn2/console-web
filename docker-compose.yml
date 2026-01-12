@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
-  claude-code-manager:
+  console-web:
     build: .
-    container_name: claude-code-manager
+    container_name: console-web
     restart: unless-stopped
     ports:
       - "5275:5275"
@@ -11,7 +11,7 @@ services:
       - NODE_ENV=production
       - PORT=5275
       - PROJECTS_DIR=/projects
-      - CLIENT_URL=https://manager.wbtlabs.com
+      - CLIENT_URL=https://manager.example.com
       # Pass through Anthropic API key for claude CLI
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     volumes:

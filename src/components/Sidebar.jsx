@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import UserProfileSection from './UserProfileSection';
 import { GitHubStatusDot } from './GitHubStatusBadge';
-import AgentStatusDashboard from './AgentStatusDashboard';
 
 // Sort options
 const SORT_OPTIONS = {
@@ -13,9 +12,9 @@ const SORT_OPTIONS = {
 };
 
 // LocalStorage keys
-const LAST_ACCESSED_KEY = 'ccm-last-accessed';
-const SORT_PREF_KEY = 'ccm-sort-preference';
-const FAVORITES_KEY = 'ccm-favorites';
+const LAST_ACCESSED_KEY = 'cw-last-accessed';
+const SORT_PREF_KEY = 'cw-sort-preference';
+const FAVORITES_KEY = 'cw-favorites';
 
 // Get last accessed times from localStorage
 const getLastAccessed = () => {
@@ -78,7 +77,6 @@ function Sidebar({
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [confirmKill, setConfirmKill] = useState(null);
-  const [agentsPanelExpanded, setAgentsPanelExpanded] = useState(true);
   const [sortBy, setSortBy] = useState(() => {
     try {
       return localStorage.getItem(SORT_PREF_KEY) || SORT_OPTIONS.RECENT;
@@ -325,48 +323,11 @@ function Sidebar({
                 placeholder="Search projects..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="input-glass w-full pl-9 pr-3 py-2 text-sm"
+                className="input-glass w-full pl-[4.25rem] pr-3 py-2 text-sm"
               />
             </div>
       </div>
 
-      {/* Agents Panel */}
-      <div className="px-2 pt-2">
-        <div
-          className="rounded-lg transition-colors overflow-hidden"
-          style={{
-            border: '1px solid rgba(16, 185, 129, 0.2)',
-            background: 'rgba(16, 185, 129, 0.02)'
-          }}
-        >
-          <button
-            onClick={() => setAgentsPanelExpanded(!agentsPanelExpanded)}
-            className="w-full flex items-center justify-between px-3 py-2 transition-colors"
-            style={{ background: 'rgba(16, 185, 129, 0.05)' }}
-          >
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-              <span className="text-xs font-semibold font-mono" style={{ color: 'var(--text-secondary)' }}>AGENTS</span>
-            </div>
-            <svg
-              className={`w-3 h-3 transition-transform ${agentsPanelExpanded ? 'rotate-180' : ''}`}
-              style={{ color: 'var(--text-tertiary)' }}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          {agentsPanelExpanded && (
-            <div className="p-2">
-              <AgentStatusDashboard socket={socket} onOpenAgentManager={onOpenAdmin} />
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* Project List */}
       <div className="flex-1 overflow-y-auto py-2">

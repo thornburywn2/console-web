@@ -1,6 +1,6 @@
 /**
  * Keyboard Shortcuts Hook
- * Global keyboard shortcut handler for Command Portal
+ * Global keyboard shortcut handler for Console.web
  */
 
 import { useEffect, useCallback, useState } from 'react';

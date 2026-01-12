@@ -384,7 +384,7 @@ export default function MobileCompanion({
   return (
     <div className="fixed inset-0 flex flex-col" style={{ background: 'var(--bg-primary)' }}>
       <MobileHeader
-        title="Command Portal"
+        title="Console.web"
         onMenuToggle={() => setMenuOpen(true)}
         showBack={false}
       />

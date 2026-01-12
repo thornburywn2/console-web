@@ -92,7 +92,7 @@ function QuickActions({ onRefresh, onOpenAdmin }) {
       ),
       label: 'Clear Cache',
       action: async () => {
-        localStorage.removeItem('ccm-last-accessed');
+        localStorage.removeItem('cw-last-accessed');
         onRefresh();
       },
       color: 'warning',

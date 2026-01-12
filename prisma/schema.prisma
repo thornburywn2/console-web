@@ -101,6 +101,9 @@ model CommandHistory {
 model UserSettings {
   id            String    @id @default("default")
 
+  // Branding
+  appName       String    @default("Command Portal")  // Customizable application name
+
   // UI preferences
   theme         String    @default("dark")
   sidebarWidth  Int       @default(280)
@@ -111,6 +114,12 @@ model UserSettings {
   autoReconnect Boolean   @default(true)
   keepSessionsAlive Boolean @default(true)
   sessionTimeout Int      @default(3600) // seconds
+
+  // AI Solution preferences
+  preferredAISolution   String    @default("claude-code")  // claude-code, code-puppy, hybrid
+  codePuppyModel        String?   // Default model for Code Puppy (e.g., claude-sonnet-4-20250514)
+  codePuppyProvider     String?   // Default provider for Code Puppy (e.g., anthropic)
+  hybridMode            String    @default("code-puppy-with-claude-tools")  // code-puppy-with-claude-tools, claude-with-puppy-agents
 
   // Resource Control - Scan Settings
   // These prevent system overload from security/quality scans
@@ -131,6 +140,9 @@ model UserSettings {
   skipSastScan        Boolean   @default(false)  // Skip Semgrep SAST scan
   skipE2eTests        Boolean   @default(true)   // Skip Playwright/Cypress E2E tests
   skipCoverageReport  Boolean   @default(false)  // Skip test coverage analysis
+
+  // Feature Visibility
+  showExperimentalFeatures Boolean @default(false) // Show experimental tabs (Tabby, Swarm)
 
   updatedAt     DateTime  @updatedAt
 }
@@ -572,12 +584,16 @@ model Agent {
   projectId     String?
   project       Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
   executions    AgentExecution[]
+  // Marketplace reference (if installed from catalog)
+  catalogId     String?      // ID from AGENT_CATALOG
+  catalogMeta   Json?        // Cached: author, version, category, tags
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
   @@index([triggerType])
   @@index([enabled])
   @@index([projectId])
+  @@index([catalogId])
 }
 
 // Agent execution history
@@ -869,7 +885,7 @@ model CloudflareSettings {
   tunnelId          String?             // Cloudflare tunnel ID
   tunnelName        String?             // Tunnel display name
   zoneId            String?             // Cloudflare zone ID (for DNS)
-  zoneName          String?             // Zone domain (e.g., wbtlabs.com)
+  zoneName          String?             // Zone domain (e.g., example.com)
   defaultSubdomain  String?             // Default subdomain pattern
   configured        Boolean   @default(false)
   lastValidated     DateTime?
@@ -880,7 +896,7 @@ model CloudflareSettings {
 // Authentik settings for automatic route protection
 model AuthentikSettings {
   id                String    @id @default("default")
-  apiUrl            String?             // Authentik API URL (e.g., https://auth.wbtlabs.com)
+  apiUrl            String?             // Authentik API URL (e.g., https://auth.example.com)
   apiToken          String?   @db.Text  // Authentik API token
   outpostId         String?             // Default outpost ID for proxy providers
   defaultGroupId    String?             // Default group to grant access to
@@ -897,7 +913,7 @@ model PublishedRoute {
   projectId       String?
 
   // Route configuration
-  hostname        String    @unique  // Full hostname (e.g., myapp.wbtlabs.com)
+  hostname        String    @unique  // Full hostname (e.g., myapp.example.com)
   subdomain       String              // Just the subdomain part (e.g., myapp)
   localPort       Int                 // Local port (e.g., 3000)
   localHost       String    @default("localhost")  // Usually localhost
@@ -905,6 +921,9 @@ model PublishedRoute {
 
   // Cloudflare references
   dnsRecordId     String?             // Cloudflare DNS record ID for cleanup
+
+  // Origin request settings
+  websocketEnabled    Boolean   @default(false)  // Enable WebSocket support (originRequest.websocket)
 
   // Authentik references (for route protection)
   authentikEnabled    Boolean   @default(false)
@@ -1091,6 +1110,63 @@ enum StepStatus {
 }
 
 // ============================================
+// Voice Commands System
+// ============================================
+
+// Voice command settings per user
+model VoiceSettings {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  enabled             Boolean  @default(true)
+  language            String   @default("en-US")
+  continuous          Boolean  @default(false)
+  interimResults      Boolean  @default(true)
+  pushToTalk          Boolean  @default(false)
+  pushToTalkKey       String   @default("Space")
+  confidenceThreshold Float    @default(0.7)
+  autoExecute         Boolean  @default(false)
+  showTranscript      Boolean  @default(true)
+  playFeedbackSounds  Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+// Voice command history
+model VoiceCommand {
+  id              String    @id @default(cuid())
+  sessionId       String?
+  transcript      String    @db.Text
+  parsedCommand   String?   @db.Text
+  action          String?
+  confidence      Float     @default(0)
+  inputConfidence Float     @default(0)
+  executed        Boolean   @default(false)
+  executedAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([sessionId])
+  @@index([createdAt])
+  @@index([executed])
+}
+
+// Voice macros for automation
+model VoiceMacro {
+  id              String    @id @default(cuid())
+  userId          String
+  name            String
+  description     String?
+  triggerPhrase   String    // Voice phrase to trigger
+  commands        String    @db.Text // JSON array of commands
+  executionCount  Int       @default(0)
+  lastExecuted    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([triggerPhrase])
+}
+
+// ============================================
 // Embedded Browser Sessions
 // ============================================
 
@@ -1142,4 +1218,65 @@ model BrowserScreenshot {
 
   @@index([browserSessionId])
   @@index([timestamp])
+}
+
+// ============================================
+// Aider Integration (P1)
+// ============================================
+
+// Aider session tracking
+model AiderSession {
+  id            String    @id @default(cuid())
+  sessionId     String    @unique  // Internal session ID
+  model         String    @default("claude-3-5-sonnet-20241022")
+  provider      String    @default("anthropic") // anthropic, openai, ollama
+  voiceEnabled  Boolean   @default(false)
+  filesAdded    String[]  // Files added to chat context
+  status        String    @default("stopped") // stopped, running, error
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Aider user configuration
+model AiderConfig {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  defaultModel    String   @default("claude-3-5-sonnet-20241022")
+  defaultProvider String   @default("anthropic")
+  autoAddFiles    Boolean  @default(true)
+  darkMode        Boolean  @default(true)
+  streamOutput    Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// P2: Tabby AI code completion configuration
+model TabbyConfig {
+  id            String    @id @default("default")
+  model         String    @default("StarCoder-1B")
+  useGpu        Boolean   @default(false)
+  port          Int       @default(8080)
+  status        String    @default("stopped") // stopped, running, starting, error
+  autoStart     Boolean   @default(false)
+  lastStarted   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// P3: Claude Flow swarm session tracking
+model ClaudeFlowSwarm {
+  id            String    @id @default(cuid())
+  swarmId       String    @unique  // Internal swarm ID
+  projectPath   String
+  task          String?
+  agents        String[]  // Agent roles in the swarm
+  status        String    @default("stopped") // stopped, running, error
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
 }

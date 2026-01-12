@@ -195,7 +195,7 @@ export default function UptimeDisplay({ isOpen, onClose }) {
       setServices([
         {
           id: '1',
-          name: 'Command Portal',
+          name: 'Console.web',
           url: 'http://localhost:5275',
           status: 'up',
           uptime: 99.95,

@@ -79,7 +79,7 @@ const generateMarkdown = (session, options) => {
     md += '*No history available*\n';
   }
 
-  md += '\n---\n\n*Exported from Command Portal on ' + new Date().toISOString() + '*\n';
+  md += '\n---\n\n*Exported from Console.web on ' + new Date().toISOString() + '*\n';
 
   return md;
 };
@@ -206,7 +206,7 @@ const generateHTML = (session, options) => {
     html += '  <p><em>No history available</em></p>\n';
   }
 
-  html += '  <footer>Exported from Command Portal on ' + new Date().toISOString() + '</footer>\n';
+  html += '  <footer>Exported from Console.web on ' + new Date().toISOString() + '</footer>\n';
   html += '</body>\n</html>';
 
   return html;

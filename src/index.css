@@ -401,6 +401,64 @@ body::after {
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
 }
 
+/* Select dropdown - themed */
+.select-glass {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  padding: 0.625rem 0.875rem;
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  width: 100%;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23888'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem;
+  padding-right: 2.5rem;
+}
+
+.select-glass:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+.select-glass option {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  padding: 0.5rem;
+}
+
+/* Checkbox - themed */
+.checkbox-glass {
+  appearance: none;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background: var(--bg-surface);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.checkbox-glass:checked {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E");
+  background-size: 0.75rem;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.checkbox-glass:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
 /* ============================================
    SIDEBAR STYLES - WIDESCREEN OPTIMIZED
    ============================================ */
@@ -722,6 +780,13 @@ body::after {
 .animate-fade-in { animation: fade-in 0.2s ease-out; }
 .animate-slide-up { animation: slide-up 0.2s ease-out; }
 .animate-slide-in-right { animation: slide-in-right 0.2s ease-out; }
+
+/* Slide down animation for overlays */
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-down { animation: slide-down 0.25s ease-out; }
 
 /* Spin animation */
 @keyframes spin {

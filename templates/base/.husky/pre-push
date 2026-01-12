@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Run tests before pushing
+bun run test
+
+# Run security check (if available)
+if [ -f "scripts/security-check.js" ]; then
+  bun run security-check
+fi

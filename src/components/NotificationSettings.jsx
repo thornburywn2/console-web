@@ -58,7 +58,7 @@ export default function NotificationSettings({
   const testDesktop = () => {
     if (permissionStatus === 'granted') {
       new Notification('Test Notification', {
-        body: 'This is a test notification from Command Portal',
+        body: 'This is a test notification from Console.web',
         icon: '/favicon.ico',
       });
     }

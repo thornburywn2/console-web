@@ -1,0 +1,71 @@
+// Prisma Schema for {{PROJECT_NAME}}
+// https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===========================================
+// USER & AUTH MODELS (if authentication needed)
+// ===========================================
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String?
+  role         Role     @default(USER)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  sessions Session[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  refreshToken String   @unique @map("refresh_token")
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([refreshToken])
+  @@map("sessions")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+// ===========================================
+// ADD YOUR MODELS BELOW
+// ===========================================
+
+// Example model - replace with your domain models
+// model Post {
+//   id        String   @id @default(cuid())
+//   title     String
+//   content   String?
+//   published Boolean  @default(false)
+//   authorId  String   @map("author_id")
+//   createdAt DateTime @default(now()) @map("created_at")
+//   updatedAt DateTime @updatedAt @map("updated_at")
+//
+//   author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+//
+//   @@index([authorId])
+//   @@map("posts")
+// }

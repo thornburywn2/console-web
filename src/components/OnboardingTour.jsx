@@ -8,7 +8,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 const DEFAULT_STEPS = [
   {
     id: 'welcome',
-    title: 'Welcome to Command Portal',
+    title: 'Welcome to Console.web',
     content: 'Your all-in-one development operations platform. Let me show you around!',
     target: null,
     placement: 'center'
