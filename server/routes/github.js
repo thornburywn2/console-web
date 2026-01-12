@@ -17,6 +17,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { promisify } from 'util';
 import { exec } from 'child_process';
+import scanManager from '../services/scanManager.js';
 
 const execAsync = promisify(exec);
 
@@ -24,6 +25,11 @@ export function createGithubRouter(prisma) {
   const router = Router();
   const PROJECTS_DIR = process.env.PROJECTS_DIR || (process.env.HOME + '/Projects');
   const AGENTS_DIR = process.env.AGENTS_DIR || path.join(process.env.HOME, 'Projects/agents/lifecycle');
+
+  // Load scan settings on router creation
+  if (prisma) {
+    scanManager.loadScanSettings(prisma);
+  }
 
   // ==================== HELPERS ====================
 
@@ -310,10 +316,21 @@ export function createGithubRouter(prisma) {
   ];
 
   /**
-   * Run a single pipeline stage
+   * Run a single pipeline stage using the scan manager for resource control
    */
   async function runPipelineStage(stage, projectPath) {
     const agentPath = path.join(AGENTS_DIR, stage.agent);
+
+    // Check if this scan type is enabled
+    if (!scanManager.isScanEnabled(stage.id)) {
+      return {
+        id: stage.id,
+        name: stage.name,
+        status: 'skipped',
+        message: `${stage.name} is disabled in settings`,
+        duration: 0
+      };
+    }
 
     // Check if agent exists
     try {
@@ -328,51 +345,30 @@ export function createGithubRouter(prisma) {
       };
     }
 
-    const startTime = Date.now();
-
     try {
-      const cmd = `bash "${agentPath}" ${stage.command} "${projectPath}"`;
-      const { stdout, stderr } = await execAsync(cmd, {
-        timeout: stage.timeout,
-        maxBuffer: 10 * 1024 * 1024,
-        env: {
-          ...process.env,
-          PROJECTS_DIR,
-          PROJECT_PATH: projectPath
-        }
+      // Use scan manager for resource-controlled execution
+      const result = await scanManager.executeScan(agentPath, stage.command, projectPath, {
+        agent: stage.name
       });
-
-      const output = stdout + (stderr ? '\n' + stderr : '');
-      const duration = Date.now() - startTime;
-
-      // Determine success based on output
-      const hasErrors = output.toLowerCase().includes('critical') ||
-                       output.toLowerCase().includes('high vulnerability') ||
-                       output.includes('FAILED') ||
-                       output.includes('✗ BLOCKED');
-
-      const hasWarnings = output.toLowerCase().includes('warning') ||
-                         output.toLowerCase().includes('medium') ||
-                         output.includes('⚠');
 
       return {
         id: stage.id,
         name: stage.name,
-        status: hasErrors ? 'failed' : (hasWarnings ? 'warning' : 'passed'),
-        output: output.slice(-5000),  // Last 5KB of output
-        duration,
-        required: stage.required
+        status: result.hasErrors ? 'failed' : (result.hasWarnings ? 'warning' : 'passed'),
+        output: result.output ? result.output.slice(-5000) : '',  // Last 5KB of output
+        duration: result.duration,
+        required: stage.required,
+        timedOut: result.timedOut || false
       };
 
     } catch (error) {
-      const duration = Date.now() - startTime;
       return {
         id: stage.id,
         name: stage.name,
         status: 'error',
         message: error.message,
-        output: (error.stdout || '') + (error.stderr || ''),
-        duration,
+        output: '',
+        duration: 0,
         required: stage.required
       };
     }
@@ -385,11 +381,19 @@ export function createGithubRouter(prisma) {
   async function runPrePushPipeline(projectPath, options = {}) {
     const { skipPipeline = false, skipSecurity = false, skipQuality = false } = options;
 
+    // Check if pre-push pipeline is enabled in settings
+    const settings = scanManager.getScanSettings();
+    if (!settings.enablePrePushPipeline) {
+      console.log(`[Pre-Push Pipeline] Disabled in settings, skipping...`);
+      return { success: true, results: [], blockers: [], skipped: true, reason: 'disabled_in_settings' };
+    }
+
     if (skipPipeline) {
       return { success: true, results: [], blockers: [], skipped: true };
     }
 
     console.log(`[Pre-Push Pipeline] Starting for ${projectPath}...`);
+    console.log(`[Pre-Push Pipeline] Resource settings: concurrency=${settings.scanConcurrency}, nice=${settings.scanNiceLevel}, memory=${settings.scanMemoryLimitMb}MB`);
 
     const results = [];
     const blockers = [];

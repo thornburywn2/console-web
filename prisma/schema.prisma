@@ -112,6 +112,26 @@ model UserSettings {
   keepSessionsAlive Boolean @default(true)
   sessionTimeout Int      @default(3600) // seconds
 
+  // Resource Control - Scan Settings
+  // These prevent system overload from security/quality scans
+  scanConcurrency     Int       @default(1)      // Max concurrent scans (1 = sequential)
+  scanNiceLevel       Int       @default(15)     // Process priority (0-19, higher = nicer/lower priority)
+  scanIoniceClass     Int       @default(3)      // I/O scheduling class (3 = idle)
+  scanMemoryLimitMb   Int       @default(2048)   // Memory limit per scan in MB
+  scanTimeoutSeconds  Int       @default(600)    // Max time per scan (10 min default)
+  scanCpuLimit        Int       @default(50)     // CPU % limit per scan (requires cpulimit)
+
+  // Scan Feature Toggles
+  enableSecurityScans   Boolean   @default(true)  // Enable AGENT-018 security scans
+  enableQualityScans    Boolean   @default(true)  // Enable AGENT-019 quality scans
+  enablePrePushPipeline Boolean   @default(true)  // Run scans before GitHub push
+
+  // Heavy Operation Toggles (these consume the most resources)
+  skipContainerScan   Boolean   @default(true)   // Skip Trivy Docker container scan
+  skipSastScan        Boolean   @default(false)  // Skip Semgrep SAST scan
+  skipE2eTests        Boolean   @default(true)   // Skip Playwright/Cypress E2E tests
+  skipCoverageReport  Boolean   @default(false)  // Skip test coverage analysis
+
   updatedAt     DateTime  @updatedAt
 }
 

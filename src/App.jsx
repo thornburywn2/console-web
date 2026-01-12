@@ -44,7 +44,15 @@ const SOCKET_URL = '';
 function App() {
   const [socket, setSocket] = useState(null);
   const [projects, setProjects] = useState([]);
-  const [selectedProject, setSelectedProject] = useState(null);
+  // Initialize selected project from localStorage for persistence across reloads
+  const [selectedProject, setSelectedProject] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ccm-selected-project');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -89,46 +97,98 @@ function App() {
   const [showGitHubSettings, setShowGitHubSettings] = useState(false);
   const [showGitHubRepos, setShowGitHubRepos] = useState(false);
 
+  // Track selected project for reconnection (ref to avoid stale closures)
+  const selectedProjectRef = useRef(null);
+  useEffect(() => {
+    selectedProjectRef.current = selectedProject;
+  }, [selectedProject]);
+
   // Initialize socket connection
   useEffect(() => {
     const newSocket = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: Infinity, // Never stop trying to reconnect
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000, // Cap delay at 5 seconds
+      timeout: 20000, // Connection timeout
     });
 
-    newSocket.on('connect', () => {
+    newSocket.on('connect', async () => {
       console.log('Socket connected:', newSocket.id);
       setIsConnected(true);
       setError(null);
+
+      // Auto-reconnect to previously selected project after socket reconnection
+      const currentProject = selectedProjectRef.current;
+      if (currentProject) {
+        // Check if auto-reconnect is enabled in settings
+        try {
+          const settingsRes = await fetch('/api/settings');
+          if (settingsRes.ok) {
+            const settings = await settingsRes.json();
+            // Default to true if setting is undefined
+            if (settings.autoReconnect !== false) {
+              console.log('Auto-reconnecting to project:', currentProject.path);
+              newSocket.emit('reconnect-session', currentProject.path);
+            } else {
+              console.log('Auto-reconnect disabled in settings, skipping reconnection');
+            }
+          } else {
+            // If settings fail to load, still attempt reconnect
+            console.log('Failed to load settings, attempting reconnect anyway');
+            newSocket.emit('reconnect-session', currentProject.path);
+          }
+        } catch (err) {
+          // If settings check fails, still attempt reconnect
+          console.log('Error checking settings, attempting reconnect:', err);
+          newSocket.emit('reconnect-session', currentProject.path);
+        }
+      }
     });
 
-    newSocket.on('disconnect', () => {
-      console.log('Socket disconnected');
+    newSocket.on('disconnect', (reason) => {
+      console.log('Socket disconnected:', reason);
       setIsConnected(false);
+      setTerminalReady(false);
+      // Don't clear selected project - we'll try to reconnect when socket comes back
     });
 
     newSocket.on('connect_error', (err) => {
       console.error('Socket connection error:', err);
-      setError('Failed to connect to server');
+      setError('Connection lost - reconnecting...');
       setIsConnected(false);
     });
 
-    newSocket.on('terminal-ready', ({ projectPath, sessionName, isNew }) => {
-      console.log('Terminal ready:', { projectPath, sessionName, isNew });
+    newSocket.on('terminal-ready', ({ projectPath, sessionName, isNew, reconnected }) => {
+      console.log('Terminal ready:', { projectPath, sessionName, isNew, reconnected });
       setTerminalReady(true);
+      if (reconnected) {
+        setError(null); // Clear any connection errors on successful reconnect
+      }
     });
 
     newSocket.on('terminal-exit', ({ exitCode, projectPath }) => {
       console.log('Terminal exited:', { exitCode, projectPath });
+      const currentProject = selectedProjectRef.current;
+
+      // If this is our current project, try to reconnect (tmux session may still exist)
+      if (currentProject?.path === projectPath) {
+        console.log('Attempting to reconnect to tmux session after PTY exit...');
+        setTerminalReady(false);
+        // Small delay to let server clean up, then try reconnecting
+        setTimeout(() => {
+          newSocket.emit('reconnect-session', projectPath);
+        }, 500);
+      }
+
       // Refresh project list to update active session status
       fetchProjects();
     });
 
     newSocket.on('session-killed', ({ projectPath, sessionName }) => {
       console.log('Session killed:', { projectPath, sessionName });
-      if (selectedProject?.path === projectPath) {
+      if (selectedProjectRef.current?.path === projectPath) {
         setSelectedProject(null);
         setTerminalReady(false);
       }
@@ -137,7 +197,10 @@ function App() {
 
     newSocket.on('session-error', ({ message, projectPath }) => {
       console.error('Session error:', message);
-      setError(message);
+      // Only show error if it's for the current project
+      if (!projectPath || selectedProjectRef.current?.path === projectPath) {
+        setError(message);
+      }
     });
 
     setSocket(newSocket);
@@ -172,6 +235,19 @@ function App() {
     const interval = setInterval(fetchProjects, 30000);
     return () => clearInterval(interval);
   }, [fetchProjects]);
+
+  // Persist selected project to localStorage for auto-reconnect on page reload
+  useEffect(() => {
+    try {
+      if (selectedProject) {
+        localStorage.setItem('ccm-selected-project', JSON.stringify(selectedProject));
+      } else {
+        localStorage.removeItem('ccm-selected-project');
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+  }, [selectedProject]);
 
   // Handle project selection
   const handleSelectProject = useCallback((project) => {

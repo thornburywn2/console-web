@@ -3,11 +3,17 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs/promises';
+import scanManager from '../services/scanManager.js';
 
 const execAsync = promisify(exec);
 
-export function createLifecycleRouter() {
+export function createLifecycleRouter(prisma) {
   const router = Router();
+
+  // Load scan settings on router creation
+  if (prisma) {
+    scanManager.loadScanSettings(prisma);
+  }
 
 // Lifecycle agents configuration
 const AGENTS_DIR = process.env.AGENTS_DIR || path.join(process.env.HOME, 'Projects/agents/lifecycle');
@@ -116,12 +122,24 @@ router.get('/agents', async (req, res) => {
   res.json({ agents, agentsDir: AGENTS_DIR });
 });
 
-// POST /api/lifecycle/scan - Run a lifecycle agent scan
+// POST /api/lifecycle/scan - Run a lifecycle agent scan with resource controls
 router.post('/scan', async (req, res) => {
-  const { agent, command, project } = req.body;
+  const { agent, command, project, skipQueue = false } = req.body;
 
   if (!agent || !AGENTS[agent]) {
     return res.status(400).json({ success: false, error: 'Invalid agent' });
+  }
+
+  // Check if this scan type is enabled
+  if (!scanManager.isScanEnabled(agent)) {
+    return res.json({
+      success: true,
+      skipped: true,
+      reason: `${AGENTS[agent].name} is disabled in settings`,
+      agent: AGENTS[agent].name,
+      project: project,
+      timestamp: new Date().toISOString()
+    });
   }
 
   const agentConfig = AGENTS[agent];
@@ -149,39 +167,40 @@ router.post('/scan', async (req, res) => {
   }
 
   try {
-    // Run the agent script
-    const cmd = `bash "${agentPath}" ${command || ''} "${projectPath}"`;
+    // Get queue status for response
+    const queueStatus = scanManager.getQueueStatus();
 
-    const { stdout, stderr } = await execAsync(cmd, {
-      timeout: 600000, // 10 minute timeout
-      maxBuffer: 10 * 1024 * 1024, // 10MB buffer
-      env: {
-        ...process.env,
-        PROJECTS_DIR,
-        PROJECT_PATH: projectPath
-      }
+    // Execute scan through the scan manager (with resource limiting and queueing)
+    console.log(`[Lifecycle] Executing ${agentConfig.name} scan for ${project || 'current directory'}`);
+
+    const result = await scanManager.executeScan(agentPath, command || '', projectPath, {
+      agent: agentConfig.name
     });
-
-    // Parse output for summary
-    const output = stdout + (stderr ? '\n' + stderr : '');
-    const success = !output.toLowerCase().includes('error') &&
-                   !output.toLowerCase().includes('failed') &&
-                   !output.includes('✗');
 
     // Extract summary if present
     let summary = null;
-    const summaryMatch = output.match(/(?:SUMMARY|REPORT)[:\s]*\n([\s\S]*?)(?:\n\n|$)/i);
-    if (summaryMatch) {
-      summary = summaryMatch[1].trim();
+    if (result.output) {
+      const summaryMatch = result.output.match(/(?:SUMMARY|REPORT)[:\s]*\n([\s\S]*?)(?:\n\n|$)/i);
+      if (summaryMatch) {
+        summary = summaryMatch[1].trim();
+      }
     }
 
     res.json({
-      success,
-      output,
+      success: result.success,
+      output: result.output,
       summary,
       agent: agentConfig.name,
       project: projectPath,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      duration: result.duration,
+      scanId: result.scanId,
+      timedOut: result.timedOut || false,
+      resourceControls: {
+        queuePosition: queueStatus.queueLength,
+        activeScansBefore: queueStatus.activeScans,
+        settings: scanManager.getScanSettings()
+      }
     });
 
   } catch (error) {
@@ -195,6 +214,40 @@ router.post('/scan', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   }
+});
+
+// GET /api/lifecycle/queue - Get scan queue status
+router.get('/queue', async (req, res) => {
+  const status = scanManager.getQueueStatus();
+  res.json(status);
+});
+
+// POST /api/lifecycle/queue/cancel - Cancel all pending scans
+router.post('/queue/cancel', async (req, res) => {
+  const cancelled = scanManager.cancelPendingScans();
+  res.json({ success: true, cancelled });
+});
+
+// GET /api/lifecycle/settings - Get scan settings
+router.get('/settings', async (req, res) => {
+  const settings = scanManager.getScanSettings();
+  res.json(settings);
+});
+
+// POST /api/lifecycle/settings/reload - Reload settings from database
+router.post('/settings/reload', async (req, res) => {
+  if (prisma) {
+    const settings = await scanManager.loadScanSettings(prisma);
+    res.json({ success: true, settings });
+  } else {
+    res.status(500).json({ error: 'Database not available' });
+  }
+});
+
+// GET /api/lifecycle/recommendations - Get resource control recommendations
+router.get('/recommendations', async (req, res) => {
+  const recommendations = await scanManager.getResourceRecommendations();
+  res.json(recommendations);
 });
 
 // GET /api/lifecycle/reports - Get recent scan reports

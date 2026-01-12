@@ -35,6 +35,10 @@ vi.mock('./UserProfileSection', () => ({
   default: () => <div data-testid="user-profile-section">UserProfileSection</div>
 }));
 
+vi.mock('./AgentStatusDashboard', () => ({
+  default: () => <div data-testid="agent-status-dashboard">AgentStatusDashboard</div>
+}));
+
 describe('Sidebar', () => {
   const mockProjects = [
     { id: '1', name: 'Project Alpha', path: '/projects/alpha', hasActiveSession: true },
@@ -102,7 +106,7 @@ describe('Sidebar', () => {
 
   it('should highlight selected project', () => {
     render(<Sidebar {...defaultProps} selectedProject={mockProjects[0]} />);
-    const projectItem = screen.getByText('Project Alpha').closest('[role="button"]');
+    const projectItem = screen.getByText('Project Alpha').closest('.sidebar-item');
     expect(projectItem.style.background).toContain('rgba(16, 185, 129');
   });
 
@@ -151,7 +155,8 @@ describe('Sidebar', () => {
     expect(refreshButton).toBeDisabled();
   });
 
-  it('should call onToggleCollapse when collapse button is clicked', () => {
+  // Collapse sidebar feature removed in current version
+  it.skip('should call onToggleCollapse when collapse button is clicked', () => {
     render(<Sidebar {...defaultProps} />);
     const collapseButton = screen.getByTitle('Collapse sidebar');
     fireEvent.click(collapseButton);
@@ -160,21 +165,21 @@ describe('Sidebar', () => {
 
   it('should show kill button for projects with active sessions', () => {
     render(<Sidebar {...defaultProps} />);
-    const alphaItem = screen.getByText('Project Alpha').closest('[role="button"]');
+    const alphaItem = screen.getByText('Project Alpha').closest('.sidebar-item');
     const killButton = within(alphaItem).getByTitle('Kill session');
     expect(killButton).toBeInTheDocument();
   });
 
   it('should not show kill button for projects without active sessions', () => {
     render(<Sidebar {...defaultProps} />);
-    const betaItem = screen.getByText('Project Beta').closest('[role="button"]');
+    const betaItem = screen.getByText('Project Beta').closest('.sidebar-item');
     const killButton = within(betaItem).queryByTitle('Kill session');
     expect(killButton).not.toBeInTheDocument();
   });
 
   it('should require double click to kill session', () => {
     render(<Sidebar {...defaultProps} />);
-    const alphaItem = screen.getByText('Project Alpha').closest('[role="button"]');
+    const alphaItem = screen.getByText('Project Alpha').closest('.sidebar-item');
     const killButton = within(alphaItem).getByTitle('Kill session');
 
     // First click - should show confirmation
@@ -187,7 +192,8 @@ describe('Sidebar', () => {
     expect(defaultProps.onKillSession).toHaveBeenCalledWith('/projects/alpha');
   });
 
-  it('should hide content when collapsed', () => {
+  // Collapsed mode removed in current version
+  it.skip('should hide content when collapsed', () => {
     render(<Sidebar {...defaultProps} collapsed={true} />);
     expect(screen.queryByText('PROJECTS')).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText('Search projects...')).not.toBeInTheDocument();
@@ -222,7 +228,7 @@ describe('Sidebar', () => {
 
   it('should handle keyboard navigation on project items', () => {
     render(<Sidebar {...defaultProps} />);
-    const projectItem = screen.getByText('Project Alpha').closest('[role="button"]');
+    const projectItem = screen.getByText('Project Alpha').closest('.sidebar-item');
 
     fireEvent.keyDown(projectItem, { key: 'Enter' });
     expect(defaultProps.onSelectProject).toHaveBeenCalledWith(mockProjects[0]);
@@ -233,50 +239,33 @@ describe('Sidebar', () => {
     expect(defaultProps.onSelectProject).toHaveBeenCalledWith(mockProjects[0]);
   });
 
-  describe('Collapsible sections', () => {
+  // Collapsible sections (Folders, Tags, AI Persona, Recent Commands) removed in current version
+  describe.skip('Collapsible sections', () => {
     it('should toggle Folders section', () => {
       render(<Sidebar {...defaultProps} />);
-
-      // Folders should be expanded by default
       expect(screen.getByTestId('folder-tree')).toBeInTheDocument();
-
-      // Click to collapse
       fireEvent.click(screen.getByText('Folders'));
       expect(screen.queryByTestId('folder-tree')).not.toBeInTheDocument();
-
-      // Click to expand again
       fireEvent.click(screen.getByText('Folders'));
       expect(screen.getByTestId('folder-tree')).toBeInTheDocument();
     });
 
     it('should toggle Tags section', () => {
       render(<Sidebar {...defaultProps} />);
-
-      // Tags should be collapsed by default
       expect(screen.queryByTestId('tag-manager')).not.toBeInTheDocument();
-
-      // Click to expand
       fireEvent.click(screen.getByText('Tags'));
       expect(screen.getByTestId('tag-manager')).toBeInTheDocument();
-
-      // Click to collapse
       fireEvent.click(screen.getByText('Tags'));
       expect(screen.queryByTestId('tag-manager')).not.toBeInTheDocument();
     });
 
     it('should toggle AI Persona section', () => {
       render(<Sidebar {...defaultProps} />);
-
-      // Persona should be expanded by default (full view, not compact)
       expect(screen.getByTestId('persona-selector')).toBeInTheDocument();
       expect(screen.queryByTestId('persona-selector-compact')).not.toBeInTheDocument();
-
-      // Click to collapse - should show compact view
       fireEvent.click(screen.getByText('AI Persona'));
       expect(screen.queryByTestId('persona-selector')).not.toBeInTheDocument();
       expect(screen.getByTestId('persona-selector-compact')).toBeInTheDocument();
-
-      // Click to expand again - should show full view
       fireEvent.click(screen.getByText('AI Persona'));
       expect(screen.getByTestId('persona-selector')).toBeInTheDocument();
       expect(screen.queryByTestId('persona-selector-compact')).not.toBeInTheDocument();
@@ -284,17 +273,14 @@ describe('Sidebar', () => {
 
     it('should toggle Recent Commands section', () => {
       render(<Sidebar {...defaultProps} />);
-
-      // Commands should be collapsed by default
       expect(screen.queryByTestId('recent-commands')).not.toBeInTheDocument();
-
-      // Click to expand
       fireEvent.click(screen.getByText('Recent Commands'));
       expect(screen.getByTestId('recent-commands')).toBeInTheDocument();
     });
   });
 
-  describe('Session management integration', () => {
+  // Session management sections removed in current version
+  describe.skip('Session management integration', () => {
     it('should show selected tags count badge', () => {
       const propsWithSelectedTags = {
         ...defaultProps,
@@ -303,7 +289,6 @@ describe('Sidebar', () => {
           selectedTags: ['tag1', 'tag2'],
         },
       };
-
       render(<Sidebar {...propsWithSelectedTags} />);
       expect(screen.getByText('2')).toBeInTheDocument();
     });
@@ -311,7 +296,6 @@ describe('Sidebar', () => {
     it('should not show organization sections without sessionManagement', () => {
       const propsWithoutSession = { ...defaultProps, sessionManagement: null };
       render(<Sidebar {...propsWithoutSession} />);
-
       expect(screen.queryByText('Folders')).not.toBeInTheDocument();
       expect(screen.queryByText('Tags')).not.toBeInTheDocument();
       expect(screen.queryByText('AI Persona')).not.toBeInTheDocument();

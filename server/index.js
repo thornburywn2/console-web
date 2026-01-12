@@ -97,6 +97,17 @@ const CLAUDE_SETTINGS_LOCAL_FILE = join(CLAUDE_DIR, 'settings.local.json');
 // Docker client initialization
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
+// Ensure tmux socket directory exists (fixes "error creating /tmp/tmux-{uid}/default" after reboot)
+const TMUX_SOCKET_DIR = `/tmp/tmux-${process.getuid()}`;
+if (!existsSync(TMUX_SOCKET_DIR)) {
+  try {
+    mkdirSync(TMUX_SOCKET_DIR, { mode: 0o700 });
+    console.log(`Created tmux socket directory: ${TMUX_SOCKET_DIR}`);
+  } catch (err) {
+    console.error(`Failed to create tmux socket directory: ${err.message}`);
+  }
+}
+
 // Sovereign Stack service configuration
 const SOVEREIGN_SERVICES = {
   authentik: {
@@ -357,8 +368,8 @@ app.use('/api/browser', createBrowserRouter(prisma));
 // Register Keyboard Shortcuts routes
 app.use('/api/shortcuts', createShortcutsRouter(prisma));
 
-// Register Lifecycle Agent routes (security, quality, performance)
-app.use('/api/lifecycle', createLifecycleRouter());
+// Register Lifecycle Agent routes (security, quality, performance) with resource management
+app.use('/api/lifecycle', createLifecycleRouter(prisma));
 
 // Server Configuration endpoint (read-only)
 app.get('/api/config', (req, res) => {
@@ -559,6 +570,54 @@ async function updateUserSettings(data) {
 }
 
 // =============================================================================
+// SECURITY: INPUT VALIDATION HELPERS
+// =============================================================================
+
+/**
+ * Validate and sanitize a tmux session name
+ * Only allows alphanumeric, dash, and underscore
+ */
+function validateSessionName(sessionName) {
+  if (typeof sessionName !== 'string') return null;
+  // Session names must start with cp- and only contain safe characters
+  if (!/^cp-[a-zA-Z0-9_-]+$/.test(sessionName)) return null;
+  if (sessionName.length > 100) return null;
+  return sessionName;
+}
+
+/**
+ * Validate and sanitize a systemd service name
+ * Only allows alphanumeric, dash, underscore, and @
+ */
+function validateServiceName(serviceName) {
+  if (typeof serviceName !== 'string') return null;
+  // Service names only contain safe characters (no shell metacharacters)
+  if (!/^[a-zA-Z0-9_@.-]+$/.test(serviceName)) return null;
+  if (serviceName.length > 256) return null;
+  return serviceName;
+}
+
+/**
+ * Validate a port number
+ * Must be a positive integer between 1 and 65535
+ */
+function validatePort(port) {
+  const num = parseInt(port, 10);
+  if (isNaN(num) || num < 1 || num > 65535) return null;
+  return num;
+}
+
+/**
+ * Validate a journalctl unit name
+ */
+function validateUnitName(unit) {
+  if (typeof unit !== 'string') return null;
+  if (!/^[a-zA-Z0-9_@.-]+$/.test(unit)) return null;
+  if (unit.length > 256) return null;
+  return unit;
+}
+
+// =============================================================================
 // TMUX SESSION MANAGEMENT
 // =============================================================================
 
@@ -567,16 +626,26 @@ async function updateUserSettings(data) {
  */
 function getSessionName(projectPath) {
   const name = basename(projectPath);
-  // tmux session names can't contain periods or colons
-  return `cp-${name.replace(/[.:]/g, '_')}`;
+  // tmux session names can't contain periods or colons - replace with underscore
+  // Also remove any other potentially dangerous characters
+  const safeName = name.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `cp-${safeName}`;
 }
 
 /**
  * Check if a tmux session exists
  */
 function tmuxSessionExists(sessionName) {
+  // Validate session name to prevent command injection
+  const validName = validateSessionName(sessionName);
+  if (!validName) {
+    console.warn(`[SECURITY] Invalid session name rejected: ${sessionName}`);
+    return false;
+  }
   try {
-    execSync(`tmux has-session -t "${sessionName}" 2>/dev/null`);
+    // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
+    // validName is validated by validateSessionName() - only allows ^cp-[a-zA-Z0-9_-]+$
+    execSync(`tmux has-session -t "${validName}" 2>/dev/null`);
     return true;
   } catch {
     return false;
@@ -1644,21 +1713,28 @@ Add project description here.
 app.post('/api/projects/:projectName/restart', async (req, res) => {
   try {
     const projectName = req.params.projectName;
-    const projectPath = join(PROJECTS_DIR, projectName);
+
+    // Validate project name to prevent command injection
+    const safeProjectName = projectName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    if (safeProjectName !== projectName) {
+      console.warn(`[SECURITY] Project name sanitized: ${projectName} -> ${safeProjectName}`);
+    }
+
+    const projectPath = join(PROJECTS_DIR, safeProjectName);
 
     if (!existsSync(projectPath)) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    console.log(`[Restart] Restarting project: ${projectName}`);
+    console.log(`[Restart] Restarting project: ${safeProjectName}`);
 
-    // Find the session for this project
-    const sessionName = `project-${projectName}`;
+    // Find the session for this project - use safe name
+    const sessionName = `project-${safeProjectName}`;
 
     // Check if session exists
     const { stdout: listOutput } = await execAsync(`tmux list-sessions -F "#{session_name}" 2>/dev/null || echo ""`);
-    const sessions = listOutput.trim().split('\n').filter(Boolean);
-    const hasSession = sessions.includes(sessionName);
+    const sessionList = listOutput.trim().split('\n').filter(Boolean);
+    const hasSession = sessionList.includes(sessionName);
 
     if (hasSession) {
       // Kill existing session
@@ -2537,11 +2613,20 @@ app.post('/api/server/services/:name/:action', (req, res) => {
     return res.status(400).json({ error: `Invalid action: ${action}` });
   }
 
+  // Validate service name to prevent command injection
+  const validServiceName = validateServiceName(name);
+  if (!validServiceName) {
+    console.warn(`[SECURITY] Invalid service name rejected: ${name}`);
+    return res.status(400).json({ error: 'Invalid service name' });
+  }
+
   try {
-    const output = execSync(`sudo systemctl ${action} ${name}.service 2>&1 || true`, {
+    // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
+    // action is from allowedActions whitelist, validServiceName validated by validateServiceName()
+    const output = execSync(`sudo systemctl ${action} ${validServiceName}.service 2>&1 || true`, {
       encoding: 'utf-8',
     });
-    res.json({ success: true, action, service: name, output: output.trim() });
+    res.json({ success: true, action, service: validServiceName, output: output.trim() });
   } catch (error) {
     console.error(`Service ${action} error:`, error);
     res.status(500).json({ error: `Failed to ${action} service`, details: error.message });
@@ -2556,10 +2641,38 @@ app.get('/api/server/logs', (req, res) => {
 
   try {
     let cmd = 'journalctl --no-pager';
-    if (unit) cmd += ` -u ${unit}`;
-    if (lines) cmd += ` -n ${lines}`;
-    if (priority) cmd += ` -p ${priority}`;
-    if (since) cmd += ` --since "${since}"`;
+
+    // Validate unit name to prevent command injection
+    if (unit) {
+      const validUnit = validateUnitName(unit);
+      if (!validUnit) {
+        console.warn(`[SECURITY] Invalid unit name rejected: ${unit}`);
+        return res.status(400).json({ error: 'Invalid unit name' });
+      }
+      cmd += ` -u ${validUnit}`;
+    }
+
+    // Validate lines as integer
+    const numLines = parseInt(lines, 10);
+    if (!isNaN(numLines) && numLines > 0 && numLines <= 10000) {
+      cmd += ` -n ${numLines}`;
+    }
+
+    // Validate priority (0-7)
+    if (priority) {
+      const numPriority = parseInt(priority, 10);
+      if (!isNaN(numPriority) && numPriority >= 0 && numPriority <= 7) {
+        cmd += ` -p ${numPriority}`;
+      }
+    }
+
+    // Validate since - only allow safe date format (YYYY-MM-DD HH:MM:SS)
+    if (since) {
+      const safeDate = /^[\d\s:-]+$/.test(since) ? since : null;
+      if (safeDate && safeDate.length <= 30) {
+        cmd += ` --since "${safeDate}"`;
+      }
+    }
 
     const output = execSync(cmd, { encoding: 'utf-8' });
     const logLines = output.trim().split('\n');
@@ -2799,10 +2912,15 @@ app.post('/api/ports/scan', (req, res) => {
  */
 app.delete('/api/ports/kill/:port', (req, res) => {
   try {
-    const port = parseInt(req.params.port, 10);
-
-    if (isNaN(port) || port < 1024 || port > 65535) {
+    // Validate port to prevent command injection
+    const port = validatePort(req.params.port);
+    if (!port) {
+      console.warn(`[SECURITY] Invalid port rejected: ${req.params.port}`);
       return res.status(400).json({ error: 'Invalid port number' });
+    }
+
+    if (port < 1024 || port > 65535) {
+      return res.status(400).json({ error: 'Port out of allowed range (1024-65535)' });
     }
 
     // Safety check - don't allow killing system ports
@@ -2810,8 +2928,10 @@ app.delete('/api/ports/kill/:port', (req, res) => {
       return res.status(403).json({ error: 'Cannot kill system port' });
     }
 
-    // Find and kill the process
+    // Find and kill the process - port is now guaranteed to be a safe integer
     try {
+      // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
+      // port is validated by validatePort() - guaranteed to be integer 1-65535
       execSync(`fuser -k ${port}/tcp 2>/dev/null || lsof -ti :${port} | xargs kill -9 2>/dev/null`, {
         encoding: 'utf-8',
       });
@@ -3197,17 +3317,103 @@ io.on('connection', (socket) => {
   });
 
   // Handle manual reconnection to existing tmux session
-  socket.on('reconnect-session', (projectPath) => {
+  socket.on('reconnect-session', async (projectPath) => {
+    console.log(`Socket ${socket.id} requesting reconnection to: ${projectPath}`);
     const sessionName = getSessionName(projectPath);
-    if (tmuxSessionExists(sessionName)) {
-      // Create new PTY that attaches to existing tmux session
-      socket.emit('select-project', projectPath);
-    } else {
+
+    if (!tmuxSessionExists(sessionName)) {
       socket.emit('session-error', {
         message: 'Session no longer exists',
         projectPath
       });
+      return;
     }
+
+    // Clean up any existing session for this socket
+    const existingProject = socketProjects.get(socket.id);
+    if (existingProject && existingProject !== projectPath) {
+      const existingSession = sessions.get(existingProject);
+      if (existingSession) {
+        existingSession.sockets.delete(socket.id);
+      }
+    }
+
+    // Check if we already have a PTY session for this project
+    let session = sessions.get(projectPath);
+
+    if (!session) {
+      // Create new PTY session that attaches to existing tmux
+      console.log(`Reattaching to existing tmux session: ${sessionName}`);
+      const ptySession = createPtySession(projectPath, socket, { skipPermissions: false });
+
+      session = {
+        ...ptySession,
+        sockets: new Set([socket.id]),
+        lastOutputTime: null,
+        activityStartTime: null,
+        idleTimer: null,
+        isActive: false
+      };
+
+      sessions.set(projectPath, session);
+
+      // Set up PTY output handler
+      session.pty.onData((data) => {
+        const now = Date.now();
+        if (!session.isActive) {
+          session.isActive = true;
+          session.activityStartTime = now;
+        }
+        session.lastOutputTime = now;
+
+        if (session.idleTimer) {
+          clearTimeout(session.idleTimer);
+        }
+
+        session.sockets.forEach(socketId => {
+          io.to(socketId).emit('terminal-output', data);
+        });
+
+        session.idleTimer = setTimeout(() => {
+          const activityDuration = session.lastOutputTime - session.activityStartTime;
+          if (session.isActive && activityDuration >= MIN_ACTIVITY_MS) {
+            session.sockets.forEach(socketId => {
+              io.to(socketId).emit('command-complete', {
+                projectPath,
+                projectName: basename(projectPath),
+                activityDuration,
+                timestamp: Date.now()
+              });
+            });
+          }
+          session.isActive = false;
+          session.activityStartTime = null;
+        }, IDLE_TIMEOUT_MS);
+      });
+
+      // Handle PTY exit
+      session.pty.onExit(({ exitCode }) => {
+        console.log(`PTY exited for ${projectPath} with code ${exitCode}`);
+        sessions.delete(projectPath);
+        session.sockets.forEach(socketId => {
+          io.to(socketId).emit('terminal-exit', { exitCode, projectPath });
+        });
+      });
+    } else {
+      // Add this socket to existing session
+      session.sockets.add(socket.id);
+    }
+
+    // Update socket-to-project mapping
+    socketProjects.set(socket.id, projectPath);
+
+    // Notify client that reconnection succeeded
+    socket.emit('terminal-ready', {
+      projectPath,
+      sessionName: session.sessionName,
+      isNew: false,
+      reconnected: true
+    });
   });
 
   // Handle disconnection
@@ -3245,11 +3451,19 @@ io.on('connection', (socket) => {
       sessions.delete(projectPath);
     }
 
-    // Also kill the tmux session
-    try {
-      execSync(`tmux kill-session -t "${sessionName}" 2>/dev/null`);
-    } catch {
-      // Session might already be dead
+    // Validate session name before using in shell command
+    const validSessionName = validateSessionName(sessionName);
+    if (validSessionName) {
+      // Also kill the tmux session
+      try {
+        // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
+        // validSessionName validated by validateSessionName() - only allows ^cp-[a-zA-Z0-9_-]+$
+        execSync(`tmux kill-session -t "${validSessionName}" 2>/dev/null`);
+      } catch {
+        // Session might already be dead
+      }
+    } else {
+      console.warn(`[SECURITY] Invalid session name in kill-session: ${sessionName}`);
     }
 
     socket.emit('session-killed', { projectPath, sessionName });
