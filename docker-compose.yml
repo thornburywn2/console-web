@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  claude-code-manager:
+    build: .
+    container_name: claude-code-manager
+    restart: unless-stopped
+    ports:
+      - "5275:5275"
+    environment:
+      - NODE_ENV=production
+      - PORT=5275
+      - PROJECTS_DIR=/projects
+      - CLIENT_URL=https://manager.wbtlabs.com
+      # Pass through Anthropic API key for claude CLI
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      # Mount your projects directory
+      - ${PROJECTS_DIR:-./projects}:/projects:rw
+      # Persist tmux sessions (optional, helps with container restarts)
+      - tmux-sockets:/tmp/tmux-1000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5275/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  tmux-sockets:

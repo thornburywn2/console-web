@@ -1,0 +1,1125 @@
+// Prisma schema for Claude Code Manager session persistence
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Project state and metadata
+model Project {
+  id            String    @id @default(cuid())
+  name          String    @unique
+  path          String    @unique
+  displayName   String?
+  description   String?
+  lastAccessed  DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Project settings
+  autoStart       Boolean   @default(false)
+  favorited       Boolean   @default(false)
+  skipPermissions Boolean   @default(false)  // Start Claude with --dangerously-skip-permissions
+
+  // Relations
+  sessions      Session[]
+  agents        Agent[]
+  mcpServers    MCPServer[]
+  githubRepo    GitHubRepo?
+
+  @@index([name])
+  @@index([lastAccessed])
+}
+
+// Terminal session state
+model Session {
+  id            String    @id @default(cuid())
+  projectId     String
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Session identity
+  sessionName   String    // tmux session name (e.g., cp-project-name)
+  displayName   String?   // User-friendly name
+
+  // Session organization
+  folderId      String?
+  folder        SessionFolder? @relation("SessionFolder", fields: [folderId], references: [id], onDelete: SetNull)
+  isPinned      Boolean   @default(false)
+  isTemporary   Boolean   @default(false)  // Auto-delete on close
+  isArchived    Boolean   @default(false)
+  archivedAt    DateTime?
+
+  // Session state
+  status        SessionStatus @default(ACTIVE)
+  startedAt     DateTime  @default(now())
+  lastActiveAt  DateTime  @default(now())
+  endedAt       DateTime?
+
+  // Terminal state for reconnection
+  scrollbackBuffer  String?   @db.Text
+  cursorPosition    Json?     // { x: number, y: number }
+  terminalSize      Json?     // { cols: number, rows: number }
+  workingDirectory  String?
+
+  // Command history within session
+  commandHistory    CommandHistory[]
+
+  // New relations for enhanced features
+  tags              SessionTagAssignment[]
+  notes             SessionNote[]
+  sharedLinks       SharedSession[]
+  comments          SessionComment[]
+
+  @@unique([projectId, sessionName])
+  @@index([status])
+  @@index([lastActiveAt])
+  @@index([folderId])
+  @@index([isPinned])
+  @@index([isArchived])
+}
+
+// Command history for activity tracking
+model CommandHistory {
+  id            String    @id @default(cuid())
+  sessionId     String
+  session       Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  command       String    @db.Text
+  output        String?   @db.Text
+  exitCode      Int?
+  executedAt    DateTime  @default(now())
+  duration      Int?      // milliseconds
+
+  @@index([sessionId])
+  @@index([executedAt])
+}
+
+// User preferences and settings
+model UserSettings {
+  id            String    @id @default("default")
+
+  // UI preferences
+  theme         String    @default("dark")
+  sidebarWidth  Int       @default(280)
+  rightSidebarCollapsed Boolean @default(false)
+  expandedPanels Json?    // Which sidebar panels are expanded
+
+  // Session preferences
+  autoReconnect Boolean   @default(true)
+  keepSessionsAlive Boolean @default(true)
+  sessionTimeout Int      @default(3600) // seconds
+
+  updatedAt     DateTime  @updatedAt
+}
+
+enum SessionStatus {
+  ACTIVE
+  IDLE
+  DISCONNECTED
+  TERMINATED
+}
+
+// ============================================
+// Phase 1: New Models for Enhanced Features
+// ============================================
+
+// Session organization - Folders for grouping sessions
+model SessionFolder {
+  id          String    @id @default(cuid())
+  name        String
+  color       String?   // Hex color for folder
+  icon        String?   // Icon name/emoji
+  parentId    String?
+  parent      SessionFolder? @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    SessionFolder[] @relation("FolderHierarchy")
+  sessions    Session[] @relation("SessionFolder")
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([parentId])
+  @@index([sortOrder])
+}
+
+// Session tagging system
+model SessionTag {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  color       String    // Hex color for tag
+  description String?
+  sessions    SessionTagAssignment[]
+  createdAt   DateTime  @default(now())
+
+  @@index([name])
+}
+
+// Many-to-many relationship between sessions and tags
+model SessionTagAssignment {
+  id          String    @id @default(cuid())
+  sessionId   String
+  tagId       String
+  session     Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  tag         SessionTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  assignedAt  DateTime  @default(now())
+
+  @@unique([sessionId, tagId])
+  @@index([sessionId])
+  @@index([tagId])
+}
+
+// Session notes - Markdown notes attached to sessions
+model SessionNote {
+  id          String    @id @default(cuid())
+  sessionId   String
+  session     Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  title       String?
+  content     String    @db.Text
+  isPinned    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([sessionId])
+  @@index([isPinned])
+}
+
+// Prompt library for reusable prompts
+model Prompt {
+  id          String    @id @default(cuid())
+  name        String
+  content     String    @db.Text
+  description String?
+  category    String?   // e.g., "coding", "writing", "debugging"
+  variables   Json?     // Template variables: [{ name: "language", default: "python" }]
+  isFavorite  Boolean   @default(false)
+  usageCount  Int       @default(0)
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([category])
+  @@index([isFavorite])
+  @@index([usageCount])
+}
+
+// Command snippets for quick terminal commands
+model CommandSnippet {
+  id          String    @id @default(cuid())
+  name        String
+  command     String    @db.Text
+  description String?
+  category    String?   // e.g., "git", "docker", "npm", "system"
+  tags        String[]  // Array of tags for filtering
+  isFavorite  Boolean   @default(false)
+  usageCount  Int       @default(0)
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([category])
+  @@index([isFavorite])
+}
+
+// Keyboard shortcuts customization
+model KeyboardShortcut {
+  id          String    @id @default(cuid())
+  action      String    @unique // e.g., "openCommandPalette", "newSession"
+  keys        String    // e.g., "Ctrl+Shift+P", "Ctrl+N"
+  description String?
+  isCustom    Boolean   @default(false) // User-customized or default
+  isEnabled   Boolean   @default(true)
+  category    String?   // e.g., "navigation", "terminal", "session"
+  updatedAt   DateTime  @updatedAt
+
+  @@index([category])
+}
+
+// Theme configurations
+model Theme {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  displayName String?
+  colors      Json      // Full color palette as JSON
+  isBuiltIn   Boolean   @default(false)
+  isActive    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([isActive])
+}
+
+// Alert rules for system monitoring
+model AlertRule {
+  id            String    @id @default(cuid())
+  name          String
+  description   String?
+  type          AlertType // cpu, memory, disk, service, container
+  condition     AlertCondition // gt, lt, eq, neq
+  threshold     Float
+  duration      Int?      // Seconds threshold must be exceeded
+  enabled       Boolean   @default(true)
+  notifySound   Boolean   @default(true)
+  notifyDesktop Boolean   @default(true)
+  cooldownMins  Int       @default(5) // Minutes between alerts
+  lastTriggered DateTime?
+  triggerCount  Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([type])
+  @@index([enabled])
+}
+
+enum AlertType {
+  CPU
+  MEMORY
+  DISK
+  NETWORK
+  SERVICE
+  CONTAINER
+  CUSTOM
+}
+
+enum AlertCondition {
+  GT  // Greater than
+  LT  // Less than
+  EQ  // Equal to
+  NEQ // Not equal to
+  GTE // Greater than or equal
+  LTE // Less than or equal
+}
+
+// Resource metrics for historical tracking
+model ResourceMetric {
+  id          String    @id @default(cuid())
+  type        MetricType
+  value       Float
+  metadata    Json?     // Additional context (e.g., container name)
+  timestamp   DateTime  @default(now())
+
+  @@index([type, timestamp])
+  @@index([timestamp])
+}
+
+enum MetricType {
+  CPU
+  MEMORY
+  DISK
+  NETWORK_IN
+  NETWORK_OUT
+  CONTAINER_CPU
+  CONTAINER_MEMORY
+}
+
+// NOTE: Workflow and WorkflowExecution models removed - replaced by Agent system
+// See Agent and AgentExecution models below
+
+enum ExecutionStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// Scheduled tasks (cron jobs)
+model ScheduledTask {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  command     String    @db.Text
+  cron        String    // Cron expression
+  projectPath String?   // Optional: run in specific project
+  enabled     Boolean   @default(true)
+  lastRun     DateTime?
+  lastStatus  ExecutionStatus?
+  lastOutput  String?   @db.Text
+  nextRun     DateTime?
+  runCount    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([enabled])
+  @@index([nextRun])
+}
+
+// Shared session links for collaboration
+model SharedSession {
+  id           String    @id @default(cuid())
+  sessionId    String
+  session      Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  token        String    @unique @default(cuid())
+  type         String    @default("view") // view, replay, comment
+  expiresAt    DateTime?
+  passwordHash String?   // Optional password protection
+  maxViews     Int?      // Optional view limit
+  viewCount    Int       @default(0)
+  allowInput   Boolean   @default(false) // Can viewers type?
+  createdAt    DateTime  @default(now())
+
+  @@index([token])
+  @@index([sessionId])
+}
+
+// Session comments for collaboration
+model SessionComment {
+  id          String    @id @default(cuid())
+  sessionId   String
+  session     Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  lineNumber  Int?      // Optional: attach to specific line
+  content     String    @db.Text
+  authorName  String
+  authorEmail String?
+  isResolved  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([sessionId])
+  @@index([isResolved])
+}
+
+// Session templates for quick setup
+model SessionTemplate {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  icon        String?
+  commands    Json      // Array of commands to run on start
+  environment Json?     // Environment variables
+  workingDir  String?   // Default working directory
+  isBuiltIn   Boolean   @default(false)
+  usageCount  Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([isBuiltIn])
+}
+
+// AI persona configurations
+model AIPersona {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  systemPrompt String   @db.Text
+  icon        String?
+  color       String?
+  temperature Float?    // Default temperature
+  model       String?   // Preferred model
+  isDefault   Boolean   @default(false)
+  isBuiltIn   Boolean   @default(false)
+  usageCount  Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([isDefault])
+}
+
+// Token/API usage tracking
+model APIUsage {
+  id          String    @id @default(cuid())
+  sessionId   String?
+  projectId   String?
+  model       String
+  provider    String    @default("anthropic") // anthropic, openai, etc.
+  inputTokens Int
+  outputTokens Int
+  cost        Float?    // Estimated cost in USD
+  duration    Int?      // Request duration in ms
+  timestamp   DateTime  @default(now())
+
+  @@index([sessionId])
+  @@index([projectId])
+  @@index([provider])
+  @@index([timestamp])
+}
+
+// Macro recordings for automation
+model MacroRecording {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  commands    Json      // Array of recorded commands with timing
+  duration    Int?      // Total duration in ms
+  isFavorite  Boolean   @default(false)
+  playCount   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([isFavorite])
+}
+
+// Team activity feed
+model Activity {
+  id          String    @id @default(cuid())
+  type        String    // session_created, session_ended, commit, push, deploy, etc.
+  actor       String    // Who performed the action
+  target      String?   // What was acted upon
+  message     String?   // Additional details
+  project     String?   // Associated project
+  metadata    Json?     // Additional structured data
+  timestamp   DateTime  @default(now())
+
+  @@index([type])
+  @@index([actor])
+  @@index([project])
+  @@index([timestamp])
+}
+
+// Team member profiles
+model TeamMember {
+  id          String    @id @default(cuid())
+  name        String
+  email       String    @unique
+  avatar      String?   // URL to avatar image
+  role        String    @default("member") // admin, member, viewer
+  status      String    @default("offline") // online, away, busy, offline
+  lastSeen    DateTime?
+  preferences Json?     // User preferences
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([email])
+  @@index([status])
+}
+
+// Session handoff for team collaboration
+model SessionHandoff {
+  id            String    @id @default(cuid())
+  sessionId     String
+  fromUserId    String?   // Current owner (optional if system-initiated)
+  toUserId      String    // Target user
+  reason        String    @default("other") // shift_end, expertise, collaboration, vacation, other
+  notes         String?   @db.Text
+  includeContext Boolean  @default(true)
+  status        String    @default("pending") // pending, accepted, declined, expired
+  declineReason String?
+  createdAt     DateTime  @default(now())
+  acceptedAt    DateTime?
+
+  @@index([sessionId])
+  @@index([toUserId])
+  @@index([status])
+}
+
+// Service uptime monitoring
+model UptimeService {
+  id              String    @id @default(cuid())
+  name            String
+  url             String?   // HTTP endpoint to check
+  endpoint        String?   // Alternative: host:port
+  checkInterval   Int       @default(60) // Seconds between checks
+  lastStatus      String?   // up, down, degraded
+  lastResponseTime Int?     // Milliseconds
+  avgResponseTime Int?
+  lastCheck       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  checks          UptimeCheck[]
+
+  @@index([lastStatus])
+}
+
+// Individual uptime check results
+model UptimeCheck {
+  id          String    @id @default(cuid())
+  serviceId   String
+  service     UptimeService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  status      String    // up, down, degraded
+  responseTime Int?     // Milliseconds
+  errorMessage String?
+  timestamp   DateTime  @default(now())
+
+  @@index([serviceId])
+  @@index([timestamp])
+  @@index([status])
+}
+
+// ============================================
+// Background Agents System (Replaces Workflows)
+// ============================================
+
+// Agent definitions for background automation
+model Agent {
+  id            String       @id @default(cuid())
+  name          String
+  description   String?
+  triggerType   AgentTrigger
+  triggerConfig Json?        // Glob patterns, event filters, etc.
+  actions       Json         // Array of {type: 'shell'|'api'|'mcp', config: {...}}
+  enabled       Boolean      @default(true)
+  projectId     String?
+  project       Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  executions    AgentExecution[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([triggerType])
+  @@index([enabled])
+  @@index([projectId])
+}
+
+// Agent execution history
+model AgentExecution {
+  id        String          @id @default(cuid())
+  agentId   String
+  agent     Agent           @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  status    ExecutionStatus @default(RUNNING)
+  output    String?         @db.Text
+  error     String?
+  startedAt DateTime        @default(now())
+  endedAt   DateTime?
+
+  @@index([agentId])
+  @@index([status])
+  @@index([startedAt])
+}
+
+enum AgentTrigger {
+  // Git events
+  GIT_PRE_COMMIT
+  GIT_POST_COMMIT
+  GIT_PRE_PUSH
+  GIT_POST_MERGE
+  GIT_POST_CHECKOUT
+  // File events
+  FILE_CHANGE
+  // Session events
+  SESSION_START
+  SESSION_END
+  SESSION_ERROR
+  SESSION_IDLE
+  SESSION_RECONNECT
+  SESSION_COMMAND_COMPLETE
+  // System events
+  SYSTEM_RESOURCE
+  SYSTEM_SERVICE
+  SYSTEM_ALERT
+  SYSTEM_UPTIME
+  // Manual trigger
+  MANUAL
+}
+
+// ============================================
+// MCP (Model Context Protocol) Server Management
+// ============================================
+
+// MCP Server configurations
+model MCPServer {
+  id            String       @id @default(cuid())
+  name          String
+  description   String?      @db.Text
+  transport     MCPTransport
+  // stdio transport fields
+  command       String?
+  args          String[]     @default([])
+  env           Json?        // {key: value}
+  // HTTP transport fields (SSE/WebSocket)
+  url           String?
+  headers       Json?        // {key: value}
+  // State
+  enabled       Boolean      @default(true)
+  isGlobal      Boolean      @default(true)
+  projectId     String?
+  project       Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  status        MCPStatus    @default(DISCONNECTED)
+  lastConnected DateTime?
+  lastChecked   DateTime?
+  // Catalog reference (if installed from catalog)
+  catalogId     String?      // ID from MCP_CATALOG
+  catalogMeta   Json?        // Cached: author, repo, package, tags
+  // Relations
+  tools         MCPTool[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([enabled])
+  @@index([isGlobal])
+  @@index([projectId])
+  @@index([status])
+  @@index([catalogId])
+}
+
+// MCP Tools discovered from servers
+model MCPTool {
+  id          String    @id @default(cuid())
+  serverId    String
+  server      MCPServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  inputSchema Json?
+  enabled     Boolean   @default(true)
+  projectId   String?   // Per-project enable/disable override
+
+  @@unique([serverId, name])
+  @@index([serverId])
+  @@index([enabled])
+}
+
+// MCP Tool invocation logs
+model MCPToolLog {
+  id        String   @id @default(cuid())
+  serverId  String
+  toolName  String
+  success   Boolean
+  timestamp DateTime @default(now())
+
+  @@index([serverId])
+  @@index([timestamp])
+}
+
+enum MCPTransport {
+  STDIO
+  SSE
+  WEBSOCKET
+}
+
+enum MCPStatus {
+  CONNECTED
+  DISCONNECTED
+  ERROR
+  CONNECTING
+}
+
+// ============================================
+// Project Context Management
+// ============================================
+
+// Files in AI context per project
+model ProjectContext {
+  id        String   @id @default(cuid())
+  projectId String   @unique
+  files     String[] @default([]) // Relative paths, ordered by recency
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// Checkpoint/Snapshot System
+// ============================================
+
+// Checkpoints for session/project state snapshots
+model Checkpoint {
+  id              String          @id @default(cuid())
+  projectId       String
+  sessionId       String?
+
+  // Checkpoint metadata
+  name            String?         // User-provided name (optional)
+  description     String?         // What triggered this checkpoint
+  type            CheckpointType  @default(MANUAL)
+
+  // Git state (if applicable)
+  gitBranch       String?
+  gitCommit       String?         // Commit SHA at checkpoint time
+  gitDirty        Boolean         @default(false) // Had uncommitted changes
+  gitStash        String?         // Stash reference if changes were stashed
+
+  // File snapshots (for non-git or important files)
+  fileSnapshots   Json?           // [{path: string, content: string, hash: string}]
+
+  // Terminal state
+  terminalBuffer  String?         @db.Text // Scrollback content
+  workingDir      String?
+  envSnapshot     Json?           // Important env vars at time of checkpoint
+
+  // Context
+  openFiles       String[]        @default([]) // Files that were open/in context
+  cursorPositions Json?           // {file: {line, col}}
+
+  // Metadata
+  sizeBytes       Int?            // Total size of snapshot data
+  isAutomatic     Boolean         @default(false)
+  isPinned        Boolean         @default(false) // Prevent auto-cleanup
+  expiresAt       DateTime?       // Auto-cleanup after this time
+  createdAt       DateTime        @default(now())
+
+  @@index([projectId])
+  @@index([sessionId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([isPinned])
+}
+
+enum CheckpointType {
+  MANUAL          // User-triggered checkpoint
+  AUTO_PERIODIC   // Automatic periodic save
+  PRE_OPERATION   // Before risky operation (e.g., before major refactor)
+  POST_COMMIT     // After git commit
+  SESSION_START   // When session starts
+  SESSION_END     // When session ends
+  ERROR_RECOVERY  // Created after error for recovery
+}
+
+// ============================================
+// GitHub Integration
+// ============================================
+
+// GitHub Personal Access Token storage (singleton)
+model GitHubSettings {
+  id                String    @id @default("default")
+  accessToken       String?   @db.Text  // PAT token
+  username          String?
+  avatarUrl         String?
+  profileUrl        String?
+  authenticated     Boolean   @default(false)
+  tokenScopes       String[]  // ["repo", "read:org", "workflow"]
+  lastValidated     DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+// Per-project GitHub repository link
+model GitHubRepo {
+  id              String    @id @default(cuid())
+  projectId       String    @unique
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Repository info
+  owner           String
+  repoName        String
+  fullName        String    // owner/repo
+  description     String?
+  url             String    // API URL
+  htmlUrl         String    // Web URL
+  cloneUrl        String    // HTTPS clone URL
+  sshUrl          String    // SSH clone URL
+  defaultBranch   String    @default("main")
+  isPrivate       Boolean   @default(true)
+  language        String?   // Primary language
+
+  // Sync settings
+  autoSync        Boolean   @default(false)
+  pushOnCommit    Boolean   @default(false)
+
+  // Status tracking
+  lastSyncedAt    DateTime?
+  lastSyncStatus  String?   // "synced", "ahead", "behind", "diverged", "error"
+  lastSyncError   String?
+  aheadBy         Int       @default(0)
+  behindBy        Int       @default(0)
+
+  // Relations
+  workflowRuns    GitHubWorkflowRun[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([owner, repoName])
+  @@index([lastSyncStatus])
+}
+
+// GitHub Actions workflow runs
+model GitHubWorkflowRun {
+  id              String     @id @default(cuid())
+  repoId          String
+  repo            GitHubRepo @relation(fields: [repoId], references: [id], onDelete: Cascade)
+
+  workflowId      Int
+  workflowName    String
+  runId           BigInt
+  runNumber       Int
+  event           String     // "push", "pull_request", "workflow_dispatch", etc.
+  status          String     // "queued", "in_progress", "completed"
+  conclusion      String?    // "success", "failure", "cancelled", "skipped"
+  headBranch      String
+  headSha         String
+  htmlUrl         String
+
+  startedAt       DateTime?
+  completedAt     DateTime?
+
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@unique([repoId, runId])
+  @@index([repoId, createdAt])
+  @@index([status])
+}
+
+// ============================================
+// Cloudflare Tunnels Integration
+// ============================================
+
+// Cloudflare API settings (singleton)
+model CloudflareSettings {
+  id                String    @id @default("default")
+  apiToken          String?   @db.Text  // Cloudflare API token
+  accountId         String?             // Cloudflare account ID
+  tunnelId          String?             // Cloudflare tunnel ID
+  tunnelName        String?             // Tunnel display name
+  zoneId            String?             // Cloudflare zone ID (for DNS)
+  zoneName          String?             // Zone domain (e.g., wbtlabs.com)
+  defaultSubdomain  String?             // Default subdomain pattern
+  configured        Boolean   @default(false)
+  lastValidated     DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+// Authentik settings for automatic route protection
+model AuthentikSettings {
+  id                String    @id @default("default")
+  apiUrl            String?             // Authentik API URL (e.g., https://auth.wbtlabs.com)
+  apiToken          String?   @db.Text  // Authentik API token
+  outpostId         String?             // Default outpost ID for proxy providers
+  defaultGroupId    String?             // Default group to grant access to
+  enabled           Boolean   @default(false)
+  configured        Boolean   @default(false)
+  lastValidated     DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+// Published application routes via Cloudflare Tunnel
+model PublishedRoute {
+  id              String    @id @default(cuid())
+  projectId       String?
+
+  // Route configuration
+  hostname        String    @unique  // Full hostname (e.g., myapp.wbtlabs.com)
+  subdomain       String              // Just the subdomain part (e.g., myapp)
+  localPort       Int                 // Local port (e.g., 3000)
+  localHost       String    @default("localhost")  // Usually localhost
+  service         String              // Full service URL (e.g., http://localhost:3000)
+
+  // Cloudflare references
+  dnsRecordId     String?             // Cloudflare DNS record ID for cleanup
+
+  // Authentik references (for route protection)
+  authentikEnabled    Boolean   @default(false)
+  authentikAppId      String?           // Authentik Application UUID
+  authentikAppSlug    String?           // Authentik Application slug
+  authentikProviderId Int?              // Authentik Provider ID
+
+  // Status
+  status          RouteStatus @default(PENDING)
+  lastCheckedAt   DateTime?
+  errorMessage    String?
+
+  // Metadata
+  description     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([projectId])
+  @@index([status])
+  @@index([hostname])
+}
+
+enum RouteStatus {
+  PENDING       // Just created, not yet active
+  ACTIVE        // Route is live and working
+  ERROR         // Route has an error
+  DISABLED      // Manually disabled
+}
+
+// ============================================
+// Memory Banks - Layered Context Persistence
+// ============================================
+
+// Memory entries with different scopes
+model MemoryBank {
+  id            String        @id @default(cuid())
+
+  // Scope determines persistence level
+  scope         MemoryScope   @default(PROJECT)
+  projectId     String?       // For PROJECT scope
+  sessionId     String?       // For SESSION scope (global memories have neither)
+
+  // Memory content
+  title         String
+  content       String        @db.Text
+  type          MemoryType    @default(CONTEXT)
+
+  // Importance and organization
+  importance    Int           @default(5)  // 1-10, higher = more important
+  tags          String[]      @default([])
+  category      String?       // User-defined category
+
+  // Source tracking
+  source        String?       // Where this memory came from (e.g., "user", "ai-generated", "file:path")
+  sourceRef     String?       // Reference to source (file path, URL, etc.)
+
+  // Auto-expiry (optional)
+  expiresAt     DateTime?
+
+  // Metadata
+  pinned        Boolean       @default(false)
+  archived      Boolean       @default(false)
+  usageCount    Int           @default(0)   // How often this memory is accessed
+  lastUsedAt    DateTime?
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([scope])
+  @@index([projectId])
+  @@index([sessionId])
+  @@index([type])
+  @@index([importance])
+  @@index([pinned])
+  @@index([archived])
+}
+
+enum MemoryScope {
+  SESSION   // Short-term, deleted when session ends
+  PROJECT   // Persistent per-project
+  GLOBAL    // Cross-project, always available
+}
+
+enum MemoryType {
+  FACT        // Factual information (e.g., "API endpoint is /api/v2")
+  INSTRUCTION // How to do something (e.g., "Always use TypeScript strict mode")
+  CONTEXT     // Background context (e.g., "User prefers minimal comments")
+  DECISION    // Past decisions (e.g., "Chose React over Vue because...")
+  LEARNING    // Learned patterns (e.g., "This codebase uses X pattern")
+  TODO        // Pending items
+  WARNING     // Things to avoid
+}
+
+// ============================================
+// Plan Mode - AI Planning Visualization
+// ============================================
+
+// A planning session for a task
+model PlanSession {
+  id            String        @id @default(cuid())
+  projectId     String?
+  sessionId     String?
+
+  // Plan metadata
+  title         String
+  description   String?       @db.Text
+  goal          String?       @db.Text
+  status        PlanStatus    @default(PLANNING)
+
+  // Mermaid diagram source
+  mermaidDiagram  String?     @db.Text
+
+  // AI context
+  aiModel       String?       // Model used (e.g., "claude-3-opus")
+  tokenCount    Int?          // Total tokens used in planning
+
+  // Steps
+  steps         PlanStep[]
+
+  // Timing
+  startedAt     DateTime      @default(now())
+  completedAt   DateTime?
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([projectId])
+  @@index([sessionId])
+  @@index([status])
+  @@index([startedAt])
+}
+
+// Individual steps in a plan
+model PlanStep {
+  id            String        @id @default(cuid())
+  planId        String
+  plan          PlanSession   @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  // Step details
+  order         Int           // Step order (1, 2, 3...)
+  title         String
+  description   String?       @db.Text
+  status        StepStatus    @default(PENDING)
+
+  // Execution details
+  command       String?       // Command to run (if applicable)
+  output        String?       @db.Text
+  error         String?       @db.Text
+
+  // Dependencies
+  dependsOn     String[]      @default([])  // Array of step IDs this depends on
+
+  // Timing
+  startedAt     DateTime?
+  completedAt   DateTime?
+  duration      Int?          // milliseconds
+
+  // Metadata
+  notes         String?       @db.Text
+  tags          String[]      @default([])
+
+  @@index([planId])
+  @@index([status])
+  @@index([order])
+}
+
+enum PlanStatus {
+  PLANNING      // Still being designed
+  READY         // Plan complete, ready to execute
+  EXECUTING     // Currently running steps
+  PAUSED        // Execution paused
+  COMPLETED     // All steps done
+  FAILED        // Plan failed
+  CANCELLED     // User cancelled
+}
+
+enum StepStatus {
+  PENDING       // Not started
+  IN_PROGRESS   // Currently running
+  COMPLETED     // Successfully completed
+  FAILED        // Failed
+  SKIPPED       // Skipped (e.g., dependency failed)
+  BLOCKED       // Waiting on dependencies
+}
+
+// ============================================
+// Embedded Browser Sessions
+// ============================================
+
+// Track embedded browser sessions for agent debugging
+model BrowserSession {
+  id            String        @id @default(cuid())
+  projectId     String?
+  sessionId     String?
+
+  // Browser state
+  url           String
+  title         String?
+  viewport      Json?         // { width: number, height: number }
+
+  // Screenshots for history
+  screenshots   BrowserScreenshot[]
+
+  // Console logs captured
+  consoleLogs   Json[]        @default([])  // Array of { level, message, timestamp }
+
+  // Network requests (optional capture)
+  networkLogs   Json[]        @default([])
+
+  // Status
+  isActive      Boolean       @default(true)
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([projectId])
+  @@index([sessionId])
+  @@index([isActive])
+}
+
+// Screenshots from browser sessions
+model BrowserScreenshot {
+  id            String        @id @default(cuid())
+  browserSessionId  String
+  browserSession    BrowserSession @relation(fields: [browserSessionId], references: [id], onDelete: Cascade)
+
+  // Screenshot data
+  url           String        // URL when screenshot was taken
+  dataUrl       String        @db.Text  // Base64 encoded image
+  thumbnail     String?       @db.Text  // Smaller version for preview
+
+  // Metadata
+  annotation    String?       // User annotation
+  timestamp     DateTime      @default(now())
+
+  @@index([browserSessionId])
+  @@index([timestamp])
+}

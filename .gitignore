@@ -1,0 +1,61 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+
+# Secrets and credentials
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+id_rsa*
+id_ed25519*
+credentials.json
+secrets.json
+service-account*.json
+*.secret
+
+# Security scan reports
+/tmp/sanitize-reports/
+/tmp/security-reports/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Runtime
+pids/
+*.pid
+*.seed
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+
+# Vite
+.vite/
+
+# TypeScript
+*.tsbuildinfo
+
+/src/generated/prisma
