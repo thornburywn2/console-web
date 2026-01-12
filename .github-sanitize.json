@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "GitHub sanitization config - patterns replaced before pushing to public repos",
+  "enabled": true,
+  "rules": [
+    {
+      "name": "Personal domain",
+      "pattern": "wbtlabs\\.com",
+      "replacement": "your-domain.com",
+      "flags": "gi"
+    },
+    {
+      "name": "Auth domain",
+      "pattern": "auth\\.wbtlabs\\.com",
+      "replacement": "auth.your-domain.com",
+      "flags": "gi"
+    },
+    {
+      "name": "Management domain",
+      "pattern": "manage\\.wbtlabs\\.com",
+      "replacement": "your-app.your-domain.com",
+      "flags": "gi"
+    },
+    {
+      "name": "Manager domain",
+      "pattern": "manager\\.wbtlabs\\.com",
+      "replacement": "your-app.your-domain.com",
+      "flags": "gi"
+    },
+    {
+      "name": "Home directory path",
+      "pattern": "/home/thornburywn",
+      "replacement": "/home/user",
+      "flags": "g"
+    },
+    {
+      "name": "Username in paths",
+      "pattern": "thornburywn",
+      "replacement": "username",
+      "flags": "g"
+    }
+  ],
+  "excludeFiles": [
+    "node_modules/**",
+    "dist/**",
+    ".git/**",
+    "*.lock",
+    "package-lock.json",
+    ".github-sanitize.json"
+  ],
+  "includeExtensions": [
+    ".js",
+    ".jsx",
+    ".ts",
+    ".tsx",
+    ".json",
+    ".md",
+    ".yml",
+    ".yaml",
+    ".env",
+    ".env.example",
+    ".sh"
+  ]
+}

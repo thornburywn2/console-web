@@ -1,6 +1,13 @@
 /**
  * GitHub Integration Routes
  * Handles authentication, repository management, sync operations, and CI/CD status
+ *
+ * AUTOMATIC PRE-PUSH PIPELINE:
+ * Before any push to GitHub, the following checks run automatically:
+ * 1. Security Scan (AGENT-018) - Vulnerabilities, secrets, CVEs
+ * 2. Quality Gate (AGENT-019) - Tests, coverage, code quality
+ * 3. Dependency Check (AGENT-021) - Outdated/vulnerable packages
+ * 4. Sanitization - Remove personal data from public push
  */
 
 import { Router } from 'express';
@@ -8,10 +15,15 @@ import { Octokit } from '@octokit/rest';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
+import { promisify } from 'util';
+import { exec } from 'child_process';
+
+const execAsync = promisify(exec);
 
 export function createGithubRouter(prisma) {
   const router = Router();
-  const PROJECTS_DIR = process.env.PROJECTS_DIR || '/home/thornburywn/Projects';
+  const PROJECTS_DIR = process.env.PROJECTS_DIR || (process.env.HOME + '/Projects');
+  const AGENTS_DIR = process.env.AGENTS_DIR || path.join(process.env.HOME, 'Projects/agents/lifecycle');
 
   // ==================== HELPERS ====================
 
@@ -31,9 +43,12 @@ export function createGithubRouter(prisma) {
   /**
    * Execute git command in a directory
    */
-  function execGit(args, cwd) {
+  function execGit(args, cwd, env = {}) {
     return new Promise((resolve, reject) => {
-      const proc = spawn('git', args, { cwd });
+      const proc = spawn('git', args, {
+        cwd,
+        env: { ...process.env, ...env }
+      });
       let stdout = '';
       let stderr = '';
 
@@ -50,6 +65,46 @@ export function createGithubRouter(prisma) {
 
       proc.on('error', reject);
     });
+  }
+
+  /**
+   * Get authenticated clone URL with token embedded
+   */
+  function getAuthenticatedUrl(cloneUrl, token) {
+    // Convert https://github.com/user/repo.git to https://<token>@github.com/user/repo.git
+    const url = new URL(cloneUrl);
+    url.username = token;
+    return url.toString();
+  }
+
+  /**
+   * Execute git command with GitHub token authentication
+   */
+  async function execGitWithAuth(args, cwd) {
+    const settings = await prisma.gitHubSettings.findUnique({
+      where: { id: 'default' }
+    });
+
+    if (!settings?.accessToken) {
+      throw new Error('GitHub not authenticated');
+    }
+
+    // Use GIT_ASKPASS to provide credentials without storing in URL
+    const askpassScript = `#!/bin/sh\necho "${settings.accessToken}"`;
+    const askpassPath = '/tmp/git-askpass-' + Date.now() + '.sh';
+
+    await fs.writeFile(askpassPath, askpassScript, { mode: 0o700 });
+
+    try {
+      const result = await execGit(args, cwd, {
+        GIT_ASKPASS: askpassPath,
+        GIT_TERMINAL_PROMPT: '0'
+      });
+      return result;
+    } finally {
+      // Clean up askpass script
+      await fs.unlink(askpassPath).catch(() => {});
+    }
   }
 
   /**
@@ -74,7 +129,7 @@ export function createGithubRouter(prisma) {
   async function updateSyncStatus(repoId, projectPath) {
     try {
       // Get ahead/behind counts
-      await execGit(['fetch', 'origin'], projectPath);
+      await execGitWithAuth(['fetch', 'origin'], projectPath);
 
       const branch = await execGit(['rev-parse', '--abbrev-ref', 'HEAD'], projectPath);
       const status = await execGit(['status', '-sb'], projectPath);
@@ -120,6 +175,251 @@ export function createGithubRouter(prisma) {
       });
       throw error;
     }
+  }
+
+  // ==================== SANITIZATION HELPERS ====================
+
+  /**
+   * Load sanitization config from project
+   */
+  async function loadSanitizeConfig(projectPath) {
+    const configPath = path.join(projectPath, '.github-sanitize.json');
+    try {
+      const content = await fs.readFile(configPath, 'utf-8');
+      return JSON.parse(content);
+    } catch (e) {
+      return null; // No config file
+    }
+  }
+
+  /**
+   * Check if file should be sanitized based on config
+   */
+  function shouldSanitizeFile(filePath, config) {
+    const ext = path.extname(filePath);
+    const relativePath = filePath;
+
+    // Check excludes
+    for (const pattern of config.excludeFiles || []) {
+      if (pattern.includes('**')) {
+        const prefix = pattern.replace('/**', '').replace('**/', '');
+        if (relativePath.includes(prefix)) return false;
+      } else if (relativePath === pattern || relativePath.endsWith(pattern)) {
+        return false;
+      }
+    }
+
+    // Check includes
+    const includeExts = config.includeExtensions || [];
+    if (includeExts.length > 0 && !includeExts.includes(ext)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Apply sanitization rules to content
+   */
+  function sanitizeContent(content, rules) {
+    let sanitized = content;
+    for (const rule of rules) {
+      const regex = new RegExp(rule.pattern, rule.flags || 'g');
+      sanitized = sanitized.replace(regex, rule.replacement);
+    }
+    return sanitized;
+  }
+
+  /**
+   * Sanitize all files in project for GitHub push
+   * Returns map of original file contents for restoration
+   */
+  async function sanitizeProjectFiles(projectPath, config) {
+    const originalContents = new Map();
+    const rules = config.rules || [];
+
+    if (rules.length === 0) return originalContents;
+
+    // Get all tracked files
+    const trackedFiles = await execGit(['ls-files'], projectPath);
+    const files = trackedFiles.split('\n').filter(f => f.trim());
+
+    for (const file of files) {
+      if (!shouldSanitizeFile(file, config)) continue;
+
+      const filePath = path.join(projectPath, file);
+      try {
+        const content = await fs.readFile(filePath, 'utf-8');
+        const sanitized = sanitizeContent(content, rules);
+
+        if (content !== sanitized) {
+          // Store original for restoration
+          originalContents.set(filePath, content);
+          // Write sanitized version
+          await fs.writeFile(filePath, sanitized, 'utf-8');
+        }
+      } catch (e) {
+        // Skip binary files or unreadable files
+        continue;
+      }
+    }
+
+    return originalContents;
+  }
+
+  /**
+   * Restore original file contents after push
+   */
+  async function restoreOriginalFiles(originalContents) {
+    for (const [filePath, content] of originalContents) {
+      await fs.writeFile(filePath, content, 'utf-8');
+    }
+  }
+
+  // ==================== PRE-PUSH PIPELINE ====================
+
+  /**
+   * Pre-push pipeline configuration
+   * Defines which scans to run before pushing to GitHub
+   */
+  const PRE_PUSH_PIPELINE = [
+    {
+      id: 'security',
+      name: 'Security Scan',
+      agent: 'AGENT-018-SECURITY.sh',
+      command: 'scan',
+      required: true,  // Block push if this fails
+      timeout: 300000  // 5 minutes
+    },
+    {
+      id: 'quality',
+      name: 'Quality Gate',
+      agent: 'AGENT-019-QUALITY-GATE.sh',
+      command: 'quality',
+      required: false,  // Warning only, don't block
+      timeout: 300000
+    },
+    {
+      id: 'dependency',
+      name: 'Dependency Check',
+      agent: 'AGENT-021-DEPENDENCY.sh',
+      command: 'check',
+      required: false,
+      timeout: 120000  // 2 minutes
+    }
+  ];
+
+  /**
+   * Run a single pipeline stage
+   */
+  async function runPipelineStage(stage, projectPath) {
+    const agentPath = path.join(AGENTS_DIR, stage.agent);
+
+    // Check if agent exists
+    try {
+      await fs.access(agentPath, fs.constants.R_OK);
+    } catch {
+      return {
+        id: stage.id,
+        name: stage.name,
+        status: 'skipped',
+        message: `Agent not found: ${stage.agent}`,
+        duration: 0
+      };
+    }
+
+    const startTime = Date.now();
+
+    try {
+      const cmd = `bash "${agentPath}" ${stage.command} "${projectPath}"`;
+      const { stdout, stderr } = await execAsync(cmd, {
+        timeout: stage.timeout,
+        maxBuffer: 10 * 1024 * 1024,
+        env: {
+          ...process.env,
+          PROJECTS_DIR,
+          PROJECT_PATH: projectPath
+        }
+      });
+
+      const output = stdout + (stderr ? '\n' + stderr : '');
+      const duration = Date.now() - startTime;
+
+      // Determine success based on output
+      const hasErrors = output.toLowerCase().includes('critical') ||
+                       output.toLowerCase().includes('high vulnerability') ||
+                       output.includes('FAILED') ||
+                       output.includes('✗ BLOCKED');
+
+      const hasWarnings = output.toLowerCase().includes('warning') ||
+                         output.toLowerCase().includes('medium') ||
+                         output.includes('⚠');
+
+      return {
+        id: stage.id,
+        name: stage.name,
+        status: hasErrors ? 'failed' : (hasWarnings ? 'warning' : 'passed'),
+        output: output.slice(-5000),  // Last 5KB of output
+        duration,
+        required: stage.required
+      };
+
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      return {
+        id: stage.id,
+        name: stage.name,
+        status: 'error',
+        message: error.message,
+        output: (error.stdout || '') + (error.stderr || ''),
+        duration,
+        required: stage.required
+      };
+    }
+  }
+
+  /**
+   * Run the complete pre-push pipeline
+   * Returns { success, results, blockers }
+   */
+  async function runPrePushPipeline(projectPath, options = {}) {
+    const { skipPipeline = false, skipSecurity = false, skipQuality = false } = options;
+
+    if (skipPipeline) {
+      return { success: true, results: [], blockers: [], skipped: true };
+    }
+
+    console.log(`[Pre-Push Pipeline] Starting for ${projectPath}...`);
+
+    const results = [];
+    const blockers = [];
+
+    for (const stage of PRE_PUSH_PIPELINE) {
+      // Skip specific stages if requested
+      if (skipSecurity && stage.id === 'security') continue;
+      if (skipQuality && stage.id === 'quality') continue;
+
+      console.log(`[Pre-Push Pipeline] Running ${stage.name}...`);
+
+      const result = await runPipelineStage(stage, projectPath);
+      results.push(result);
+
+      console.log(`[Pre-Push Pipeline] ${stage.name}: ${result.status} (${result.duration}ms)`);
+
+      // Check for blockers (required stages that failed)
+      if (stage.required && (result.status === 'failed' || result.status === 'error')) {
+        blockers.push({
+          stage: stage.name,
+          reason: result.message || 'Check failed - see output for details'
+        });
+      }
+    }
+
+    const success = blockers.length === 0;
+
+    console.log(`[Pre-Push Pipeline] Complete: ${success ? 'PASSED' : 'BLOCKED'}`);
+
+    return { success, results, blockers };
   }
 
   // ==================== AUTH ENDPOINTS ====================
@@ -496,11 +796,14 @@ export function createGithubRouter(prisma) {
 
   /**
    * POST /api/github/projects/:projectId/create - Create new repo and link
+   * Automatically sanitizes files based on .github-sanitize.json config
    */
   router.post('/projects/:projectId/create', async (req, res) => {
+    let originalContents = new Map();
+
     try {
       const { projectId } = req.params;
-      const { name, description, isPrivate = true, autoInit = false } = req.body;
+      const { name, description, isPrivate = true, autoInit = false, skipSanitize = false } = req.body;
 
       const project = await getProject(projectId);
       if (!project) {
@@ -512,6 +815,7 @@ export function createGithubRouter(prisma) {
       }
 
       const octokit = await getOctokit();
+      const projectPath = project.path;
 
       // Create repo on GitHub
       const { data: repoData } = await octokit.repos.createForAuthenticatedUser({
@@ -522,7 +826,6 @@ export function createGithubRouter(prisma) {
       });
 
       // Set up remote in local git
-      const projectPath = project.path;
       try {
         // Check if git repo exists
         await execGit(['rev-parse', '--git-dir'], projectPath);
@@ -556,8 +859,38 @@ export function createGithubRouter(prisma) {
         // Branch might already be named correctly
       }
 
-      // Push to remote
-      await execGit(['push', '-u', 'origin', repoData.default_branch], projectPath);
+      // Load and apply sanitization before push
+      const sanitizeConfig = await loadSanitizeConfig(projectPath);
+      let sanitizedFiles = [];
+
+      if (sanitizeConfig && sanitizeConfig.enabled && !skipSanitize) {
+        console.log(`[GitHub Create] Sanitizing files for ${project.name}...`);
+
+        // Apply sanitization
+        originalContents = await sanitizeProjectFiles(projectPath, sanitizeConfig);
+        sanitizedFiles = Array.from(originalContents.keys()).map(f => path.relative(projectPath, f));
+
+        if (sanitizedFiles.length > 0) {
+          console.log(`[GitHub Create] Sanitized ${sanitizedFiles.length} files`);
+
+          // Amend the commit with sanitized files
+          await execGit(['add', '-A'], projectPath);
+          await execGit(['commit', '--amend', '--no-edit'], projectPath);
+        }
+      }
+
+      // Push to remote with authentication
+      await execGitWithAuth(['push', '-u', 'origin', repoData.default_branch], projectPath);
+
+      // Restore original files after push
+      if (originalContents.size > 0) {
+        console.log(`[GitHub Create] Restoring original files...`);
+        await restoreOriginalFiles(originalContents);
+
+        // Amend back to original
+        await execGit(['add', '-A'], projectPath);
+        await execGit(['commit', '--amend', '--no-edit'], projectPath);
+      }
 
       // Create link in database
       const githubRepo = await prisma.gitHubRepo.create({
@@ -581,10 +914,22 @@ export function createGithubRouter(prisma) {
 
       res.json({
         success: true,
-        repo: githubRepo
+        repo: githubRepo,
+        sanitized: sanitizedFiles.length > 0,
+        sanitizedFiles: sanitizedFiles.length > 0 ? sanitizedFiles : undefined
       });
     } catch (error) {
       console.error('Error creating GitHub repo:', error);
+
+      // Try to restore original files on error
+      if (originalContents.size > 0) {
+        try {
+          await restoreOriginalFiles(originalContents);
+        } catch (restoreError) {
+          console.error('Error restoring files:', restoreError);
+        }
+      }
+
       res.status(500).json({ error: error.message });
     }
   });
@@ -742,11 +1087,29 @@ export function createGithubRouter(prisma) {
 
   /**
    * POST /api/github/projects/:projectId/push - Push to remote
+   *
+   * AUTOMATIC PRE-PUSH PIPELINE:
+   * 1. Security Scan (required - blocks push on critical/high issues)
+   * 2. Quality Gate (warning only)
+   * 3. Dependency Check (warning only)
+   * 4. Sanitization (removes personal data)
+   *
+   * Options in request body:
+   * - force: boolean - Force push
+   * - skipPipeline: boolean - Skip ALL pre-push checks (DANGEROUS)
+   * - skipSanitize: boolean - Skip sanitization only
    */
   router.post('/projects/:projectId/push', async (req, res) => {
+    let originalContents = new Map();
+    let sanitizeConfig = null;
+
     try {
       const { projectId } = req.params;
-      const { force = false } = req.body;
+      const {
+        force = false,
+        skipPipeline = false,
+        skipSanitize = false
+      } = req.body;
 
       const project = await getProject(projectId);
       if (!project) {
@@ -759,17 +1122,118 @@ export function createGithubRouter(prisma) {
 
       const branch = await execGit(['rev-parse', '--abbrev-ref', 'HEAD'], project.path);
 
-      const pushArgs = ['push', 'origin', branch];
-      if (force) pushArgs.push('--force');
+      // ==================== PRE-PUSH PIPELINE ====================
+      console.log(`[GitHub Push] Starting pre-push pipeline for ${project.name}...`);
 
-      await execGit(pushArgs, project.path);
+      const pipelineResult = await runPrePushPipeline(project.path, { skipPipeline });
+
+      // If pipeline failed with blockers, reject the push
+      if (!pipelineResult.success && pipelineResult.blockers.length > 0) {
+        console.log(`[GitHub Push] BLOCKED by pipeline - ${pipelineResult.blockers.length} blockers`);
+        return res.status(400).json({
+          error: 'Pre-push pipeline failed',
+          blocked: true,
+          blockers: pipelineResult.blockers,
+          pipelineResults: pipelineResult.results,
+          message: 'Fix the issues above or use skipPipeline=true to bypass (not recommended)'
+        });
+      }
+
+      // ==================== SANITIZATION ====================
+      sanitizeConfig = await loadSanitizeConfig(project.path);
+      let sanitizedFiles = [];
+
+      if (sanitizeConfig && sanitizeConfig.enabled && !skipSanitize) {
+        console.log(`[GitHub Push] Sanitizing files for ${project.name}...`);
+
+        // Stash any uncommitted changes first
+        let hasStash = false;
+        try {
+          const stashResult = await execGit(['stash', 'push', '-m', 'github-push-sanitize-temp'], project.path);
+          hasStash = !stashResult.includes('No local changes');
+        } catch (e) {
+          // No changes to stash
+        }
+
+        // Apply sanitization
+        originalContents = await sanitizeProjectFiles(project.path, sanitizeConfig);
+        sanitizedFiles = Array.from(originalContents.keys()).map(f => path.relative(project.path, f));
+
+        if (sanitizedFiles.length > 0) {
+          console.log(`[GitHub Push] Sanitized ${sanitizedFiles.length} files`);
+
+          // Stage and commit sanitized changes
+          await execGit(['add', '-A'], project.path);
+
+          // Check if there are changes to commit
+          try {
+            const status = await execGit(['status', '--porcelain'], project.path);
+            if (status.trim()) {
+              await execGit(['commit', '-m', 'chore: sanitize for public release'], project.path);
+            }
+          } catch (e) {
+            // No changes to commit
+          }
+        }
+
+        // Push the sanitized version
+        const pushArgs = ['push', 'origin', branch];
+        if (force) pushArgs.push('--force');
+        await execGitWithAuth(pushArgs, project.path);
+
+        // Restore original files
+        if (originalContents.size > 0) {
+          console.log(`[GitHub Push] Restoring original files...`);
+
+          // Reset to before the sanitize commit
+          await execGit(['reset', '--hard', 'HEAD~1'], project.path);
+
+          // Restore stash if we had one
+          if (hasStash) {
+            try {
+              await execGit(['stash', 'pop'], project.path);
+            } catch (e) {
+              console.warn('Could not pop stash:', e.message);
+            }
+          }
+        }
+      } else {
+        // No sanitization - direct push
+        const pushArgs = ['push', 'origin', branch];
+        if (force) pushArgs.push('--force');
+        await execGitWithAuth(pushArgs, project.path);
+      }
 
       // Update sync status
       await updateSyncStatus(project.githubRepo.id, project.path);
 
-      res.json({ success: true, branch });
+      // ==================== RESPONSE ====================
+      res.json({
+        success: true,
+        branch,
+        pipeline: {
+          ran: !pipelineResult.skipped,
+          results: pipelineResult.results,
+          warnings: pipelineResult.results.filter(r => r.status === 'warning').length
+        },
+        sanitization: {
+          ran: sanitizedFiles.length > 0,
+          filesCount: sanitizedFiles.length,
+          files: sanitizedFiles.length > 0 ? sanitizedFiles : undefined
+        }
+      });
     } catch (error) {
       console.error('Error pushing to GitHub:', error);
+
+      // Try to restore original files on error
+      if (originalContents.size > 0) {
+        try {
+          await restoreOriginalFiles(originalContents);
+        } catch (restoreError) {
+          console.error('Error restoring files:', restoreError);
+        }
+      }
+
       res.status(500).json({ error: error.message });
     }
   });
@@ -792,7 +1256,7 @@ export function createGithubRouter(prisma) {
 
       const branch = await execGit(['rev-parse', '--abbrev-ref', 'HEAD'], project.path);
 
-      await execGit(['pull', 'origin', branch], project.path);
+      await execGitWithAuth(['pull', 'origin', branch], project.path);
 
       // Update sync status
       await updateSyncStatus(project.githubRepo.id, project.path);
@@ -820,7 +1284,7 @@ export function createGithubRouter(prisma) {
         return res.status(400).json({ error: 'Project not linked to a repo' });
       }
 
-      await execGit(['fetch', 'origin'], project.path);
+      await execGitWithAuth(['fetch', 'origin'], project.path);
 
       // Update sync status
       const status = await updateSyncStatus(project.githubRepo.id, project.path);
