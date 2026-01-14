@@ -286,8 +286,20 @@ function HomeDashboard({ onSelectProject, projects = [] }) {
   const activePorts = data.dashboard?.activePorts || [];
   const diskUsage = data.dashboard?.diskUsage || [];
   const aiUsage = data.dashboard?.aiUsage || {};
-  const healthScores = data.dashboard?.healthScores || [];
   const securityAlerts = data.dashboard?.securityAlerts || [];
+
+  // Derive health scores from projectsExtended completion data (same source as sidebar widget)
+  const healthScores = useMemo(() => {
+    return data.projectsExtended
+      .filter(p => p.completion?.percentage !== undefined)
+      .map(p => ({
+        name: p.name,
+        path: p.path,
+        score: Math.round(p.completion.percentage)
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 20);
+  }, [data.projectsExtended]);
 
   // Format helpers
   const formatUptime = (s) => {
