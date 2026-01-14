@@ -86,6 +86,39 @@ Console.web v1.0.0 marks the first stable release of our comprehensive web-based
 - **Docker support**: Containerized deployment option
 - **WSL2 support**: Windows Subsystem for Linux deployment
 
+### Home Dashboard
+
+A customizable widget-based dashboard providing a 10,000-foot overview of all projects and infrastructure:
+
+**12 Widget Types:**
+| Widget | Description |
+|--------|-------------|
+| Quick Stats | Projects, sessions, containers, CPU, uptime at a glance |
+| Git Status | Repositories with uncommitted changes (staged/unstaged/untracked) |
+| Active Sessions | Running tmux terminal sessions with quick reconnect |
+| Recent Projects | Recently accessed projects with timestamps |
+| Recent Commits | Latest git commits across all projects |
+| Docker | Container status with running/stopped indicators |
+| Active Ports | Listening ports and associated processes |
+| AI Usage | Token usage and cost estimates |
+| Disk Usage | Project storage consumption (sorted by size) |
+| Project Health | Health scores based on CLAUDE.md, tests, CI/CD, README |
+| Tech Stack | Technologies used across all projects |
+| Security Alerts | Vulnerability warnings from security scans |
+
+**Customization Features:**
+- **Drag-and-drop reordering**: Rearrange widgets by dragging
+- **Size control**: Small (150px), Medium (250px), Large (400px), Full width
+- **Add/Remove widgets**: Show/hide any widget via edit mode
+- **Reset to default**: One-click restore to original layout
+- **localStorage persistence**: Layout saved automatically
+
+**Usage:**
+- Click "Edit" button in header to enter edit mode
+- Drag widgets to reorder, use S/M/L/F buttons to resize
+- Click "+" to add removed widgets, "×" to hide widgets
+- Layout persists across sessions via `cw-dashboard-layout` key
+
 ### Admin Dashboard
 
 6 main tabs with comprehensive sub-navigation:

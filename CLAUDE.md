@@ -27,6 +27,7 @@ Console.web is a comprehensive web-based management interface for Claude Code pr
 - **MCP Server Catalog**: 22+ pre-configured MCP servers with one-click installation
 - **GitHub Integration**: Repository browser, clone, push, sync status
 - **Cloudflare Tunnels**: One-click publish with automatic DNS
+- **Home Dashboard**: Customizable widget-based overview of all projects and infrastructure
 
 ---
 
@@ -81,8 +82,9 @@ console-web/
 │   ├── App.jsx               # Main React app
 │   ├── main.jsx              # Entry point
 │   ├── index.css             # Global styles
-│   ├── components/           # 76 React components
+│   ├── components/           # 77 React components
 │   │   ├── Terminal.jsx          # xterm.js terminal
+│   │   ├── HomeDashboard.jsx     # Customizable widget dashboard
 │   │   ├── Sidebar.jsx           # Project navigation with favorites
 │   │   ├── RightSidebar.jsx      # System stats sidebar
 │   │   ├── AdminDashboard.jsx    # Full admin panel
@@ -160,6 +162,47 @@ npm run test:coverage   # Coverage report
 
 ---
 
+## Home Dashboard (v1.0.0)
+
+The Home Dashboard is a customizable widget-based view that provides a 10,000-foot overview of all projects and infrastructure. It displays in the terminal area when "Home" is selected from the sidebar.
+
+### Widget Types (12)
+
+| Widget | Key | Description |
+|--------|-----|-------------|
+| Quick Stats | `quickStats` | Projects, sessions, containers, CPU, uptime summary |
+| Git Status | `gitStatus` | Repos with uncommitted changes (staged/unstaged/untracked) |
+| Active Sessions | `activeSessions` | Running tmux terminal sessions |
+| Recent Projects | `recentProjects` | Recently accessed projects with timestamps |
+| Recent Commits | `recentCommits` | Latest git commits across projects |
+| Docker | `docker` | Container status (running/stopped) |
+| Active Ports | `activePorts` | Listening ports and processes |
+| AI Usage | `aiUsage` | Token usage and cost estimates |
+| Disk Usage | `diskUsage` | Project storage consumption |
+| Project Health | `projectHealth` | Health scores (CLAUDE.md, tests, CI/CD, README) |
+| Tech Stack | `techStack` | Technologies across all projects |
+| Security Alerts | `securityAlerts` | Vulnerability warnings from scans |
+
+### Customization
+
+- **Edit Mode**: Click pencil icon to enter edit mode
+- **Drag-Drop**: Reorder widgets by dragging
+- **Sizes**: S (150px), M (250px), L (400px), F (full width)
+- **Add/Remove**: Show/hide widgets via "+" button or "×"
+- **Reset**: Restore default layout with one click
+- **Persistence**: Layout saved to `localStorage` key `cw-dashboard-layout`
+
+### Data Sources
+
+- Projects: `/api/admin/projects-extended`
+- System: `/api/admin/system`
+- Docker: `/api/docker/containers?all=true`
+- Dashboard: `/api/dashboard` (git, commits, ports, disk, health, AI usage)
+
+Data refreshes every 15 seconds while dashboard is open.
+
+---
+
 ## Admin Dashboard Structure (v1.0.0)
 
 The Admin Dashboard provides comprehensive system management with 6 main tabs.
@@ -219,6 +262,7 @@ The Admin Dashboard provides comprehensive system management with 6 main tabs.
 - `GET /api/admin/system` - System stats (CPU, memory, disk)
 - `GET /api/admin/claude-md/:project` - Read project CLAUDE.md
 - `PUT /api/admin/claude-md/:project` - Update project CLAUDE.md
+- `GET /api/dashboard` - Aggregated dashboard data (git, commits, ports, disk, health, AI usage)
 
 ### Infrastructure
 - `GET /api/server/services` - Systemd services
