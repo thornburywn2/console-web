@@ -42,13 +42,13 @@ export default function GitHubProjectPanel({ project, onRefresh, onOpenSettings 
 
   // Fetch GitHub data for project
   const fetchGitHubData = useCallback(async () => {
-    if (!project?.id) return;
+    if (!project?.name) return;
 
     setLoading(true);
     setError('');
 
     try {
-      const response = await fetch(`/api/github/projects/${project.id}`);
+      const response = await fetch(`/api/github/projects/${encodeURIComponent(project.name)}`);
       const data = await response.json();
 
       if (!response.ok) {
@@ -59,7 +59,7 @@ export default function GitHubProjectPanel({ project, onRefresh, onOpenSettings 
 
       // Fetch workflow runs if linked
       if (data.linked) {
-        const runsResponse = await fetch(`/api/github/projects/${project.id}/runs?per_page=5`);
+        const runsResponse = await fetch(`/api/github/projects/${encodeURIComponent(project.name)}/runs?per_page=5`);
         if (runsResponse.ok) {
           const runsData = await runsResponse.json();
           setWorkflowRuns(runsData.runs || []);
@@ -72,7 +72,7 @@ export default function GitHubProjectPanel({ project, onRefresh, onOpenSettings 
     } finally {
       setLoading(false);
     }
-  }, [project?.id]);
+  }, [project?.name]);
 
   useEffect(() => {
     fetchGitHubData();
@@ -82,7 +82,7 @@ export default function GitHubProjectPanel({ project, onRefresh, onOpenSettings 
   const handlePush = async () => {
     setSyncing('push');
     try {
-      const response = await fetch(`/api/github/projects/${project.id}/push`, {
+      const response = await fetch(`/api/github/projects/${encodeURIComponent(project.name)}/push`, {
         method: 'POST'
       });
       if (!response.ok) throw new Error('Push failed');
@@ -97,7 +97,7 @@ export default function GitHubProjectPanel({ project, onRefresh, onOpenSettings 
   const handlePull = async () => {
     setSyncing('pull');
     try {
-      const response = await fetch(`/api/github/projects/${project.id}/pull`, {
+      const response = await fetch(`/api/github/projects/${encodeURIComponent(project.name)}/pull`, {
         method: 'POST'
       });
       if (!response.ok) throw new Error('Pull failed');
@@ -112,7 +112,7 @@ export default function GitHubProjectPanel({ project, onRefresh, onOpenSettings 
   const handleFetch = async () => {
     setSyncing('fetch');
     try {
-      const response = await fetch(`/api/github/projects/${project.id}/fetch`, {
+      const response = await fetch(`/api/github/projects/${encodeURIComponent(project.name)}/fetch`, {
         method: 'POST'
       });
       if (!response.ok) throw new Error('Fetch failed');
@@ -131,7 +131,7 @@ export default function GitHubProjectPanel({ project, onRefresh, onOpenSettings 
     setError('');
 
     try {
-      const response = await fetch(`/api/github/projects/${project.id}/create`, {
+      const response = await fetch(`/api/github/projects/${encodeURIComponent(project.name)}/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -161,7 +161,7 @@ export default function GitHubProjectPanel({ project, onRefresh, onOpenSettings 
     if (!confirm('Unlink this GitHub repository? (This will not delete the remote repo)')) return;
 
     try {
-      const response = await fetch(`/api/github/projects/${project.id}`, {
+      const response = await fetch(`/api/github/projects/${encodeURIComponent(project.name)}`, {
         method: 'DELETE'
       });
       if (!response.ok) throw new Error('Failed to unlink');

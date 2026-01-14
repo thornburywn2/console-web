@@ -153,7 +153,7 @@ async function migrateProject(projectPath, options) {
     PORT: '5175',
     API_PORT: '5176',
     PROJECT_TYPE: 'migrated',
-    GITHUB_USER: process.env.GITHUB_USER || 'thornburywn',
+    GITHUB_USER: process.env.GITHUB_USER || 'username',
     PROJECT_DOMAIN: `${projectName}.example.com`
   };
 

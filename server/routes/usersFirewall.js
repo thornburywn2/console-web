@@ -595,7 +595,7 @@ export function createUsersFirewallRouter(prisma) {
       const { removeHome = false } = req.query;
 
       // Prevent deleting critical users
-      const criticalUsers = ['root', 'nobody', process.env.USER || 'thornburywn'];
+      const criticalUsers = ['root', 'nobody', process.env.USER || 'username'];
       if (criticalUsers.includes(username)) {
         return res.status(400).json({ error: 'Cannot delete critical system user or current user' });
       }

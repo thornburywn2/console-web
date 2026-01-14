@@ -134,6 +134,15 @@ body::after {
   scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* Selection */
 ::selection {
   background: rgba(16, 185, 129, 0.3);

@@ -111,7 +111,7 @@ Create a new project from template.
   "success": true,
   "project": {
     "name": "my-new-app",
-    "path": "/home/thornburywn/Projects/my-new-app",
+    "path": "/home/user/Projects/my-new-app",
     "type": "web-app-fullstack"
   },
   "filesCreated": 25,
@@ -125,7 +125,7 @@ Migrate an existing project to use enforcement files.
 **Request:**
 ```json
 {
-  "projectPath": "/home/thornburywn/Projects/existing-project",
+  "projectPath": "/home/user/Projects/existing-project",
   "options": {
     "dryRun": false,
     "force": false,

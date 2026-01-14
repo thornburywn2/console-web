@@ -452,7 +452,7 @@ export function createInfrastructureRouter() {
       }
 
       // Use sudo if not our process
-      const currentUser = process.env.USER || 'thornburywn';
+      const currentUser = process.env.USER || 'username';
       const cmd = owner !== currentUser
         ? `sudo kill -${signal.toUpperCase()} ${pid}`
         : `kill -${signal.toUpperCase()} ${pid}`;

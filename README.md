@@ -160,7 +160,7 @@ After starting, open: http://localhost:7777
 +-------------------------v--+    +----------v-----------+
 |       tmux Sessions        |    |     PostgreSQL       |
 |  +--------+ +--------+     |    |  +----------------+  |
-|  |ccm-proj|  |ccm-proj|    |    |  | Sessions, Tags |  |
+|  |cp-proj1|  |cp-proj2|    |    |  | Sessions, Tags |  |
 |  |[claude]|  |[claude]|    |    |  | Prompts, etc.  |  |
 |  +--------+ +--------+     |    |  +----------------+  |
 +----------------------------+    +----------------------+
@@ -168,7 +168,7 @@ After starting, open: http://localhost:7777
 
 ## Session Persistence
 
-Sessions are managed by tmux with naming convention `ccm-{project_name}` (Console.web). This means:
+Sessions are managed by tmux with naming convention `cp-{project_name}` (Console.web). This means:
 
 - **Browser Refresh**: Sessions continue running, reconnect automatically
 - **Server Restart**: tmux sessions persist, reattach on startup
@@ -179,13 +179,13 @@ Sessions are managed by tmux with naming convention `ccm-{project_name}` (Consol
 
 ```bash
 # List all Console.web sessions
-tmux list-sessions | grep ccm-
+tmux list-sessions | grep cp-
 
 # Attach to a session directly
-tmux attach -t ccm-myproject
+tmux attach -t cp-myproject
 
 # Kill a specific session
-tmux kill-session -t ccm-myproject
+tmux kill-session -t cp-myproject
 ```
 
 ## Security Considerations

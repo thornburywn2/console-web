@@ -62,19 +62,56 @@ function CloudflarePublishPanel({ project, onRefresh }) {
         const routeRes = await fetch(`/api/cloudflare/routes/${encodeURIComponent(project.name)}`);
         if (routeRes.ok) {
           const routeData = await routeRes.json();
-          if (routeData.routes?.length > 0) {
+
+          // Use configured subdomain from CLAUDE.md if available, otherwise fall back to project name
+          const configuredSubdomain = routeData.projectSubdomain;
+          const configuredPort = routeData.projectPort;
+
+          // If no routes found but project has configured subdomain, auto-sync from Cloudflare
+          if (routeData.routes?.length === 0 && configuredSubdomain) {
+            console.log('[CloudflarePublishPanel] No routes found, auto-syncing from Cloudflare...');
+            try {
+              const syncRes = await fetch('/api/cloudflare/sync', { method: 'POST' });
+              if (syncRes.ok) {
+                // Re-fetch routes after sync
+                const retryRes = await fetch(`/api/cloudflare/routes/${encodeURIComponent(project.name)}`);
+                if (retryRes.ok) {
+                  const retryData = await retryRes.json();
+                  if (retryData.routes?.length > 0) {
+                    setRoute(retryData.routes[0]);
+                  } else {
+                    setRoute(null);
+                  }
+                }
+              }
+            } catch (syncErr) {
+              console.warn('[CloudflarePublishPanel] Auto-sync failed:', syncErr);
+            }
+          } else if (routeData.routes?.length > 0) {
             setRoute(routeData.routes[0]);
           } else {
             setRoute(null);
           }
-        }
-      }
 
-      // Default subdomain from project name
-      setFormData(prev => ({
-        ...prev,
-        subdomain: prev.subdomain || project.name.toLowerCase().replace(/[^a-z0-9-]/g, '-')
-      }));
+          setFormData(prev => ({
+            ...prev,
+            subdomain: prev.subdomain || configuredSubdomain || project.name.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+            localPort: prev.localPort || (configuredPort ? String(configuredPort) : '')
+          }));
+        } else {
+          // Fallback to project name if API fails
+          setFormData(prev => ({
+            ...prev,
+            subdomain: prev.subdomain || project.name.toLowerCase().replace(/[^a-z0-9-]/g, '-')
+          }));
+        }
+      } else {
+        // Cloudflare not configured - still set defaults
+        setFormData(prev => ({
+          ...prev,
+          subdomain: prev.subdomain || project.name.toLowerCase().replace(/[^a-z0-9-]/g, '-')
+        }));
+      }
     } catch (err) {
       console.error('Error fetching Cloudflare data:', err);
     } finally {

@@ -451,7 +451,7 @@ export default function CreateProjectModal({ onClose, onCreated }) {
           const project = projects.find(p => p.name === projectName.trim());
 
           if (project) {
-            const ghRes = await fetch(`${API_BASE}/api/github/projects/${project.id}/create`, {
+            const ghRes = await fetch(`${API_BASE}/api/github/projects/${encodeURIComponent(project.name)}/create`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({

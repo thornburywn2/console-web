@@ -18,6 +18,8 @@ export const DEFAULT_SHORTCUTS = {
   'Ctrl+7': 'switchToSession7',
   'Ctrl+8': 'switchToSession8',
   'Ctrl+9': 'switchToSession9',
+  'Ctrl+]': 'nextSession',
+  'Ctrl+[': 'previousSession',
   'Ctrl+N': 'newSession',
   'Ctrl+W': 'closeSession',
   'Ctrl+F': 'focusSearch',
@@ -45,6 +47,8 @@ export const ACTION_DESCRIPTIONS = {
   switchToSession7: 'Switch to Session 7',
   switchToSession8: 'Switch to Session 8',
   switchToSession9: 'Switch to Session 9',
+  nextSession: 'Next Session (Cycle Forward)',
+  previousSession: 'Previous Session (Cycle Backward)',
   newSession: 'New Session',
   closeSession: 'Close Current Session',
   focusSearch: 'Focus Search',
@@ -160,6 +164,8 @@ export function useKeyboardShortcuts(handlers = {}, options = {}) {
 export function getShortcutsByCategory() {
   return {
     'Navigation': [
+      { keys: 'Ctrl+]', action: 'nextSession', description: 'Cycle to Next Session' },
+      { keys: 'Ctrl+[', action: 'previousSession', description: 'Cycle to Previous Session' },
       { keys: 'Ctrl+B', action: 'toggleSidebar', description: 'Toggle Left Sidebar' },
       { keys: 'Ctrl+Shift+B', action: 'toggleRightSidebar', description: 'Toggle Right Sidebar' },
       { keys: 'Ctrl+1-9', action: 'switchToSession', description: 'Switch to Session 1-9' },

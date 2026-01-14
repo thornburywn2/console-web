@@ -235,39 +235,65 @@ export function createCloudflareRouter(prisma) {
   }
 
   /**
-   * Extract port number from a project's CLAUDE.md file
-   * Looks for **Port:** <number> pattern in the file
+   * Extract project configuration from CLAUDE.md file
+   * Reads **Port:** and **Subdomain:** fields
+   * @returns {{ port: number|null, subdomain: string|null }}
    */
-  function getProjectPort(projectPath) {
+  function getProjectConfig(projectPath) {
     try {
       const claudeMdPath = path.join(projectPath, 'CLAUDE.md');
       if (!fs.existsSync(claudeMdPath)) {
-        return null;
+        return { port: null, subdomain: null };
       }
       const content = fs.readFileSync(claudeMdPath, 'utf-8');
-      // Match **Port:** followed by a number (handles various formats)
+
+      // Extract port
+      let port = null;
       const portMatch = content.match(/\*\*Port:\*\*\s*(\d+)/);
       if (portMatch) {
-        return parseInt(portMatch[1], 10);
+        port = parseInt(portMatch[1], 10);
+      } else {
+        const simplePortMatch = content.match(/^Port:\s*(\d+)/m);
+        if (simplePortMatch) {
+          port = parseInt(simplePortMatch[1], 10);
+        }
       }
-      // Also try Port: without bold
-      const simpleMatch = content.match(/^Port:\s*(\d+)/m);
-      if (simpleMatch) {
-        return parseInt(simpleMatch[1], 10);
+
+      // Extract subdomain
+      let subdomain = null;
+      const subdomainMatch = content.match(/\*\*Subdomain:\*\*\s*([a-zA-Z0-9-]+)/);
+      if (subdomainMatch) {
+        subdomain = subdomainMatch[1].trim();
+      } else {
+        const simpleSubdomainMatch = content.match(/^Subdomain:\s*([a-zA-Z0-9-]+)/m);
+        if (simpleSubdomainMatch) {
+          subdomain = simpleSubdomainMatch[1].trim();
+        }
       }
-      return null;
+
+      return { port, subdomain };
     } catch {
-      return null;
+      return { port: null, subdomain: null };
     }
   }
 
   /**
-   * Get all projects with their configured ports from CLAUDE.md
-   * Returns a map of port -> project info
+   * Extract port number from a project's CLAUDE.md file (legacy wrapper)
+   * @deprecated Use getProjectConfig() instead
+   */
+  function getProjectPort(projectPath) {
+    return getProjectConfig(projectPath).port;
+  }
+
+  /**
+   * Get all projects with their configured ports and subdomains from CLAUDE.md
+   * Returns maps for port -> project, subdomain -> project, and project -> config
    */
   async function getProjectPortMap() {
     const portToProject = new Map();
     const projectToPort = new Map();
+    const subdomainToProject = new Map();
+    const projectToSubdomain = new Map();
 
     try {
       // Get projects from database
@@ -287,29 +313,35 @@ export function createCloudflareRouter(prisma) {
         } catch {}
       }
 
-      // Extract port from each project's CLAUDE.md
+      // Extract port and subdomain from each project's CLAUDE.md
       for (const projectName of allProjects) {
         const projectPath = path.join(PROJECTS_DIR, projectName);
-        const port = getProjectPort(projectPath);
+        const config = getProjectConfig(projectPath);
 
-        if (port) {
-          const dbProject = dbProjects.find(p => p.name === projectName);
-          const projectInfo = {
-            name: projectName,
-            path: projectPath,
-            id: dbProject?.id || null,
-            port
-          };
+        const dbProject = dbProjects.find(p => p.name === projectName);
+        const projectInfo = {
+          name: projectName,
+          path: projectPath,
+          id: dbProject?.id || null,
+          port: config.port,
+          subdomain: config.subdomain
+        };
 
-          portToProject.set(port, projectInfo);
-          projectToPort.set(projectName, port);
+        if (config.port) {
+          portToProject.set(config.port, projectInfo);
+          projectToPort.set(projectName, config.port);
+        }
+
+        if (config.subdomain) {
+          subdomainToProject.set(config.subdomain.toLowerCase(), projectInfo);
+          projectToSubdomain.set(projectName, config.subdomain);
         }
       }
     } catch (err) {
       console.error('[Cloudflare] Error building project port map:', err);
     }
 
-    return { portToProject, projectToPort };
+    return { portToProject, projectToPort, subdomainToProject, projectToSubdomain };
   }
 
   // ==================== AUTHENTIK HELPERS ====================
@@ -695,7 +727,8 @@ export function createCloudflareRouter(prisma) {
 
   /**
    * GET /api/cloudflare/routes/:projectId - Get routes for a specific project
-   * Matches by projectId OR by port from project's CLAUDE.md
+   * Matches by projectId, subdomain, OR port from project's CLAUDE.md
+   * Returns configured subdomain and port for auto-population in UI
    * Note: Skip reserved route names (mapped, orphaned) - those are handled by separate endpoints
    */
   router.get('/routes/:projectId', async (req, res, next) => {
@@ -705,30 +738,43 @@ export function createCloudflareRouter(prisma) {
       return next();
     }
     try {
-      // First, check if this project has a port configured in CLAUDE.md
+      // Get project configuration from CLAUDE.md (port and subdomain)
       const projectPath = path.join(PROJECTS_DIR, projectId);
-      const projectPort = getProjectPort(projectPath);
+      const projectConfig = getProjectConfig(projectPath);
 
-      // Query routes by either projectId OR by matching port
+      // Query routes by projectId, subdomain, OR matching port
       let routes;
-      if (projectPort) {
-        routes = await prisma.publishedRoute.findMany({
-          where: {
-            OR: [
-              { projectId },
-              { localPort: projectPort }
-            ]
-          },
-          orderBy: { createdAt: 'desc' }
-        });
-      } else {
-        routes = await prisma.publishedRoute.findMany({
-          where: { projectId },
-          orderBy: { createdAt: 'desc' }
-        });
+      const orConditions = [{ projectId }];
+
+      if (projectConfig.port) {
+        orConditions.push({ localPort: projectConfig.port });
+      }
+      if (projectConfig.subdomain) {
+        orConditions.push({ subdomain: projectConfig.subdomain });
       }
 
-      res.json({ routes, projectPort });
+      routes = await prisma.publishedRoute.findMany({
+        where: { OR: orConditions },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      // Get settings to provide full hostname suggestion
+      let suggestedHostname = null;
+      try {
+        const settings = await prisma.cloudflareSettings.findUnique({
+          where: { id: 'default' }
+        });
+        if (settings?.zoneName && projectConfig.subdomain) {
+          suggestedHostname = `${projectConfig.subdomain}.${settings.zoneName}`;
+        }
+      } catch {}
+
+      res.json({
+        routes,
+        projectPort: projectConfig.port,
+        projectSubdomain: projectConfig.subdomain,
+        suggestedHostname
+      });
     } catch (error) {
       console.error('Error getting project routes:', error);
       res.status(500).json({ error: error.message });
@@ -1376,7 +1422,7 @@ export function createCloudflareRouter(prisma) {
 
   /**
    * GET /api/cloudflare/routes/mapped - Get all routes with project cross-referencing
-   * Routes are mapped to projects primarily by matching local port to CLAUDE.md port config
+   * Routes are mapped to projects by subdomain (highest priority) or port from CLAUDE.md
    */
   router.get('/routes/mapped', async (req, res) => {
     try {
@@ -1388,9 +1434,10 @@ export function createCloudflareRouter(prisma) {
       });
       console.log(`[Cloudflare] Found ${routes.length} routes in database`);
 
-      // Get project port mappings from CLAUDE.md (source of truth)
-      const { portToProject } = await getProjectPortMap();
+      // Get project port and subdomain mappings from CLAUDE.md (source of truth)
+      const { portToProject, subdomainToProject, projectToSubdomain } = await getProjectPortMap();
       console.log(`[Cloudflare] Found ${portToProject.size} projects with configured ports`);
+      console.log(`[Cloudflare] Found ${subdomainToProject.size} projects with configured subdomains`);
 
       // Get all projects from database for fallback matching
       const projects = await prisma.project.findMany();
@@ -1464,29 +1511,51 @@ export function createCloudflareRouter(prisma) {
         let matchedProject = null;
         let matchMethod = null;
         let isOrphaned = true;
+        let configuredSubdomain = null;
 
-        // Method 1 (PRIORITY): Match by port from CLAUDE.md configuration
-        // This is the most reliable method - the port in CLAUDE.md is the source of truth
-        const portProject = portToProject.get(route.localPort);
-        if (portProject) {
-          matchedProject = {
-            id: portProject.id,
-            name: portProject.name,
-            path: portProject.path,
-            displayName: portProject.name
-          };
-          matchMethod = 'claude-md-port';
-          isOrphaned = false;
+        // Method 1 (HIGHEST PRIORITY): Match by subdomain from CLAUDE.md configuration
+        // This is the most reliable method - subdomain in CLAUDE.md is the source of truth
+        if (route.subdomain) {
+          const subdomainProject = subdomainToProject.get(route.subdomain.toLowerCase());
+          if (subdomainProject) {
+            matchedProject = {
+              id: subdomainProject.id,
+              name: subdomainProject.name,
+              path: subdomainProject.path,
+              displayName: subdomainProject.name
+            };
+            matchMethod = 'claude-md-subdomain';
+            isOrphaned = false;
+            configuredSubdomain = subdomainProject.subdomain;
+          }
         }
 
-        // Method 2: Direct projectId match (if route was created with a project)
+        // Method 2: Match by port from CLAUDE.md configuration
+        if (!matchedProject) {
+          const portProject = portToProject.get(route.localPort);
+          if (portProject) {
+            matchedProject = {
+              id: portProject.id,
+              name: portProject.name,
+              path: portProject.path,
+              displayName: portProject.name
+            };
+            matchMethod = 'claude-md-port';
+            isOrphaned = false;
+            configuredSubdomain = portProject.subdomain;
+          }
+        }
+
+        // Method 3: Direct projectId match (if route was created with a project)
         if (!matchedProject && route.projectId && projectsByName.has(route.projectId.toLowerCase())) {
           matchedProject = projectsByName.get(route.projectId.toLowerCase());
           matchMethod = 'projectId';
           isOrphaned = false;
+          // Try to get configured subdomain from project
+          configuredSubdomain = projectToSubdomain.get(route.projectId) || null;
         }
 
-        // Method 3: Try to match by subdomain to project name
+        // Method 4: Try to match by subdomain to project name (fuzzy matching)
         if (!matchedProject && route.subdomain) {
           const normalizedSubdomain = route.subdomain.toLowerCase().replace(/-/g, '');
           for (const [name, project] of projectsByName) {
@@ -1495,8 +1564,9 @@ export function createCloudflareRouter(prisma) {
                 normalizedSubdomain.includes(normalizedName) ||
                 normalizedName.includes(normalizedSubdomain)) {
               matchedProject = project;
-              matchMethod = 'subdomain';
+              matchMethod = 'subdomain-fuzzy';
               isOrphaned = false;
+              configuredSubdomain = projectToSubdomain.get(project.name) || null;
               break;
             }
           }
@@ -1544,7 +1614,8 @@ export function createCloudflareRouter(prisma) {
           isOrphaned,
           portActive,
           portProcess,
-          configuredPort: portProject?.port || null
+          configuredPort: portToProject.get(route.localPort)?.port || null,
+          configuredSubdomain
         };
       });
 

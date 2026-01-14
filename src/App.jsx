@@ -46,6 +46,9 @@ import { useAiderVoice } from './hooks/useAiderVoice';
 // Home Dashboard
 import HomeDashboard from './components/HomeDashboard';
 
+// About Modal
+import AboutModal from './components/AboutModal';
+
 // Phase 12: Authentication (Authentik SSO)
 import { AuthProvider, RequireAuth } from './hooks/useAuth';
 
@@ -81,6 +84,7 @@ function App() {
   const globalSearch = useGlobalSearch();
   const onboarding = useOnboarding();
   const [showChangelog, setShowChangelog] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   const [showFavoritesBar, setShowFavoritesBar] = useState(() => {
     return localStorage.getItem('show-favorites-bar') !== 'false';
   });
@@ -655,6 +659,22 @@ function App() {
     switchToSession7: () => projects[6] && handleSelectProject(projects[6]),
     switchToSession8: () => projects[7] && handleSelectProject(projects[7]),
     switchToSession9: () => projects[8] && handleSelectProject(projects[8]),
+    nextSession: () => {
+      if (projects.length === 0) return;
+      const currentIndex = selectedProject
+        ? projects.findIndex(p => p.path === selectedProject.path)
+        : -1;
+      const nextIndex = (currentIndex + 1) % projects.length;
+      handleSelectProject(projects[nextIndex]);
+    },
+    previousSession: () => {
+      if (projects.length === 0) return;
+      const currentIndex = selectedProject
+        ? projects.findIndex(p => p.path === selectedProject.path)
+        : 0;
+      const prevIndex = currentIndex <= 0 ? projects.length - 1 : currentIndex - 1;
+      handleSelectProject(projects[prevIndex]);
+    },
   };
 
   // Enable keyboard shortcuts (disabled when command palette or modals are open)
@@ -691,7 +711,14 @@ function App() {
               <h1 className="text-sm font-semibold text-primary tracking-wider uppercase">
                 {appName}
               </h1>
-              <span className="text-2xs font-mono px-1.5 py-0.5 rounded" style={{ color: 'var(--text-muted)', background: 'var(--bg-glass)' }}>v1.0.0</span>
+              <button
+                onClick={() => setShowAbout(true)}
+                className="text-2xs font-mono px-1.5 py-0.5 rounded hover:bg-white/10 transition-colors cursor-pointer"
+                style={{ color: 'var(--text-muted)', background: 'var(--bg-glass)' }}
+                title="About Console.web"
+              >
+                v1.0.0
+              </button>
             </div>
             {selectedProject && (
               <span className="text-xs text-cyan font-mono" style={{ color: 'var(--accent-secondary)' }}>
@@ -892,6 +919,12 @@ function App() {
         onClose={() => setShowChangelog(false)}
       />
 
+      {/* About Modal */}
+      <AboutModal
+        isOpen={showAbout}
+        onClose={() => setShowAbout(false)}
+      />
+
       {/* Phase 11: Additional Modals */}
 
       {/* Session Template Modal */}
@@ -999,7 +1032,7 @@ function App() {
 
       {/* Checkpoint Panel */}
       <CheckpointPanel
-        projectId={selectedProject?.id}
+        projectId={selectedProject?.name}
         projectPath={selectedProject?.path}
         sessionId={null}
         isOpen={showCheckpointPanel}

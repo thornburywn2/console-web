@@ -164,6 +164,10 @@ export function createGithubRouter(prisma) {
       const branch = await execGit(['rev-parse', '--abbrev-ref', 'HEAD'], projectPath);
       const status = await execGit(['status', '-sb'], projectPath);
 
+      // Check for uncommitted changes (dirty working tree)
+      const porcelainStatus = await execGit(['status', '--porcelain'], projectPath);
+      const isDirty = porcelainStatus && porcelainStatus.trim().length > 0;
+
       let aheadBy = 0;
       let behindBy = 0;
       let syncStatus = 'synced';
@@ -175,7 +179,10 @@ export function createGithubRouter(prisma) {
       if (aheadMatch) aheadBy = parseInt(aheadMatch[1]);
       if (behindMatch) behindBy = parseInt(behindMatch[1]);
 
-      if (aheadBy > 0 && behindBy > 0) {
+      // Determine sync status - check dirty state first
+      if (isDirty) {
+        syncStatus = 'modified';  // Has uncommitted local changes
+      } else if (aheadBy > 0 && behindBy > 0) {
         syncStatus = 'diverged';
       } else if (aheadBy > 0) {
         syncStatus = 'ahead';
@@ -194,7 +201,7 @@ export function createGithubRouter(prisma) {
         }
       });
 
-      return { aheadBy, behindBy, syncStatus, branch };
+      return { aheadBy, behindBy, syncStatus, branch, isDirty };
     } catch (error) {
       await prisma.gitHubRepo.update({
         where: { id: repoId },

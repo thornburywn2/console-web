@@ -5,6 +5,7 @@
 **Last Updated:** 2026-01-14
 **Type:** Web Application
 **Port:** 7777 (Frontend), 5275 (API)
+**Subdomain:** manage
 
 ---
 
@@ -197,7 +198,7 @@ The Home Dashboard is a customizable widget-based view that provides a 10,000-fo
 - Projects: `/api/admin/projects-extended`
 - System: `/api/admin/system`
 - Docker: `/api/docker/containers?all=true`
-- Dashboard: `/api/dashboard` (git, commits, ports, disk, health, AI usage)
+- Dashboard: `/api/dashboard` (git, commits, ports, disk, AI usage, security alerts)
 
 Data refreshes every 15 seconds while dashboard is open.
 
@@ -262,7 +263,7 @@ The Admin Dashboard provides comprehensive system management with 6 main tabs.
 - `GET /api/admin/system` - System stats (CPU, memory, disk)
 - `GET /api/admin/claude-md/:project` - Read project CLAUDE.md
 - `PUT /api/admin/claude-md/:project` - Update project CLAUDE.md
-- `GET /api/dashboard` - Aggregated dashboard data (git, commits, ports, disk, health, AI usage)
+- `GET /api/dashboard` - Aggregated dashboard data (git, commits, ports, disk, AI usage, security)
 
 ### Infrastructure
 - `GET /api/server/services` - Systemd services
@@ -448,13 +449,13 @@ This project implements systematic learning to improve development practices:
 Run these to capture learnings:
 ```bash
 # Full lifecycle scan
-bash ~/Projects/agents/lifecycle/AGENT-016-LIFECYCLE-MANAGER.sh scan /home/thornburywn/Projects/console-web
+bash ~/Projects/agents/lifecycle/AGENT-016-LIFECYCLE-MANAGER.sh scan /home/user/Projects/console-web
 
 # Security audit
-bash ~/Projects/agents/lifecycle/AGENT-018-SECURITY.sh scan /home/thornburywn/Projects/console-web
+bash ~/Projects/agents/lifecycle/AGENT-018-SECURITY.sh scan /home/user/Projects/console-web
 
 # Quality check
-bash ~/Projects/agents/lifecycle/AGENT-019-QUALITY-GATE.sh all /home/thornburywn/Projects/console-web
+bash ~/Projects/agents/lifecycle/AGENT-019-QUALITY-GATE.sh all /home/user/Projects/console-web
 ```
 
 ### Knowledge Capture Points

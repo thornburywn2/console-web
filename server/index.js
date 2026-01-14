@@ -8,7 +8,7 @@ import { spawn } from 'node-pty';
 import { readdirSync, statSync, existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join, basename, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { execSync, exec } from 'child_process';
+import { execSync, execFileSync, exec } from 'child_process';
 import { createReadStream } from 'fs';
 import { createInterface } from 'readline';
 import os from 'os';
@@ -194,6 +194,61 @@ app.use(cors({
 
 app.use(express.json());
 app.use(cookieParser());
+
+// =============================================================================
+// HEALTH CHECK (Unauthenticated - for watcher service)
+// =============================================================================
+
+app.get('/api/watcher/health', async (req, res) => {
+  const startTime = Date.now();
+
+  try {
+    // Check database connectivity
+    let dbHealthy = false;
+    let dbLatency = 0;
+    try {
+      const dbStart = Date.now();
+      await prisma.$queryRaw`SELECT 1`;
+      dbLatency = Date.now() - dbStart;
+      dbHealthy = true;
+    } catch (dbError) {
+      console.error('[HealthCheck] Database check failed:', dbError.message);
+    }
+
+    // Get memory usage
+    const memUsage = process.memoryUsage();
+    const memoryMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+
+    // Get uptime
+    const uptime = process.uptime();
+
+    // Overall health status
+    const healthy = dbHealthy;
+
+    res.status(healthy ? 200 : 503).json({
+      status: healthy ? 'healthy' : 'unhealthy',
+      timestamp: new Date().toISOString(),
+      uptime: Math.round(uptime),
+      memory: {
+        heapUsedMB: memoryMB,
+        heapTotalMB: Math.round(memUsage.heapTotal / 1024 / 1024),
+        rssMB: Math.round(memUsage.rss / 1024 / 1024),
+      },
+      database: {
+        connected: dbHealthy,
+        latencyMs: dbLatency,
+      },
+      responseTimeMs: Date.now() - startTime,
+    });
+  } catch (error) {
+    console.error('[HealthCheck] Health check failed:', error.message);
+    res.status(503).json({
+      status: 'unhealthy',
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
 
 // =============================================================================
 // AUTHENTICATION
@@ -1629,7 +1684,7 @@ app.get('/api/admin/history', async (req, res) => {
 app.get('/api/admin/sessions/:projectName', (req, res) => {
   try {
     const projectName = req.params.projectName;
-    const projectDir = join(CLAUDE_DIR, 'projects', `-home-thornburywn-Projects-${projectName}`);
+    const projectDir = join(CLAUDE_DIR, 'projects', `-home-username-Projects-${projectName}`);
 
     if (!existsSync(projectDir)) {
       return res.json({ sessions: [] });
@@ -3140,7 +3195,7 @@ app.get('/api/admin/projects-extended', async (req, res) => {
       }
 
       // Check for session data
-      const sessionDir = join(CLAUDE_DIR, 'projects', `-home-thornburywn-Projects-${project.name}`);
+      const sessionDir = join(CLAUDE_DIR, 'projects', `-home-username-Projects-${project.name}`);
       const hasSessionData = existsSync(sessionDir);
 
       // Calculate completion metrics if requested
@@ -3235,10 +3290,10 @@ app.get('/api/dashboard', async (req, res) => {
     const projects = await getProjects();
     const tmuxSessions = listTmuxSessions();
 
-    // Helper to execute git commands
+    // Helper to execute git commands (using execFileSync to avoid shell interpretation of % chars)
     const execGitSafe = (args, cwd) => {
       try {
-        return execSync(`git ${args.join(' ')}`, { cwd, encoding: 'utf-8', timeout: 5000 }).trim();
+        return execFileSync('git', args, { cwd, encoding: 'utf-8', timeout: 5000 }).trim();
       } catch {
         return null;
       }
@@ -3399,41 +3454,8 @@ app.get('/api/dashboard', async (req, res) => {
       }
     } catch {}
 
-    // Calculate project health scores
-    const healthScores = projects.slice(0, 20).map(project => {
-      let score = 50; // Base score
-
-      // Has CLAUDE.md (+15)
-      if (existsSync(join(project.path, 'CLAUDE.md'))) score += 15;
-
-      // Has tests (+15)
-      if (existsSync(join(project.path, 'test')) ||
-          existsSync(join(project.path, 'tests')) ||
-          existsSync(join(project.path, '__tests__'))) score += 15;
-
-      // Has git (+10)
-      if (existsSync(join(project.path, '.git'))) score += 10;
-
-      // Has README (+5)
-      if (existsSync(join(project.path, 'README.md'))) score += 5;
-
-      // Has CI/CD (+5)
-      if (existsSync(join(project.path, '.github/workflows'))) score += 5;
-
-      // Recently modified (+10 if within 7 days)
-      try {
-        const stat = statSync(project.path);
-        const daysSinceModified = (Date.now() - stat.mtime.getTime()) / (1000 * 60 * 60 * 24);
-        if (daysSinceModified < 7) score += 10;
-        else if (daysSinceModified > 90) score -= 10;
-      } catch {}
-
-      return {
-        name: project.name,
-        path: project.path,
-        score: Math.min(100, Math.max(0, score))
-      };
-    }).sort((a, b) => b.score - a.score);
+    // NOTE: healthScores removed - HomeDashboard now derives health from
+    // projectsExtended.completion for single source of truth (see calculateProjectCompletion)
 
     res.json({
       gitStatuses,
@@ -3443,7 +3465,6 @@ app.get('/api/dashboard', async (req, res) => {
       aiUsage,
       recentCommands: recentCommands.slice(0, 10),
       securityAlerts,
-      healthScores,
       tmuxSessions
     });
   } catch (error) {
