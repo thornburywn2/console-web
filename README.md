@@ -23,14 +23,14 @@ A comprehensive web-based management interface for Claude Code projects. Provide
 - **One-Click Install**: Configure trigger type, project scope, and settings before installation
 - **Custom Agents**: Build your own agents with shell commands, API calls, or MCP tools
 
-### GitHub Integration (v2.5.0+)
+### GitHub Integration
 - **Repository Browser**: Browse all your GitHub repos with search
 - **Clone from GitHub**: Clone repos directly to local projects with one click
 - **Push to GitHub**: Create new GitHub repositories from local projects
 - **Sync Status**: Visual indicators showing ahead/behind/synced status
 - **GitHub Actions**: View workflow runs and CI/CD status per project
 
-### Security (v2.9.0+)
+### Security
 - **Security Dashboard**: Integrated security scanning from the Admin Dashboard
 - **Push Sanitization**: Pre-push hooks scan for secrets, PII, and sensitive data
 - **Tool Integration**: Semgrep, Gitleaks, Trivy, License Checker support
