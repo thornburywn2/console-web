@@ -260,7 +260,9 @@ app.use('/auth', createAuthRouter());
 
 // System routes (version, update) - registered BEFORE auth middleware
 // These are management endpoints that should work regardless of auth status
-app.use('/api/system', createSystemRouter(io));
+// Note: Socket.IO is injected later via systemRouter.setSocketIO() after io is initialized
+const systemRouter = createSystemRouter();
+app.use('/api/system', systemRouter);
 
 // Apply authentication to all other API routes
 // Set AUTH_ENABLED=false in .env to disable auth for development
@@ -395,6 +397,9 @@ const io = new Server(server, {
     credentials: true
   }
 });
+
+// Inject Socket.IO into system router for real-time update progress
+systemRouter.setSocketIO(io);
 
 // Store active PTY sessions mapped by project ID
 const sessions = new Map();

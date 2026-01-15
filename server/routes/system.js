@@ -17,12 +17,24 @@ const __dirname = path.dirname(__filename);
 // Project root directory (one level up from server/routes)
 const PROJECT_ROOT = path.resolve(__dirname, '../../');
 
-export function createSystemRouter(io) {
+export function createSystemRouter() {
   const router = Router();
+
+  // Socket.IO instance - set after initialization via setSocketIO()
+  let socketIO = null;
 
   // Track update status
   let updateInProgress = false;
   let updateLogs = [];
+
+  /**
+   * Set Socket.IO instance after it's initialized
+   * Call this from index.js after io = new Server(...)
+   */
+  router.setSocketIO = (io) => {
+    socketIO = io;
+    console.log('[System] Socket.IO instance registered for update progress');
+  };
 
   /**
    * Helper to emit update progress via Socket.IO
@@ -30,8 +42,8 @@ export function createSystemRouter(io) {
   function emitProgress(step, status, message, details = null) {
     const logEntry = { step, status, message, details, timestamp: new Date().toISOString() };
     updateLogs.push(logEntry);
-    if (io) {
-      io.emit('system-update-progress', logEntry);
+    if (socketIO) {
+      socketIO.emit('system-update-progress', logEntry);
     }
     console.log(`[System Update] [${step}] ${status}: ${message}`);
   }
