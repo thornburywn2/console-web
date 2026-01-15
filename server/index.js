@@ -266,7 +266,11 @@ app.use('/api/system', systemRouter);
 
 // Apply authentication to all other API routes
 // Set AUTH_ENABLED=false in .env to disable auth for development
-app.use('/api', authentikAuth({ required: process.env.AUTH_ENABLED !== 'false' }));
+// Note: /api/system is excluded to allow unauthenticated access to update/version endpoints
+app.use('/api', authentikAuth({
+  required: process.env.AUTH_ENABLED !== 'false',
+  excludePaths: ['/api/system']
+}));
 
 // =============================================================================
 // MODULAR API ROUTES

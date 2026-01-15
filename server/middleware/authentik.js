@@ -218,9 +218,19 @@ function extractFromProxyHeaders(req) {
  * Main authentication middleware
  */
 export function authentikAuth(options = {}) {
-  const { required = true, adminOnly = false } = options;
+  const { required = true, adminOnly = false, excludePaths = [] } = options;
 
   return async (req, res, next) => {
+    // Skip auth for excluded paths (e.g., /api/system for self-update feature)
+    if (excludePaths.length > 0) {
+      const fullPath = req.baseUrl + req.path;
+      for (const excludePath of excludePaths) {
+        if (fullPath.startsWith(excludePath)) {
+          return next();
+        }
+      }
+    }
+
     // Skip auth if explicitly disabled (ONLY for local development)
     if (!AUTH_ENABLED) {
       console.warn('[AUTH] Authentication disabled - this should only happen in development!');
