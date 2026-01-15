@@ -4831,7 +4831,7 @@ function AdminDashboard({ onClose, initialTab = null, currentProject = null }) {
             </div>
 
             <div className="space-y-2">
-              {history.entries.map((entry, idx) => (
+              {(history.entries || []).map((entry, idx) => (
                 <div
                   key={idx}
                   className="hacker-card p-4"

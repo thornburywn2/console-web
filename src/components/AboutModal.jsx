@@ -271,48 +271,48 @@ export default function AboutModal({ isOpen, onClose }) {
       {/* Backdrop with blur */}
       <div
         className="absolute inset-0 backdrop-blur-xl"
-        style={{ background: 'rgba(10, 12, 20, 0.85)' }}
+        style={{ background: 'var(--bg-overlay, rgba(0, 0, 0, 0.75))' }}
         onClick={onClose}
       />
 
       {/* Modal */}
       <div
-        className="relative w-full max-w-5xl max-h-[92vh] rounded-2xl overflow-hidden backdrop-blur-2xl"
+        className="relative w-full max-w-5xl max-h-[92vh] rounded-2xl overflow-hidden"
         style={{
-          background: 'linear-gradient(180deg, rgba(200, 205, 215, 0.95) 0%, rgba(180, 185, 195, 0.92) 100%)',
-          border: '1px solid rgba(255, 255, 255, 0.3)',
-          boxShadow: '0 0 80px rgba(100, 100, 120, 0.25), 0 25px 50px -12px rgba(0, 0, 0, 0.3)'
+          background: 'var(--bg-primary)',
+          border: '1px solid var(--border-accent)',
+          boxShadow: '0 0 60px var(--shadow-color, rgba(0, 0, 0, 0.3)), 0 25px 50px -12px rgba(0, 0, 0, 0.4)'
         }}
       >
         {/* Header */}
         <div
           className="relative px-8 py-6 overflow-hidden"
-          style={{ borderBottom: '1px solid rgba(100, 110, 130, 0.3)' }}
+          style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)' }}
         >
           {/* Background gradient accent */}
           <div
             className="absolute inset-0 opacity-20"
             style={{
-              background: 'radial-gradient(ellipse at top left, #059669 0%, transparent 50%)'
+              background: 'radial-gradient(ellipse at top left, var(--accent-primary) 0%, transparent 50%)'
             }}
           />
 
           <div className="relative flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl bg-slate-700/20 flex items-center justify-center border border-slate-600/30">
-                <span className="text-2xl font-mono font-bold text-slate-700">{'>'}​_</span>
+              <div className="w-14 h-14 rounded-xl bg-accent/20 flex items-center justify-center border border-accent/30">
+                <span className="text-2xl font-mono font-bold text-accent">{'>'}​_</span>
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-slate-800">Console.web</h2>
+                <h2 className="text-2xl font-bold text-primary">Console.web</h2>
                 <div className="flex items-center gap-3 mt-1">
-                  <span className="text-xs font-mono text-emerald-700 bg-emerald-700/15 px-2 py-0.5 rounded">v1.0.0</span>
-                  <span className="text-xs text-slate-600">Development Operations Platform</span>
+                  <span className="text-xs font-mono text-accent bg-accent/15 px-2 py-0.5 rounded">v1.0.0</span>
+                  <span className="text-xs text-muted">Development Operations Platform</span>
                 </div>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-3 rounded-xl hover:bg-slate-600/20 text-slate-500 hover:text-slate-800 transition-all"
+              className="p-3 rounded-xl hover:bg-accent/10 text-muted hover:text-primary transition-all"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -324,7 +324,7 @@ export default function AboutModal({ isOpen, onClose }) {
         {/* Navigation Tabs */}
         <div
           className="px-8 py-3 flex gap-2 overflow-x-auto scrollbar-hide"
-          style={{ borderBottom: '1px solid rgba(100, 110, 130, 0.3)', background: 'rgba(160, 165, 175, 0.6)' }}
+          style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-tertiary)' }}
         >
           {tabs.map(tab => (
             <button
@@ -332,8 +332,8 @@ export default function AboutModal({ isOpen, onClose }) {
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-mono text-sm transition-all whitespace-nowrap ${
                 activeTab === tab.id
-                  ? 'bg-slate-700 text-white font-semibold shadow-lg'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-white/40'
+                  ? 'bg-accent text-black font-semibold shadow-lg'
+                  : 'text-secondary hover:text-primary hover:bg-accent/10'
               }`}
             >
               <span className="text-base">{tab.icon}</span>
@@ -708,17 +708,17 @@ export default function AboutModal({ isOpen, onClose }) {
         {/* Footer */}
         <div
           className="px-8 py-4 flex items-center justify-between"
-          style={{ borderTop: '1px solid rgba(100, 110, 130, 0.3)', background: 'rgba(160, 165, 175, 0.6)' }}
+          style={{ borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)' }}
         >
           <div className="flex items-center gap-4">
-            <span className="text-xs text-slate-600 font-mono">
+            <span className="text-xs text-muted font-mono">
               Built for engineers who value efficiency and control
             </span>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              className="px-6 py-2 text-sm font-mono rounded-lg bg-slate-700 text-white font-semibold hover:bg-slate-800 transition-colors"
+              className="px-6 py-2 text-sm font-mono rounded-lg bg-accent text-black font-semibold hover:opacity-90 transition-colors"
             >
               Get Started
             </button>

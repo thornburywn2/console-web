@@ -460,6 +460,26 @@ export function createGithubRouter(prisma) {
   // ==================== AUTH ENDPOINTS ====================
 
   /**
+   * GET /api/github/settings - Alias for auth status (used by CreateProjectModal)
+   */
+  router.get('/settings', async (req, res) => {
+    try {
+      const settings = await prisma.gitHubSettings.findUnique({
+        where: { id: 'default' }
+      });
+
+      res.json({
+        authenticated: settings?.authenticated || false,
+        configured: !!settings?.authenticated,
+        username: settings?.username || null
+      });
+    } catch (error) {
+      console.error('Error checking GitHub settings:', error);
+      res.json({ authenticated: false, configured: false });
+    }
+  });
+
+  /**
    * GET /api/github/auth - Check authentication status
    */
   router.get('/auth', async (req, res) => {
