@@ -84,6 +84,39 @@ End of Day:
 
 ---
 
+## [1.2.0] - 2026-01-15
+
+### Clipboard & Voice Command Improvements
+
+This release fixes critical clipboard functionality for tmux terminals and implements voice command features.
+
+### Fixes
+
+#### TMux Clipboard Integration (OSC 52)
+- **Root Cause**: tmux with `mouse on` captures all mouse events, preventing xterm.js from seeing selections
+- **Solution**: Implemented OSC 52 escape sequence support for clipboard integration
+- tmux now sends clipboard data via OSC 52, which xterm.js decodes and copies to browser clipboard
+- Added `set-clipboard on` and terminal overrides in tmux.conf
+- Configured copy-mode bindings for automatic clipboard on mouse release
+
+#### Voice Command Improvements
+- **Sidebar Toggle**: "toggle sidebar" voice command now properly hides/shows both sidebars
+- **Suggestion Execution**: Clicking voice command suggestions now executes them (was a no-op)
+- Added sound feedback and history tracking for suggestion clicks
+
+#### Terminal Selection Tracking
+- Use `onSelectionChange` event to track selection as it happens
+- Store last valid selection for fallback when tmux clears selection
+- Increased mouseup delay from 10ms to 50ms for reliable capture
+
+### How to Copy from Terminal
+
+1. **Mouse Selection** (automatic): Click and drag to select, release to copy
+2. **tmux Copy Mode**: `Ctrl+B` then `[`, navigate, `Space` to start, `Enter` to copy
+3. **Hold Shift**: Bypass tmux and use xterm.js selection directly
+
+---
+
 ## [1.1.0] - 2026-01-15
 
 ### One-Click Updates & UX Improvements

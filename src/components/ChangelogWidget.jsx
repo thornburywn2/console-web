@@ -7,6 +7,24 @@ import { useState, useEffect, useCallback } from 'react';
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '1.2.0',
+    date: '2026-01-15',
+    type: 'minor',
+    title: 'Clipboard & Voice Command Improvements',
+    highlights: [
+      'Fixed tmux clipboard integration with OSC 52 support',
+      'Implemented sidebar toggle via voice command',
+      'Voice command suggestions now execute when clicked',
+      'Improved selection tracking for terminal copy',
+    ],
+    features: [
+      { title: 'OSC 52 Clipboard', description: 'tmux selections now copy directly to browser clipboard via OSC 52 escape sequences' },
+      { title: 'Sidebar Toggle', description: 'Voice command "toggle sidebar" now hides/shows both sidebars for focus mode' },
+      { title: 'Voice Suggestions', description: 'Clicking voice command suggestions now executes them instead of doing nothing' },
+      { title: 'Selection Tracking', description: 'Terminal tracks selection via onSelectionChange for more reliable copying' },
+    ],
+  },
+  {
     version: '1.1.0',
     date: '2026-01-15',
     type: 'minor',
