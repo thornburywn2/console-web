@@ -118,6 +118,46 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     // Open terminal in the container
     term.open(terminalRef.current);
 
+    // Copy selection to clipboard on mouse up (highlight-to-copy)
+    const handleSelectionCopy = () => {
+      const selection = term.getSelection();
+      if (selection && selection.length > 0) {
+        navigator.clipboard.writeText(selection).catch(err => {
+          console.warn('Failed to copy to clipboard:', err);
+        });
+      }
+    };
+
+    // Listen for mouse up events on the terminal to trigger copy
+    const terminalElement = terminalRef.current;
+    terminalElement.addEventListener('mouseup', handleSelectionCopy);
+
+    // Also support Ctrl+Shift+C for explicit copy
+    term.attachCustomKeyEventHandler((event) => {
+      // Ctrl+Shift+C - Copy
+      if (event.ctrlKey && event.shiftKey && event.key === 'C') {
+        const selection = term.getSelection();
+        if (selection) {
+          navigator.clipboard.writeText(selection).catch(err => {
+            console.warn('Failed to copy to clipboard:', err);
+          });
+        }
+        return false; // Prevent default
+      }
+      // Ctrl+Shift+V - Paste
+      if (event.ctrlKey && event.shiftKey && event.key === 'V') {
+        navigator.clipboard.readText().then(text => {
+          if (text) {
+            onInput(text);
+          }
+        }).catch(err => {
+          console.warn('Failed to paste from clipboard:', err);
+        });
+        return false; // Prevent default
+      }
+      return true; // Allow other keys
+    });
+
     // Initial fit - wait for renderer to be ready
     const attemptFit = (retries = 0) => {
       try {
@@ -151,6 +191,7 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
 
     // Cleanup
     return () => {
+      terminalElement.removeEventListener('mouseup', handleSelectionCopy);
       term.dispose();
       xtermRef.current = null;
       fitAddonRef.current = null;
