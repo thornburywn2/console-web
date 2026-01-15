@@ -14,7 +14,7 @@ Copy and paste everything below the line into your AI assistant:
 I want to deploy Console.web from GitHub on my Windows machine using WSL (Windows Subsystem for Linux). Please guide me through an interactive, end-to-end deployment.
 
 ## Project Repository
-https://github.com/thornburywn2/console-web
+https://github.com/username2/console-web
 
 ## My Environment
 - Windows with WSL2 installed
@@ -179,7 +179,7 @@ If you prefer Docker, use this prompt instead:
 ```
 I want to deploy Console.web using Docker on my Windows machine with WSL2.
 
-Repository: https://github.com/thornburywn2/console-web
+Repository: https://github.com/username2/console-web
 
 Prerequisites:
 - Docker Desktop for Windows with WSL2 backend
@@ -231,7 +231,7 @@ For users who want ALL features including optional integrations:
 ```
 Deploy Console.web with full features on Windows WSL:
 
-Repository: https://github.com/thornburywn2/console-web
+Repository: https://github.com/username2/console-web
 
 I want to configure:
 - [x] PostgreSQL database
@@ -265,4 +265,4 @@ For production or multi-user deployments, you should:
 
 **Version:** 1.0.0
 **Last Updated:** 2026-01-15
-**Repository:** https://github.com/thornburywn2/console-web
+**Repository:** https://github.com/username2/console-web
