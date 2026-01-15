@@ -118,62 +118,71 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     // Open terminal in the container
     term.open(terminalRef.current);
 
-    // Copy selection to clipboard on mouse up (highlight-to-copy)
-    // Use a small delay to ensure selection is finalized before reading
-    const handleSelectionCopy = () => {
-      setTimeout(() => {
-        const selection = term.getSelection();
-        if (selection && selection.length > 0) {
-          navigator.clipboard.writeText(selection)
-            .then(() => {
-              console.log('Copied to clipboard:', selection.substring(0, 50) + (selection.length > 50 ? '...' : ''));
-            })
-            .catch(err => {
-              // Fallback for non-secure contexts: use execCommand
-              console.warn('Clipboard API failed, trying fallback:', err);
-              try {
-                const textArea = document.createElement('textarea');
-                textArea.value = selection;
-                textArea.style.position = 'fixed';
-                textArea.style.left = '-9999px';
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-                console.log('Copied via fallback');
-              } catch (fallbackErr) {
-                console.error('Fallback copy failed:', fallbackErr);
-              }
-            });
-        }
-      }, 10); // Small delay to ensure selection is captured
-    };
+    // Helper to copy text to clipboard with fallback
+    const copyTextToClipboard = (text) => {
+      if (!text || text.length === 0) return;
 
-    // Listen for mouse up events on the terminal to trigger copy
-    const terminalElement = terminalRef.current;
-    terminalElement.addEventListener('mouseup', handleSelectionCopy);
-
-    // Helper function to copy text with fallback
-    const copyToClipboard = (text) => {
       navigator.clipboard.writeText(text)
-        .then(() => console.log('Copied via Clipboard API'))
-        .catch(() => {
-          // Fallback for non-secure contexts
+        .then(() => {
+          console.log('Copied to clipboard:', text.substring(0, 50) + (text.length > 50 ? '...' : ''));
+        })
+        .catch(err => {
+          // Fallback for non-secure contexts: use execCommand
+          console.warn('Clipboard API failed, trying fallback:', err);
           try {
             const textArea = document.createElement('textarea');
             textArea.value = text;
             textArea.style.position = 'fixed';
             textArea.style.left = '-9999px';
+            textArea.style.top = '-9999px';
             document.body.appendChild(textArea);
             textArea.select();
             document.execCommand('copy');
             document.body.removeChild(textArea);
             console.log('Copied via fallback');
-          } catch (err) {
-            console.error('Copy failed:', err);
+          } catch (fallbackErr) {
+            console.error('Fallback copy failed:', fallbackErr);
           }
         });
     };
+
+    // Track the last valid selection to copy on mouseup
+    let lastSelection = '';
+    let selectionTimeout = null;
+
+    // Use onSelectionChange to track selection as it happens
+    const selectionDisposable = term.onSelectionChange(() => {
+      const selection = term.getSelection();
+      if (selection && selection.length > 0) {
+        lastSelection = selection;
+      }
+    });
+
+    // Copy on mouseup using the tracked selection
+    const handleMouseUp = (e) => {
+      // Clear any pending timeout
+      if (selectionTimeout) {
+        clearTimeout(selectionTimeout);
+      }
+
+      // Small delay to ensure selection is finalized
+      selectionTimeout = setTimeout(() => {
+        // First try to get current selection
+        const currentSelection = term.getSelection();
+        const textToCopy = currentSelection && currentSelection.length > 0
+          ? currentSelection
+          : lastSelection;
+
+        if (textToCopy && textToCopy.length > 0) {
+          copyTextToClipboard(textToCopy);
+          // Clear lastSelection after successful copy
+          lastSelection = '';
+        }
+      }, 50);
+    };
+
+    const terminalElement = terminalRef.current;
+    terminalElement.addEventListener('mouseup', handleMouseUp);
 
     // Also support Ctrl+Shift+C for explicit copy
     term.attachCustomKeyEventHandler((event) => {
@@ -181,7 +190,7 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
       if (event.ctrlKey && event.shiftKey && event.key === 'C') {
         const selection = term.getSelection();
         if (selection) {
-          copyToClipboard(selection);
+          copyTextToClipboard(selection);
         }
         return false; // Prevent default
       }
@@ -232,7 +241,11 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
 
     // Cleanup
     return () => {
-      terminalElement.removeEventListener('mouseup', handleSelectionCopy);
+      terminalElement.removeEventListener('mouseup', handleMouseUp);
+      if (selectionTimeout) {
+        clearTimeout(selectionTimeout);
+      }
+      selectionDisposable.dispose();
       term.dispose();
       xtermRef.current = null;
       fitAddonRef.current = null;
