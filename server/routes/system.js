@@ -43,10 +43,15 @@ export function createSystemRouter(io) {
     return new Promise((resolve, reject) => {
       emitProgress(step, 'running', `Executing: ${command} ${args.join(' ')}`);
 
+      // Ensure node_modules/.bin is in PATH for local binaries like vite
+      const nodeModulesBin = path.join(cwd, 'node_modules', '.bin');
+      const envPath = process.env.PATH || '';
+      const enhancedPath = `${nodeModulesBin}:${envPath}`;
+
       const proc = spawn(command, args, {
         cwd,
         shell: true,
-        env: { ...process.env, FORCE_COLOR: '0' },
+        env: { ...process.env, PATH: enhancedPath, FORCE_COLOR: '0' },
       });
 
       let stdout = '';
@@ -193,9 +198,9 @@ export function createSystemRouter(io) {
       await runCommand('git', ['pull', '--rebase', 'origin', 'main'], PROJECT_ROOT, 'git-pull');
       emitProgress('git-pull', 'complete', 'Successfully pulled latest changes');
 
-      // Step 3: npm install
+      // Step 3: npm install (include dev deps for vite build tools)
       emitProgress('npm-install', 'running', 'Installing dependencies...');
-      await runCommand('npm', ['install', '--legacy-peer-deps'], PROJECT_ROOT, 'npm-install');
+      await runCommand('npm', ['install', '--include=dev', '--legacy-peer-deps'], PROJECT_ROOT, 'npm-install');
       emitProgress('npm-install', 'complete', 'Dependencies installed');
 
       // Step 4: Prisma generate (if schema changed)
