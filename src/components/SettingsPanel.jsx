@@ -149,12 +149,44 @@ export default function SettingsPanel() {
   const fetchVersionInfo = async () => {
     try {
       const res = await fetch('/api/system/version');
+
+      // Check content type to avoid JSON parse errors on HTML responses
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.warn('Version endpoint returned non-JSON response (may need authentication or server update)');
+        setVersionInfo({
+          version: 'Unknown',
+          branch: 'unknown',
+          commit: 'unknown',
+          hasUpdates: false,
+          error: 'Update feature requires server update or authentication'
+        });
+        return;
+      }
+
       if (res.ok) {
         const data = await res.json();
         setVersionInfo(data);
+      } else {
+        const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+        console.warn('Version fetch failed:', errorData);
+        setVersionInfo({
+          version: 'Unknown',
+          branch: 'unknown',
+          commit: 'unknown',
+          hasUpdates: false,
+          error: errorData.error || 'Failed to fetch version'
+        });
       }
     } catch (err) {
       console.error('Failed to fetch version info:', err);
+      setVersionInfo({
+        version: 'Unknown',
+        branch: 'unknown',
+        commit: 'unknown',
+        hasUpdates: false,
+        error: 'Connection error'
+      });
     }
   };
 
@@ -1520,6 +1552,21 @@ export default function SettingsPanel() {
               <div className="p-4 rounded-lg bg-[var(--bg-surface)] border border-hacker-green/30">
                 {versionInfo ? (
                   <div className="space-y-4">
+                    {/* Error Message */}
+                    {versionInfo.error && (
+                      <div className="p-3 rounded-lg bg-hacker-warning/10 border border-hacker-warning/30">
+                        <div className="flex items-center gap-2 text-hacker-warning text-sm">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                          <span>{versionInfo.error}</span>
+                        </div>
+                        <p className="text-xs text-hacker-text-dim mt-2">
+                          Run manually: <code className="bg-black/30 px-1 rounded">git pull && npm install --include=dev && npm run build && pm2 restart console-web</code>
+                        </p>
+                      </div>
+                    )}
+
                     {/* Current Version Info */}
                     <div className="flex items-center justify-between">
                       <div>
@@ -1552,7 +1599,7 @@ export default function SettingsPanel() {
                     <div className="flex items-center gap-4">
                       <button
                         onClick={triggerUpdate}
-                        disabled={updateInProgress}
+                        disabled={updateInProgress || versionInfo.error}
                         className={`px-6 py-2.5 text-sm font-mono rounded-lg transition-all flex items-center gap-2 ${
                           versionInfo.hasUpdates
                             ? 'bg-hacker-cyan text-black hover:bg-hacker-cyan/90'
