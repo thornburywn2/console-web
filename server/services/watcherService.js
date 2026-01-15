@@ -26,7 +26,7 @@ const CONFIG = {
   appName: 'console-web',
   appPort: 5275,
   healthEndpoint: '/api/watcher/health',
-  projectDir: '/home/thornburywn/Projects/console-web',
+  projectDir: '/home/user/Projects/console-web',
 
   // Check intervals (ms)
   healthCheckInterval: 30000,      // 30 seconds
@@ -43,7 +43,7 @@ const CONFIG = {
   backoffMultiplier: 2,
 
   // Log file
-  logFile: '/home/thornburywn/Projects/console-web/logs/watcher.log',
+  logFile: '/home/user/Projects/console-web/logs/watcher.log',
 };
 
 // State

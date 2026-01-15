@@ -66,14 +66,14 @@ docker run -d \
   -v /path/to/your/projects:/projects \
   -e ANTHROPIC_API_KEY=your-key \
   -e DATABASE_URL=postgresql://... \
-  ghcr.io/thornburywn2/console-web:latest
+  ghcr.io/username2/console-web:latest
 ```
 
 ### The Hacker Way (Local Dev)
 
 ```bash
 # Clone the beast
-git clone https://github.com/thornburywn2/console-web.git
+git clone https://github.com/username2/console-web.git
 cd console-web
 
 # Setup env
