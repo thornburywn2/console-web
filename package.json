@@ -1,6 +1,6 @@
 {
   "name": "console-web",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Console.web - Web-based management interface for Claude Code projects with terminal access and system monitoring",
   "type": "module",
   "scripts": {

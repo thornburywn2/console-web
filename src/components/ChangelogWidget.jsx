@@ -7,6 +7,28 @@ import { useState, useEffect, useCallback } from 'react';
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '1.1.0',
+    date: '2026-01-15',
+    type: 'minor',
+    title: 'One-Click Updates & UX Improvements',
+    highlights: [
+      'One-click system updates directly from the Settings UI',
+      'Real-time update progress streaming via WebSocket',
+      'Beautiful 5-step first-time setup wizard with feature selection',
+      'Terminal highlight-to-copy clipboard support',
+      'Improved theming for About modal and Admin Dashboard on light themes',
+      'Extended Cloudflare port detection for more CLAUDE.md formats',
+    ],
+    features: [
+      { title: 'Self-Update Feature', description: 'Update Console.web from Settings → SYSTEM with real-time progress streaming' },
+      { title: 'Setup Wizard', description: '5-step onboarding: Welcome, Features, Layout, Theme, Complete with widget presets' },
+      { title: 'Highlight-to-Copy', description: 'Select text in terminal to automatically copy to clipboard' },
+      { title: 'Keyboard Shortcuts', description: 'Ctrl+Shift+C to copy, Ctrl+Shift+V to paste in terminal' },
+      { title: 'Theme Fixes', description: 'About modal and Admin Dashboard now properly themed on all color schemes' },
+      { title: 'Port Detection', description: 'Cloudflare now detects ports from list items, tables, and bold labels in CLAUDE.md' },
+    ],
+  },
+  {
     version: '1.0.0',
     date: '2026-01-14',
     type: 'major',

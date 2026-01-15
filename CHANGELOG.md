@@ -84,6 +84,56 @@ End of Day:
 
 ---
 
+## [1.1.0] - 2026-01-15
+
+### One-Click Updates & UX Improvements
+
+This release adds self-update capabilities, improved clipboard handling, and a beautiful first-time setup experience.
+
+### New Features
+
+#### One-Click System Updates
+- **Self-Update Feature**: Update Console.web directly from the UI without manual commands
+- **Real-Time Progress**: Watch git pull, npm install, build, and restart progress via Socket.IO streaming
+- **Version Checking**: Automatically detects when updates are available from GitHub
+- **Update History**: View logs from previous update attempts
+- Located in **Settings → SYSTEM → Software Updates**
+
+#### First-Time Setup Wizard
+- **5-Step Onboarding**: Beautiful wizard for new users with Welcome, Features, Layout, Theme, and Complete steps
+- **Feature Selection**: Toggle GitHub, Cloudflare, Docker, Systemd, Security, Agents, MCP, and Voice features
+- **Widget Presets**: Choose from Minimal, Developer, DevOps, or Custom widget layouts
+- **Theme Preview**: Hover to preview themes before selecting
+
+#### Terminal Clipboard Improvements
+- **Highlight-to-Copy**: Select text in terminal and it automatically copies to clipboard
+- **Ctrl+Shift+C**: Explicit copy shortcut for selected text
+- **Ctrl+Shift+V**: Paste from clipboard into terminal
+
+### Fixes
+
+- **About Modal Theming**: Fixed unreadable text on light/dark themes by using CSS variables
+- **Admin Dashboard Light Theme**: Added proper overrides for progress bars, badges, and stat values
+- **History Tab Error**: Fixed `history.entries` undefined error with defensive check
+- **GitHub Settings Endpoint**: Added missing `/api/github/settings` endpoint
+- **Cloudflare Port Detection**: Extended regex to handle more CLAUDE.md formats:
+  - `- Frontend: 9400` (list item format)
+  - `| Frontend | 9400 |` (table format)
+  - `**Frontend:** 9400` (bold label)
+  - Hostname extraction from `(subdomain.domain.com)`
+
+### API Endpoints Added
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/system/version` | GET | Get current version and check for updates |
+| `/api/system/update` | POST | Trigger self-update process |
+| `/api/system/update/status` | GET | Get update status and logs |
+| `/api/system/changelog` | GET | Get recent git commits |
+| `/api/github/settings` | GET | Get GitHub configuration status |
+
+---
+
 ## [1.0.0] - 2026-01-14
 
 ### Initial Stable Release
