@@ -258,7 +258,11 @@ app.get('/api/watcher/health', async (req, res) => {
 // Auth routes (login, logout, callback, me)
 app.use('/auth', createAuthRouter());
 
-// Apply authentication to all API routes
+// System routes (version, update) - registered BEFORE auth middleware
+// These are management endpoints that should work regardless of auth status
+app.use('/api/system', createSystemRouter(io));
+
+// Apply authentication to all other API routes
 // Set AUTH_ENABLED=false in .env to disable auth for development
 app.use('/api', authentikAuth({ required: process.env.AUTH_ENABLED !== 'false' }));
 
@@ -487,7 +491,6 @@ app.use('/api/infra', createInfrastructureRouter());
 app.use('/api/admin-users', createUsersFirewallRouter(prisma));
 app.use('/api/project-templates', createProjectTemplatesRouter());
 app.use('/api/dependencies', createDependenciesRouter());
-app.use('/api/system', createSystemRouter(io));
 
 // Server Configuration endpoint (read-only)
 app.get('/api/config', (req, res) => {
