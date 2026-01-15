@@ -14,7 +14,7 @@ import { useSessionManagement } from './hooks/useSessionManagement';
 
 // Phase 10: Quality of Life components
 import GlobalSearch, { useGlobalSearch } from './components/GlobalSearch';
-import OnboardingTour, { useOnboarding } from './components/OnboardingTour';
+import SetupWizard, { useSetupWizard } from './components/SetupWizard';
 import ChangelogWidget, { ChangelogBadge } from './components/ChangelogWidget';
 import { OfflineIndicator } from './components/OfflineMode';
 import FavoritesBar from './components/FavoritesBar';
@@ -82,7 +82,7 @@ function App() {
 
   // Phase 10: Quality of Life hooks
   const globalSearch = useGlobalSearch();
-  const onboarding = useOnboarding();
+  const setupWizard = useSetupWizard();
   const [showChangelog, setShowChangelog] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showFavoritesBar, setShowFavoritesBar] = useState(() => {
@@ -1061,12 +1061,11 @@ function App() {
         onRefresh={fetchProjects}
       />
 
-      {/* Onboarding Tour */}
-      {onboarding.shouldShow && (
-        <OnboardingTour
-          autoStart={true}
-          onComplete={() => onboarding.complete()}
-          onSkip={() => onboarding.complete()}
+      {/* Setup Wizard */}
+      {setupWizard.showSetup && (
+        <SetupWizard
+          onComplete={() => setupWizard.complete()}
+          onSkip={() => setupWizard.complete()}
         />
       )}
 
