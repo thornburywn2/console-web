@@ -118,6 +118,48 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     // Open terminal in the container
     term.open(terminalRef.current);
 
+    // Register OSC 52 handler for clipboard integration with tmux
+    // OSC 52 format: ESC ] 52 ; c ; <base64-data> BEL
+    // This allows tmux to copy to the browser clipboard
+    term.parser.registerOscHandler(52, (data) => {
+      // Parse OSC 52 data: "c;<base64-encoded-text>" or ";<base64-encoded-text>"
+      const parts = data.split(';');
+      if (parts.length >= 2) {
+        const base64Data = parts[parts.length - 1];
+        try {
+          // Decode base64 to get the actual text
+          const text = atob(base64Data);
+          if (text && text.length > 0) {
+            navigator.clipboard.writeText(text)
+              .then(() => {
+                console.log('OSC 52: Copied to clipboard:', text.substring(0, 50) + (text.length > 50 ? '...' : ''));
+              })
+              .catch(err => {
+                console.warn('OSC 52: Clipboard write failed:', err);
+                // Fallback for non-secure contexts
+                try {
+                  const textArea = document.createElement('textarea');
+                  textArea.value = text;
+                  textArea.style.position = 'fixed';
+                  textArea.style.left = '-9999px';
+                  textArea.style.top = '-9999px';
+                  document.body.appendChild(textArea);
+                  textArea.select();
+                  document.execCommand('copy');
+                  document.body.removeChild(textArea);
+                  console.log('OSC 52: Copied via fallback');
+                } catch (fallbackErr) {
+                  console.error('OSC 52: Fallback copy failed:', fallbackErr);
+                }
+              });
+          }
+        } catch (e) {
+          console.warn('OSC 52: Failed to decode base64:', e);
+        }
+      }
+      return true; // Mark as handled
+    });
+
     // Helper to copy text to clipboard with fallback
     const copyTextToClipboard = (text) => {
       if (!text || text.length === 0) return;
