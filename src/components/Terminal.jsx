@@ -236,13 +236,44 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     };
   }, [onResize]);
 
+  // Helper to check if terminal renderer is ready
+  const isTerminalReady = useCallback(() => {
+    const term = xtermRef.current;
+    if (!term) return false;
+    try {
+      // Check if the render service and dimensions are available
+      return !!(term._core?._renderService?._renderer?.value?.dimensions);
+    } catch {
+      return false;
+    }
+  }, []);
+
   // Handle socket output
   useEffect(() => {
     if (!socket) return;
 
     const handleOutput = (data) => {
-      if (xtermRef.current) {
-        xtermRef.current.write(data);
+      const term = xtermRef.current;
+      if (!term) return;
+
+      try {
+        // Only write if renderer is ready to prevent viewport dimension errors
+        if (isTerminalReady()) {
+          term.write(data);
+        } else {
+          // Queue the write for when terminal is ready
+          const attemptWrite = (retries = 0) => {
+            if (isTerminalReady()) {
+              term.write(data);
+            } else if (retries < 10) {
+              setTimeout(() => attemptWrite(retries + 1), 50);
+            }
+          };
+          setTimeout(() => attemptWrite(), 50);
+        }
+      } catch (err) {
+        // Silently ignore write errors during reconnection
+        console.debug('Terminal write error (likely during reconnect):', err.message);
       }
     };
 
@@ -251,19 +282,26 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     return () => {
       socket.off('terminal-output', handleOutput);
     };
-  }, [socket]);
+  }, [socket, isTerminalReady]);
 
   // Clear terminal and refit when project changes
   useEffect(() => {
     const term = xtermRef.current;
     if (term) {
-      term.clear();
-      term.reset();
+      try {
+        // Only clear/reset if renderer is ready
+        if (isTerminalReady()) {
+          term.clear();
+          term.reset();
+        }
+      } catch (err) {
+        console.debug('Terminal clear error:', err.message);
+      }
 
       // Refit after clearing - check renderer is ready
       const attemptFit = (retries = 0) => {
         const fitAddon = fitAddonRef.current;
-        if (fitAddon && term._core?._renderService?._renderer?.value) {
+        if (fitAddon && isTerminalReady()) {
           try {
             fitAddon.fit();
             onResize(term.cols, term.rows);
@@ -279,14 +317,18 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
 
       setTimeout(() => attemptFit(), 50);
     }
-  }, [projectPath, onResize]);
+  }, [projectPath, onResize, isTerminalReady]);
 
   // Focus terminal when ready
   useEffect(() => {
-    if (isReady && xtermRef.current) {
-      xtermRef.current.focus();
+    if (isReady && xtermRef.current && isTerminalReady()) {
+      try {
+        xtermRef.current.focus();
+      } catch (err) {
+        console.debug('Terminal focus error:', err.message);
+      }
     }
-  }, [isReady]);
+  }, [isReady, isTerminalReady]);
 
   return (
     <div ref={containerRef} className="terminal-container h-full relative m-3">
