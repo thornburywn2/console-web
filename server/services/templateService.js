@@ -152,7 +152,7 @@ export class TemplateService {
 
     // Add computed variables
     allVariables.PROJECT_TYPE = templateId;
-    allVariables.GITHUB_USER = process.env.GITHUB_USER || 'username';
+    allVariables.GITHUB_USER = process.env.GITHUB_USER || 'thornburywn';
     allVariables.PROJECT_DOMAIN = `${allVariables.PROJECT_NAME}.example.com`;
 
     let filesCreated = 0;
@@ -352,7 +352,7 @@ export class TemplateService {
           PORT: '5175',
           API_PORT: '5176',
           PROJECT_TYPE: 'migrated',
-          GITHUB_USER: process.env.GITHUB_USER || 'username',
+          GITHUB_USER: process.env.GITHUB_USER || 'thornburywn',
           PROJECT_DOMAIN: `${projectName}.example.com`
         };
 
@@ -378,7 +378,7 @@ export class TemplateService {
             PORT: '5175',
             API_PORT: '5176',
             PROJECT_TYPE: 'migrated',
-            GITHUB_USER: process.env.GITHUB_USER || 'username',
+            GITHUB_USER: process.env.GITHUB_USER || 'thornburywn',
             PROJECT_DOMAIN: `${projectName}.example.com`
           };
 

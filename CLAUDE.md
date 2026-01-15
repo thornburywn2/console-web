@@ -449,13 +449,13 @@ This project implements systematic learning to improve development practices:
 Run these to capture learnings:
 ```bash
 # Full lifecycle scan
-bash ~/Projects/agents/lifecycle/AGENT-016-LIFECYCLE-MANAGER.sh scan /home/user/Projects/console-web
+bash ~/Projects/agents/lifecycle/AGENT-016-LIFECYCLE-MANAGER.sh scan /home/thornburywn/Projects/console-web
 
 # Security audit
-bash ~/Projects/agents/lifecycle/AGENT-018-SECURITY.sh scan /home/user/Projects/console-web
+bash ~/Projects/agents/lifecycle/AGENT-018-SECURITY.sh scan /home/thornburywn/Projects/console-web
 
 # Quality check
-bash ~/Projects/agents/lifecycle/AGENT-019-QUALITY-GATE.sh all /home/user/Projects/console-web
+bash ~/Projects/agents/lifecycle/AGENT-019-QUALITY-GATE.sh all /home/thornburywn/Projects/console-web
 ```
 
 ### Knowledge Capture Points

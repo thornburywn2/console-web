@@ -4,9 +4,10 @@
  * Consolidates: General Settings, Themes, Keyboard Shortcuts, AI Personas, Auth, Paths, Integrations
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { GitHubSettingsTab, CloudflareSettingsTab } from './AdminDashboard';
 import { useTheme, THEMES } from '../hooks/useTheme';
+import { io } from 'socket.io-client';
 
 // Settings categories
 const CATEGORIES = {
@@ -96,10 +97,101 @@ export default function SettingsPanel() {
   const [envVariables, setEnvVariables] = useState([]);
   const [savingEnv, setSavingEnv] = useState(false);
 
+  // Update states
+  const [versionInfo, setVersionInfo] = useState(null);
+  const [updateInProgress, setUpdateInProgress] = useState(false);
+  const [updateLogs, setUpdateLogs] = useState([]);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const updateLogsEndRef = useRef(null);
+
   // Fetch all settings on mount
   useEffect(() => {
     fetchAllSettings();
+    fetchVersionInfo();
   }, []);
+
+  // Socket.IO listener for update progress
+  useEffect(() => {
+    const socket = io();
+
+    socket.on('system-update-progress', (logEntry) => {
+      setUpdateLogs(prev => [...prev, logEntry]);
+
+      // Handle completion
+      if (logEntry.step === 'done' && logEntry.status === 'complete') {
+        setUpdateInProgress(false);
+        // Auto-refresh page after delay
+        setTimeout(() => {
+          window.location.reload();
+        }, 5000);
+      }
+
+      // Handle error
+      if (logEntry.status === 'error') {
+        setUpdateInProgress(false);
+      }
+    });
+
+    return () => {
+      socket.off('system-update-progress');
+      socket.disconnect();
+    };
+  }, []);
+
+  // Auto-scroll update logs
+  useEffect(() => {
+    if (updateLogsEndRef.current) {
+      updateLogsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [updateLogs]);
+
+  // Fetch version info
+  const fetchVersionInfo = async () => {
+    try {
+      const res = await fetch('/api/system/version');
+      if (res.ok) {
+        const data = await res.json();
+        setVersionInfo(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch version info:', err);
+    }
+  };
+
+  // Trigger update
+  const triggerUpdate = async () => {
+    if (updateInProgress) return;
+
+    if (!confirm('This will update Console.web from GitHub and restart the server. Continue?')) {
+      return;
+    }
+
+    setUpdateInProgress(true);
+    setUpdateLogs([]);
+    setShowUpdateModal(true);
+
+    try {
+      const res = await fetch('/api/system/update', { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json();
+        setUpdateLogs(prev => [...prev, {
+          step: 'error',
+          status: 'error',
+          message: err.error || 'Failed to start update',
+          timestamp: new Date().toISOString()
+        }]);
+        setUpdateInProgress(false);
+      }
+    } catch (err) {
+      setUpdateLogs(prev => [...prev, {
+        step: 'error',
+        status: 'error',
+        message: err.message,
+        timestamp: new Date().toISOString()
+      }]);
+      setUpdateInProgress(false);
+    }
+  };
 
   const fetchAllSettings = async () => {
     setLoading(true);
@@ -1416,20 +1508,190 @@ export default function SettingsPanel() {
         {/* SYSTEM INFO */}
         {activeCategory === CATEGORIES.SYSTEM && serverConfig && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="text-sm font-semibold text-hacker-cyan uppercase tracking-wider">System Configuration</h4>
-                <p className="text-xs text-hacker-text-dim">Server configuration from environment variables</p>
+            {/* Software Updates Section */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold text-hacker-green uppercase tracking-wider flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Software Updates
+              </h4>
+
+              <div className="p-4 rounded-lg bg-[var(--bg-surface)] border border-hacker-green/30">
+                {versionInfo ? (
+                  <div className="space-y-4">
+                    {/* Current Version Info */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg font-mono text-hacker-green">v{versionInfo.version}</span>
+                          <span className="px-2 py-0.5 text-xs font-mono bg-hacker-purple/20 text-hacker-purple rounded">
+                            {versionInfo.branch}
+                          </span>
+                          <code className="text-xs text-hacker-text-dim">{versionInfo.commit}</code>
+                        </div>
+                        {versionInfo.lastCommitDate && (
+                          <p className="text-xs text-hacker-text-dim mt-1">
+                            Last commit: {new Date(versionInfo.lastCommitDate).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Update Available Badge */}
+                      {versionInfo.hasUpdates && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-hacker-cyan/20 border border-hacker-cyan/50 rounded-lg">
+                          <span className="w-2 h-2 rounded-full bg-hacker-cyan animate-pulse" />
+                          <span className="text-sm font-mono text-hacker-cyan">
+                            {versionInfo.behindBy} update{versionInfo.behindBy > 1 ? 's' : ''} available
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Update Button */}
+                    <div className="flex items-center gap-4">
+                      <button
+                        onClick={triggerUpdate}
+                        disabled={updateInProgress}
+                        className={`px-6 py-2.5 text-sm font-mono rounded-lg transition-all flex items-center gap-2 ${
+                          versionInfo.hasUpdates
+                            ? 'bg-hacker-cyan text-black hover:bg-hacker-cyan/90'
+                            : 'border border-hacker-green text-hacker-green hover:bg-hacker-green/10'
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        {updateInProgress ? (
+                          <>
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            Updating...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            {versionInfo.hasUpdates ? 'Install Updates' : 'Check & Update'}
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        onClick={fetchVersionInfo}
+                        className="px-3 py-2 text-xs font-mono border border-hacker-text-dim/30 rounded text-hacker-text-dim hover:text-hacker-text hover:border-hacker-text-dim/50"
+                      >
+                        [REFRESH]
+                      </button>
+
+                      {updateLogs.length > 0 && !showUpdateModal && (
+                        <button
+                          onClick={() => setShowUpdateModal(true)}
+                          className="text-xs text-hacker-cyan hover:text-hacker-green"
+                        >
+                          [VIEW LOGS]
+                        </button>
+                      )}
+                    </div>
+
+                    {/* GitHub Remote */}
+                    {versionInfo.remote && (
+                      <p className="text-xs text-hacker-text-dim">
+                        Source: <a href={versionInfo.remote.replace('.git', '')} target="_blank" rel="noopener noreferrer" className="text-hacker-cyan hover:underline">{versionInfo.remote}</a>
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 text-hacker-text-dim">
+                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    <span className="text-sm">Loading version info...</span>
+                  </div>
+                )}
               </div>
-              <button
-                onClick={() => {
-                  fetchEnvVariables();
-                  setShowEnvEditor(true);
-                }}
-                className="px-4 py-2 text-sm font-mono border border-hacker-warning rounded text-hacker-warning hover:bg-hacker-warning/10"
-              >
-                [EDIT .ENV]
-              </button>
+            </div>
+
+            {/* Update Progress Modal */}
+            {showUpdateModal && (
+              <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                <div className="bg-[var(--bg-primary)] border border-hacker-green/50 rounded-lg w-full max-w-2xl max-h-[80vh] overflow-hidden">
+                  <div className="p-4 border-b border-hacker-green/30 flex items-center justify-between">
+                    <h5 className="text-sm font-mono text-hacker-green flex items-center gap-2">
+                      {updateInProgress && <span className="w-2 h-2 rounded-full bg-hacker-green animate-pulse" />}
+                      System Update Progress
+                    </h5>
+                    {!updateInProgress && (
+                      <button onClick={() => setShowUpdateModal(false)} className="text-hacker-text-dim hover:text-hacker-text text-xl">&times;</button>
+                    )}
+                  </div>
+                  <div className="p-4 max-h-[60vh] overflow-y-auto bg-black/30 font-mono text-xs">
+                    {updateLogs.length === 0 ? (
+                      <div className="text-hacker-text-dim">Waiting for update to start...</div>
+                    ) : (
+                      <div className="space-y-1">
+                        {updateLogs.map((log, i) => (
+                          <div key={i} className={`flex gap-2 ${
+                            log.status === 'error' ? 'text-red-400' :
+                            log.status === 'warning' ? 'text-yellow-400' :
+                            log.status === 'complete' ? 'text-hacker-green' :
+                            log.status === 'output' ? 'text-hacker-text-dim' :
+                            'text-hacker-cyan'
+                          }`}>
+                            <span className="text-hacker-text-dim opacity-50 shrink-0">
+                              {new Date(log.timestamp).toLocaleTimeString()}
+                            </span>
+                            <span className="uppercase shrink-0 w-20">[{log.step}]</span>
+                            <span className="break-all">{log.message}</span>
+                          </div>
+                        ))}
+                        <div ref={updateLogsEndRef} />
+                      </div>
+                    )}
+                  </div>
+                  {!updateInProgress && updateLogs.length > 0 && (
+                    <div className="p-4 border-t border-hacker-green/30 flex justify-end gap-3">
+                      <button
+                        onClick={() => {
+                          setShowUpdateModal(false);
+                          setUpdateLogs([]);
+                        }}
+                        className="px-4 py-2 text-sm font-mono border border-hacker-text-dim/30 rounded text-hacker-text-dim hover:bg-hacker-text-dim/10"
+                      >
+                        Close
+                      </button>
+                      {updateLogs.some(l => l.step === 'done') && (
+                        <button
+                          onClick={() => window.location.reload()}
+                          className="px-4 py-2 text-sm font-mono bg-hacker-green text-black rounded hover:bg-hacker-green/90"
+                        >
+                          Reload Now
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Divider */}
+            <div className="border-t border-hacker-green/20 pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-semibold text-hacker-cyan uppercase tracking-wider">System Configuration</h4>
+                  <p className="text-xs text-hacker-text-dim">Server configuration from environment variables</p>
+                </div>
+                <button
+                  onClick={() => {
+                    fetchEnvVariables();
+                    setShowEnvEditor(true);
+                  }}
+                  className="px-4 py-2 text-sm font-mono border border-hacker-warning rounded text-hacker-warning hover:bg-hacker-warning/10"
+                >
+                  [EDIT .ENV]
+                </button>
+              </div>
             </div>
 
             {/* Environment Editor Modal */}

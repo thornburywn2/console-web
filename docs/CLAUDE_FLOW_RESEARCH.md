@@ -758,7 +758,7 @@ Final code + tests + documentation delivered
 
 ```bash
 # In Console.web project directory
-cd /home/user/Projects/console-web
+cd /home/thornburywn/Projects/console-web
 npm install claude-flow@alpha
 ```
 
@@ -779,7 +779,7 @@ export default function registerClaudeFlowRoutes(app) {
       taskDescription,
       '--claude'
     ], {
-      cwd: `/home/user/Projects/${project}`
+      cwd: `/home/thornburywn/Projects/${project}`
     });
 
     // Stream output via Socket.IO

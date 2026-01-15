@@ -72,7 +72,8 @@ import {
   createInfrastructureRouter,
   createUsersFirewallRouter,
   createProjectTemplatesRouter,
-  createDependenciesRouter
+  createDependenciesRouter,
+  createSystemRouter
 } from './routes/index.js';
 
 // Import services
@@ -486,6 +487,7 @@ app.use('/api/infra', createInfrastructureRouter());
 app.use('/api/admin-users', createUsersFirewallRouter(prisma));
 app.use('/api/project-templates', createProjectTemplatesRouter());
 app.use('/api/dependencies', createDependenciesRouter());
+app.use('/api/system', createSystemRouter(io));
 
 // Server Configuration endpoint (read-only)
 app.get('/api/config', (req, res) => {
@@ -1684,7 +1686,7 @@ app.get('/api/admin/history', async (req, res) => {
 app.get('/api/admin/sessions/:projectName', (req, res) => {
   try {
     const projectName = req.params.projectName;
-    const projectDir = join(CLAUDE_DIR, 'projects', `-home-username-Projects-${projectName}`);
+    const projectDir = join(CLAUDE_DIR, 'projects', `-home-thornburywn-Projects-${projectName}`);
 
     if (!existsSync(projectDir)) {
       return res.json({ sessions: [] });
@@ -3195,7 +3197,7 @@ app.get('/api/admin/projects-extended', async (req, res) => {
       }
 
       // Check for session data
-      const sessionDir = join(CLAUDE_DIR, 'projects', `-home-username-Projects-${project.name}`);
+      const sessionDir = join(CLAUDE_DIR, 'projects', `-home-thornburywn-Projects-${project.name}`);
       const hasSessionData = existsSync(sessionDir);
 
       // Calculate completion metrics if requested

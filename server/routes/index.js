@@ -40,3 +40,4 @@ export { createUsersFirewallRouter } from './usersFirewall.js';
 export { createProjectTemplatesRouter } from './projectTemplates.js';
 export { createDependenciesRouter } from './dependencies.js';
 export { createCodePuppyRouter } from './codePuppy.js';
+export { createSystemRouter } from './system.js';

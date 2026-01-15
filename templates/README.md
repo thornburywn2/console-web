@@ -24,7 +24,7 @@ Templates use placeholders that get replaced when creating a new project:
 | `{{PROJECT_DESCRIPTION}}` | Project description | `A web application for...` |
 | `{{PORT}}` | Primary port number | `5175` |
 | `{{API_PORT}}` | API port (full-stack only) | `5176` |
-| `{{GITHUB_USER}}` | GitHub username | `username` |
+| `{{GITHUB_USER}}` | GitHub username | `thornburywn` |
 | `{{PROJECT_DOMAIN}}` | Production domain | `app.example.com` |
 | `{{PROJECT_TYPE}}` | Template type | `web-app-fullstack` |
 | `{{TECH_STACK}}` | Tech stack table rows | Generated |

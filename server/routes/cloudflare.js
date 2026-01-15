@@ -236,7 +236,7 @@ export function createCloudflareRouter(prisma) {
 
   /**
    * Extract project configuration from CLAUDE.md file
-   * Reads **Port:** and **Subdomain:** fields
+   * Reads port and subdomain fields in various formats
    * @returns {{ port: number|null, subdomain: string|null }}
    */
   function getProjectConfig(projectPath) {
@@ -247,27 +247,85 @@ export function createCloudflareRouter(prisma) {
       }
       const content = fs.readFileSync(claudeMdPath, 'utf-8');
 
-      // Extract port
+      // Extract port - try multiple formats in order of specificity
       let port = null;
-      const portMatch = content.match(/\*\*Port:\*\*\s*(\d+)/);
-      if (portMatch) {
-        port = parseInt(portMatch[1], 10);
-      } else {
+
+      // Format 1: **Port:** 9400 (bold markdown - most common)
+      const boldPortMatch = content.match(/\*\*Port:\*\*\s*(\d+)/);
+      if (boldPortMatch) {
+        port = parseInt(boldPortMatch[1], 10);
+      }
+
+      // Format 2: Port: 9400 (simple, at line start)
+      if (!port) {
         const simplePortMatch = content.match(/^Port:\s*(\d+)/m);
         if (simplePortMatch) {
           port = parseInt(simplePortMatch[1], 10);
         }
       }
 
-      // Extract subdomain
+      // Format 3: - Frontend: 9400 or - Port: 9400 (list item format)
+      if (!port) {
+        const listPortMatch = content.match(/^-\s*(?:Frontend|Port|Dev|Development|Web|HTTP):\s*(\d+)/mi);
+        if (listPortMatch) {
+          port = parseInt(listPortMatch[1], 10);
+        }
+      }
+
+      // Format 4: | Frontend | 9400 | or | Port | 9400 | (table format)
+      if (!port) {
+        const tablePortMatch = content.match(/\|\s*(?:Frontend|Port|Dev|Development|Web|HTTP)\s*\|\s*(\d+)/i);
+        if (tablePortMatch) {
+          port = parseInt(tablePortMatch[1], 10);
+        }
+      }
+
+      // Format 5: **Frontend:** 9400 (bold label)
+      if (!port) {
+        const boldLabelMatch = content.match(/\*\*(?:Frontend|Dev|Development|Web|HTTP):\*\*\s*(\d+)/i);
+        if (boldLabelMatch) {
+          port = parseInt(boldLabelMatch[1], 10);
+        }
+      }
+
+      // Format 6: Frontend: 9400 (anywhere in content)
+      if (!port) {
+        const genericMatch = content.match(/(?:Frontend|Dev Port|Development Port|Web Port|HTTP Port):\s*(\d+)/i);
+        if (genericMatch) {
+          port = parseInt(genericMatch[1], 10);
+        }
+      }
+
+      // Extract subdomain - try multiple formats
       let subdomain = null;
-      const subdomainMatch = content.match(/\*\*Subdomain:\*\*\s*([a-zA-Z0-9-]+)/);
-      if (subdomainMatch) {
-        subdomain = subdomainMatch[1].trim();
-      } else {
+
+      // Format 1: **Subdomain:** myapp (bold markdown)
+      const boldSubdomainMatch = content.match(/\*\*Subdomain:\*\*\s*([a-zA-Z0-9-]+)/);
+      if (boldSubdomainMatch) {
+        subdomain = boldSubdomainMatch[1].trim();
+      }
+
+      // Format 2: Subdomain: myapp (simple)
+      if (!subdomain) {
         const simpleSubdomainMatch = content.match(/^Subdomain:\s*([a-zA-Z0-9-]+)/m);
         if (simpleSubdomainMatch) {
           subdomain = simpleSubdomainMatch[1].trim();
+        }
+      }
+
+      // Format 3: - Subdomain: myapp (list item)
+      if (!subdomain) {
+        const listSubdomainMatch = content.match(/^-\s*Subdomain:\s*([a-zA-Z0-9-]+)/mi);
+        if (listSubdomainMatch) {
+          subdomain = listSubdomainMatch[1].trim();
+        }
+      }
+
+      // Format 4: Extract from hostname like (myapp.domain.com)
+      if (!subdomain) {
+        const hostnameMatch = content.match(/\(([a-zA-Z0-9-]+)\.[a-zA-Z0-9.-]+\.(?:com|net|org|io|dev)\)/);
+        if (hostnameMatch) {
+          subdomain = hostnameMatch[1].trim();
         }
       }
 
