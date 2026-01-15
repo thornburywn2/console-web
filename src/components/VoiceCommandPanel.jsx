@@ -590,7 +590,14 @@ export function VoiceCommandPanel({
                     <button
                       key={i}
                       onClick={() => {
-                        // TODO: Execute suggestion
+                        playSelectSound();
+                        setHistory(prev => [...prev.slice(-19), {
+                          transcript: s.description,
+                          command: s,
+                          timestamp: new Date().toISOString(),
+                          success: true
+                        }]);
+                        executeCommand(s);
                       }}
                       className="w-full text-left px-2 py-1 text-xs text-gray-300 hover:bg-white/10 rounded"
                     >

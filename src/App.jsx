@@ -480,7 +480,7 @@ function App() {
     switch (command.action) {
       // UI actions
       case 'toggle-sidebar':
-        // TODO: implement sidebar toggle
+        setFocusMode(prev => !prev);
         break;
       case 'theme-dark':
         setTheme('dark');
@@ -688,18 +688,20 @@ function App() {
       {/* Background is handled by CSS body::before */}
 
       {/* Left Sidebar - Widget-based project navigation */}
-      <LeftSidebar
-        projects={projects}
-        selectedProject={selectedProject}
-        onSelectProject={handleSelectProject}
-        onKillSession={handleKillSession}
-        onRefresh={fetchProjects}
-        isLoading={isLoading}
-        onOpenAdmin={handleOpenAdmin}
-        onCreateProject={() => setShowCreateProject(true)}
-        onOpenGitHubRepos={() => setShowGitHubRepos(true)}
-        projectsDir={projectsDir}
-      />
+      {!focusMode && (
+        <LeftSidebar
+          projects={projects}
+          selectedProject={selectedProject}
+          onSelectProject={handleSelectProject}
+          onKillSession={handleKillSession}
+          onRefresh={fetchProjects}
+          isLoading={isLoading}
+          onOpenAdmin={handleOpenAdmin}
+          onCreateProject={() => setShowCreateProject(true)}
+          onOpenGitHubRepos={() => setShowGitHubRepos(true)}
+          projectsDir={projectsDir}
+        />
+      )}
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 relative z-10">
@@ -833,17 +835,19 @@ function App() {
       </main>
 
       {/* Right Sidebar - Dashboard Widgets */}
-      <RightSidebar
-        selectedProject={selectedProject}
-        projects={projects}
-        onKillSession={handleKillSession}
-        onSelectProject={handleSelectProject}
-        onOpenAdmin={() => setShowAdmin(true)}
-        onOpenCheckpoints={() => setShowCheckpointPanel(true)}
-        onOpenGitHubSettings={() => setShowGitHubSettings(true)}
-        onRefresh={fetchProjects}
-        socket={socket}
-      />
+      {!focusMode && (
+        <RightSidebar
+          selectedProject={selectedProject}
+          projects={projects}
+          onKillSession={handleKillSession}
+          onSelectProject={handleSelectProject}
+          onOpenAdmin={() => setShowAdmin(true)}
+          onOpenCheckpoints={() => setShowCheckpointPanel(true)}
+          onOpenGitHubSettings={() => setShowGitHubSettings(true)}
+          onRefresh={fetchProjects}
+          socket={socket}
+        />
+      )}
 
       {/* Admin Dashboard Modal */}
       {showAdmin && (
