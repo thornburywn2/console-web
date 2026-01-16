@@ -84,7 +84,57 @@ End of Day:
 
 ---
 
-## [1.0.1] - 2026-01-16
+## [1.1.0] - 2026-01-16
+
+### Project Categorization & Management
+
+This release adds comprehensive project organization features including tags, priority levels, notes, and a clone functionality.
+
+### New Features
+
+#### Project Tags
+- **Color-coded tags**: 6 default tags (Active, Archived, Infrastructure, Prototype, Production, WIP)
+- **Sidebar visibility**: Up to 3 tag colors shown next to each project, with +N indicator for more
+- **Tag management**: Create custom tags with 10 color options
+- **Multi-tag support**: Assign multiple tags to any project
+
+#### Project Priority
+- **Priority levels**: None, High (red), Medium (orange), Low (green)
+- **Visual indicators**: Priority badge shown in context menu header
+- **Quick selection**: One-click priority buttons in context menu
+
+#### Project Notes
+- **Persistent notes**: Add notes with optional title and content to any project
+- **Pin to top**: Pin important notes for quick access
+- **Full CRUD**: Create, read, update, and delete notes
+
+#### Clone Project
+- **One-click cloning**: Duplicate any project to a new directory
+- **Copy settings**: Option to copy tags, notes, priority, and skip-permissions setting
+- **Fresh git**: Git history removed from cloned project for a clean start
+
+#### Session Settings
+- **Skip Permissions**: Per-project toggle to start Claude with `--dangerously-skip-permissions`
+- **Persistent setting**: Remembered in database for each project
+
+#### Enhanced Context Menu
+- **Wider layout**: Increased from 256px to 320px for better readability
+- **Multiple views**: Main menu, Project Info, Notes, and Clone views
+- **Settings section**: Skip permissions and priority directly accessible
+
+#### Project Info Bar
+- **New component**: Info bar between header and terminal
+- **Tag display**: Shows project tags with click-to-manage
+- **Quick stats**: Active session indicator and path display
+
+### Database Changes
+- Added `ProjectNote` model for persistent notes
+- Added `ProjectPriority` enum (HIGH, MEDIUM, LOW)
+- Added `priority` field to Project model
+
+---
+
+## [1.0.1] - 2026-01-15
 
 ### Shpool Migration & Terminal Simplification
 

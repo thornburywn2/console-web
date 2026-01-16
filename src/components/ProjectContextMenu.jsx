@@ -385,7 +385,7 @@ export default function ProjectContextMenu({
   // Calculate menu position to stay in viewport
   const menuStyle = {
     position: 'fixed',
-    left: `${Math.min(position.x, window.innerWidth - 300)}px`,
+    left: `${Math.min(position.x, window.innerWidth - 340)}px`,
     top: `${Math.min(position.y, window.innerHeight - 500)}px`,
     zIndex: 9999,
   };
@@ -738,7 +738,7 @@ export default function ProjectContextMenu({
   return (
     <div
       ref={menuRef}
-      className="w-64 rounded-lg shadow-2xl overflow-hidden"
+      className="w-80 rounded-lg shadow-2xl overflow-hidden"
       style={{
         ...menuStyle,
         background: 'var(--bg-elevated)',

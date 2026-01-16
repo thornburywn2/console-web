@@ -7,8 +7,32 @@ import { useState, useEffect, useCallback } from 'react';
 
 const CHANGELOG_ENTRIES = [
   {
-    version: '1.0.1',
+    version: '1.1.0',
     date: '2026-01-16',
+    type: 'minor',
+    title: 'Project Categorization & Management',
+    highlights: [
+      'Project tagging system with color-coded tags visible in sidebar',
+      'Project priority levels (High/Medium/Low) for organization',
+      'Persistent project notes with pin and delete functionality',
+      'Clone project feature with settings, tags, and notes copying',
+      'Skip permissions toggle per-project for Claude sessions',
+      'Enhanced context menu with multiple views and settings',
+    ],
+    features: [
+      { title: 'Project Tags', description: 'Color-coded tags (Active, Archived, Infrastructure, Prototype, Production, WIP) with up to 3 visible in sidebar' },
+      { title: 'Project Priority', description: 'Set High/Medium/Low priority with color indicators in context menu header' },
+      { title: 'Project Notes', description: 'Add persistent notes to projects with title, content, pin to top, and delete' },
+      { title: 'Clone Project', description: 'Duplicate any project with option to copy tags, notes, and settings (git history removed)' },
+      { title: 'Skip Permissions', description: 'Per-project toggle to start Claude with --dangerously-skip-permissions flag' },
+      { title: 'Project Info Popup', description: 'View git branch, file count, size, CLAUDE.md status, and more' },
+      { title: 'Session Management', description: 'Start/open terminal and kill session directly from context menu' },
+      { title: 'Info Bar', description: 'Project info bar between header and terminal showing tags and quick stats' },
+    ],
+  },
+  {
+    version: '1.0.1',
+    date: '2026-01-15',
     type: 'patch',
     title: 'Shpool Migration & Terminal Simplification',
     highlights: [
