@@ -23,6 +23,7 @@ model Project {
   autoStart       Boolean   @default(false)
   favorited       Boolean   @default(false)
   skipPermissions Boolean   @default(false)  // Start Claude with --dangerously-skip-permissions
+  priority        ProjectPriority?           // Project priority level
 
   // Relations
   sessions      Session[]
@@ -30,9 +31,17 @@ model Project {
   mcpServers    MCPServer[]
   githubRepo    GitHubRepo?
   tags          ProjectTagAssignment[]
+  notes         ProjectNote[]
 
   @@index([name])
   @@index([lastAccessed])
+  @@index([priority])
+}
+
+enum ProjectPriority {
+  HIGH
+  MEDIUM
+  LOW
 }
 
 // Terminal session state
@@ -227,6 +236,22 @@ model ProjectTagAssignment {
   @@unique([projectId, tagId])
   @@index([projectId])
   @@index([tagId])
+}
+
+// Project notes - Markdown notes attached to projects
+model ProjectNote {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String?
+  content     String    @db.Text
+  isPinned    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([projectId])
+  @@index([isPinned])
+  @@index([createdAt])
 }
 
 // Session notes - Markdown notes attached to sessions

@@ -1261,13 +1261,14 @@ async function getProjects() {
       .filter(Boolean)
       .sort((a, b) => a.name.localeCompare(b.name));
 
-    // Fetch skipPermissions and tags from database for each project
+    // Fetch skipPermissions, priority, and tags from database for each project
     const projectPaths = projects.map(p => p.path);
     const dbProjects = await prisma.project.findMany({
       where: { path: { in: projectPaths } },
       select: {
         path: true,
         skipPermissions: true,
+        priority: true,
         tags: {
           include: {
             tag: true
@@ -1279,6 +1280,7 @@ async function getProjects() {
     // Create a map for quick lookup
     const dbProjectMap = new Map(dbProjects.map(p => [p.path, {
       skipPermissions: p.skipPermissions,
+      priority: p.priority,
       tags: p.tags.map(t => t.tag)
     }]));
 
@@ -1288,6 +1290,7 @@ async function getProjects() {
       return {
         ...p,
         skipPermissions: dbData?.skipPermissions || false,
+        priority: dbData?.priority || null,
         tags: dbData?.tags || []
       };
     });
@@ -1670,6 +1673,100 @@ app.get('/api/projects/:projectName/settings', async (req, res) => {
   } catch (error) {
     console.error('[API] Error getting project settings:', error);
     res.status(500).json({ error: 'Failed to get project settings' });
+  }
+});
+
+// Clone a project
+app.post('/api/projects/clone', async (req, res) => {
+  try {
+    const { sourcePath, newName, copySettings } = req.body;
+
+    if (!sourcePath || !newName) {
+      return res.status(400).json({ error: 'Source path and new name are required' });
+    }
+
+    // Validate source exists
+    if (!existsSync(sourcePath)) {
+      return res.status(404).json({ error: 'Source project not found' });
+    }
+
+    // Validate new name
+    const sanitizedName = newName.trim().replace(/[^a-zA-Z0-9-_]/g, '-');
+    const newPath = join(PROJECTS_DIR, sanitizedName);
+
+    if (existsSync(newPath)) {
+      return res.status(409).json({ error: 'A project with this name already exists' });
+    }
+
+    // Copy the project directory
+    const { execSync } = await import('child_process');
+    execSync(`cp -r "${sourcePath}" "${newPath}"`, { encoding: 'utf-8' });
+
+    // Remove .git directory to start fresh (optional based on user preference)
+    const gitPath = join(newPath, '.git');
+    if (existsSync(gitPath)) {
+      execSync(`rm -rf "${gitPath}"`, { encoding: 'utf-8' });
+    }
+
+    // Copy database settings if requested
+    if (copySettings) {
+      const sourceProject = await prisma.project.findUnique({
+        where: { path: sourcePath },
+        include: {
+          tags: { include: { tag: true } },
+          notes: true,
+        }
+      });
+
+      if (sourceProject) {
+        // Create new project with copied settings
+        const newProject = await prisma.project.create({
+          data: {
+            name: sanitizedName,
+            path: newPath,
+            displayName: sanitizedName,
+            skipPermissions: sourceProject.skipPermissions,
+            priority: sourceProject.priority,
+            description: sourceProject.description,
+          }
+        });
+
+        // Copy tags
+        if (sourceProject.tags.length > 0) {
+          await prisma.projectTagAssignment.createMany({
+            data: sourceProject.tags.map(t => ({
+              projectId: newProject.id,
+              tagId: t.tagId,
+            }))
+          });
+        }
+
+        // Copy notes
+        if (sourceProject.notes.length > 0) {
+          await prisma.projectNote.createMany({
+            data: sourceProject.notes.map(n => ({
+              projectId: newProject.id,
+              title: n.title,
+              content: n.content,
+              isPinned: n.isPinned,
+            }))
+          });
+        }
+      }
+    }
+
+    console.log(`[API] Cloned project from ${sourcePath} to ${newPath}`);
+
+    res.status(201).json({
+      success: true,
+      project: {
+        name: sanitizedName,
+        path: newPath,
+      }
+    });
+  } catch (error) {
+    console.error('[API] Error cloning project:', error);
+    res.status(500).json({ error: 'Failed to clone project' });
   }
 });
 

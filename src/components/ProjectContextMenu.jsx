@@ -1,6 +1,6 @@
 /**
  * Project Context Menu Component
- * Right-click context menu for project management, tagging, and info
+ * Right-click context menu for project management, tagging, settings, notes, and info
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -17,6 +17,14 @@ const TAG_COLORS = [
   '#8b5cf6', // Purple
   '#ec4899', // Pink
   '#6b7280', // Gray
+];
+
+// Priority options
+const PRIORITY_OPTIONS = [
+  { value: null, label: 'None', color: 'var(--text-muted)' },
+  { value: 'HIGH', label: 'High', color: '#ef4444' },
+  { value: 'MEDIUM', label: 'Medium', color: '#f97316' },
+  { value: 'LOW', label: 'Low', color: '#22c55e' },
 ];
 
 export default function ProjectContextMenu({
@@ -37,9 +45,27 @@ export default function ProjectContextMenu({
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
   const [isLoading, setIsLoading] = useState(false);
-  const [showProjectInfo, setShowProjectInfo] = useState(false);
+
+  // View states
+  const [currentView, setCurrentView] = useState('main'); // main, info, notes, clone, settings
   const [projectInfo, setProjectInfo] = useState(null);
   const [loadingInfo, setLoadingInfo] = useState(false);
+
+  // Settings state
+  const [skipPermissions, setSkipPermissions] = useState(false);
+  const [priority, setPriority] = useState(null);
+
+  // Notes state
+  const [notes, setNotes] = useState([]);
+  const [isCreatingNote, setIsCreatingNote] = useState(false);
+  const [newNoteTitle, setNewNoteTitle] = useState('');
+  const [newNoteContent, setNewNoteContent] = useState('');
+  const [editingNote, setEditingNote] = useState(null);
+
+  // Clone state
+  const [cloneName, setCloneName] = useState('');
+  const [copySettings, setCopySettings] = useState(true);
+  const [cloning, setCloning] = useState(false);
 
   // Encode project path for URL
   const encodedPath = project?.path ? btoa(project.path) : null;
@@ -68,19 +94,48 @@ export default function ProjectContextMenu({
     }
   }, [encodedPath]);
 
+  // Fetch project settings
+  const fetchSettings = useCallback(async () => {
+    if (!encodedPath) return;
+
+    try {
+      const res = await fetch(`/api/projects/by-path/${encodedPath}/settings`);
+      if (res.ok) {
+        const settings = await res.json();
+        setSkipPermissions(settings.skipPermissions || false);
+        setPriority(settings.priority || null);
+      }
+    } catch (err) {
+      console.error('Failed to fetch settings:', err);
+    }
+  }, [encodedPath]);
+
+  // Fetch project notes
+  const fetchNotes = useCallback(async () => {
+    if (!encodedPath) return;
+
+    try {
+      const res = await fetch(`/api/projects/by-path/${encodedPath}/notes`);
+      if (res.ok) {
+        const notesData = await res.json();
+        setNotes(notesData);
+      }
+    } catch (err) {
+      console.error('Failed to fetch notes:', err);
+    }
+  }, [encodedPath]);
+
   // Fetch project info
   const fetchProjectInfo = useCallback(async () => {
     if (!project?.path) return;
 
     setLoadingInfo(true);
     try {
-      // Fetch project stats from API
       const res = await fetch(`/api/admin/project-stats?path=${encodeURIComponent(project.path)}`);
       if (res.ok) {
         const info = await res.json();
         setProjectInfo(info);
       } else {
-        // Fallback basic info
         setProjectInfo({
           name: project.name,
           path: project.path,
@@ -101,14 +156,16 @@ export default function ProjectContextMenu({
     }
   }, [project]);
 
-  // Fetch tags when menu opens
+  // Fetch data when menu opens
   useEffect(() => {
     if (isOpen && project?.path) {
       fetchTags();
-      setShowProjectInfo(false);
+      fetchSettings();
+      setCurrentView('main');
       setProjectInfo(null);
+      setCloneName(project.name + '-copy');
     }
-  }, [isOpen, project?.path, fetchTags]);
+  }, [isOpen, project?.path, fetchTags, fetchSettings]);
 
   // Close on click outside
   useEffect(() => {
@@ -120,8 +177,8 @@ export default function ProjectContextMenu({
 
     const handleEscape = (e) => {
       if (e.key === 'Escape') {
-        if (showProjectInfo) {
-          setShowProjectInfo(false);
+        if (currentView !== 'main') {
+          setCurrentView('main');
         } else {
           onClose();
         }
@@ -137,7 +194,7 @@ export default function ProjectContextMenu({
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [isOpen, onClose, showProjectInfo]);
+  }, [isOpen, onClose, currentView]);
 
   // Toggle tag on project
   const handleToggleTag = async (tagId) => {
@@ -183,7 +240,6 @@ export default function ProjectContextMenu({
       if (res.ok) {
         const tag = await res.json();
         setAllTags(prev => [...prev, tag]);
-        // Auto-assign to current project
         if (encodedPath) {
           await fetch(`/api/projects/by-path/${encodedPath}/tags/${tag.id}`, { method: 'POST' });
           setProjectTags(prev => [...prev, tag]);
@@ -200,10 +256,118 @@ export default function ProjectContextMenu({
     }
   };
 
-  // Handle show project info
-  const handleShowInfo = () => {
-    setShowProjectInfo(true);
-    fetchProjectInfo();
+  // Update settings
+  const handleUpdateSettings = async (updates) => {
+    if (!encodedPath) return;
+
+    try {
+      const res = await fetch(`/api/projects/by-path/${encodedPath}/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+
+      if (res.ok) {
+        const settings = await res.json();
+        setSkipPermissions(settings.skipPermissions);
+        setPriority(settings.priority);
+        onRefresh?.();
+      }
+    } catch (err) {
+      console.error('Failed to update settings:', err);
+    }
+  };
+
+  // Create note
+  const handleCreateNote = async () => {
+    if (!newNoteContent.trim()) return;
+
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/projects/by-path/${encodedPath}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newNoteTitle.trim() || null,
+          content: newNoteContent.trim(),
+        })
+      });
+
+      if (res.ok) {
+        const note = await res.json();
+        setNotes(prev => [note, ...prev]);
+        setNewNoteTitle('');
+        setNewNoteContent('');
+        setIsCreatingNote(false);
+      }
+    } catch (err) {
+      console.error('Failed to create note:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Delete note
+  const handleDeleteNote = async (noteId) => {
+    try {
+      await fetch(`/api/projects/notes/${noteId}`, { method: 'DELETE' });
+      setNotes(prev => prev.filter(n => n.id !== noteId));
+    } catch (err) {
+      console.error('Failed to delete note:', err);
+    }
+  };
+
+  // Toggle note pin
+  const handleToggleNotePin = async (noteId, currentPinned) => {
+    try {
+      const res = await fetch(`/api/projects/notes/${noteId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isPinned: !currentPinned })
+      });
+
+      if (res.ok) {
+        setNotes(prev => prev.map(n =>
+          n.id === noteId ? { ...n, isPinned: !currentPinned } : n
+        ).sort((a, b) => {
+          if (a.isPinned !== b.isPinned) return b.isPinned ? 1 : -1;
+          return new Date(b.createdAt) - new Date(a.createdAt);
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to toggle pin:', err);
+    }
+  };
+
+  // Clone project
+  const handleCloneProject = async () => {
+    if (!cloneName.trim()) return;
+
+    setCloning(true);
+    try {
+      const res = await fetch('/api/projects/clone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourcePath: project.path,
+          newName: cloneName.trim(),
+          copySettings,
+        })
+      });
+
+      if (res.ok) {
+        onRefresh?.();
+        onClose();
+      } else {
+        const error = await res.json();
+        alert(error.error || 'Failed to clone project');
+      }
+    } catch (err) {
+      console.error('Failed to clone project:', err);
+      alert('Failed to clone project');
+    } finally {
+      setCloning(false);
+    }
   };
 
   // Copy path to clipboard
@@ -221,13 +385,35 @@ export default function ProjectContextMenu({
   // Calculate menu position to stay in viewport
   const menuStyle = {
     position: 'fixed',
-    left: `${Math.min(position.x, window.innerWidth - 280)}px`,
+    left: `${Math.min(position.x, window.innerWidth - 300)}px`,
     top: `${Math.min(position.y, window.innerHeight - 500)}px`,
     zIndex: 9999,
   };
 
-  // Project Info Popup
-  if (showProjectInfo) {
+  // Back button for subviews
+  const BackButton = ({ label }) => (
+    <div className="px-3 py-2 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setCurrentView('main')}
+          className="p-1 hover:bg-white/10 rounded"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <span className="text-xs font-semibold text-primary">{label}</span>
+      </div>
+      <button onClick={onClose} className="p-1 hover:bg-white/10 rounded">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  );
+
+  // Project Info View
+  if (currentView === 'info') {
     return (
       <div
         ref={menuRef}
@@ -239,27 +425,8 @@ export default function ProjectContextMenu({
           backdropFilter: 'blur(16px)',
         }}
       >
-        {/* Header */}
-        <div className="px-3 py-2 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowProjectInfo(false)}
-              className="p-1 hover:bg-white/10 rounded"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <span className="text-xs font-semibold text-primary">Project Info</span>
-          </div>
-          <button onClick={onClose} className="p-1 hover:bg-white/10 rounded">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+        <BackButton label="Project Info" />
 
-        {/* Content */}
         <div className="p-3 space-y-3">
           {loadingInfo ? (
             <div className="text-center py-4">
@@ -268,19 +435,16 @@ export default function ProjectContextMenu({
             </div>
           ) : projectInfo ? (
             <>
-              {/* Name */}
               <div>
                 <div className="text-2xs text-muted uppercase mb-1">Project Name</div>
                 <div className="text-sm font-semibold text-primary">{projectInfo.name || project.name}</div>
               </div>
 
-              {/* Path */}
               <div>
                 <div className="text-2xs text-muted uppercase mb-1">Path</div>
                 <div className="text-xs font-mono text-secondary break-all">{project.path}</div>
               </div>
 
-              {/* Tags */}
               {projectTags.length > 0 && (
                 <div>
                   <div className="text-2xs text-muted uppercase mb-1">Tags</div>
@@ -302,9 +466,19 @@ export default function ProjectContextMenu({
                 </div>
               )}
 
-              {/* Stats */}
+              {priority && (
+                <div>
+                  <div className="text-2xs text-muted uppercase mb-1">Priority</div>
+                  <span
+                    className="text-xs font-semibold"
+                    style={{ color: PRIORITY_OPTIONS.find(p => p.value === priority)?.color }}
+                  >
+                    {priority}
+                  </span>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-2">
-                {/* Session Status */}
                 <div className="p-2 rounded" style={{ background: 'var(--bg-tertiary)' }}>
                   <div className="text-2xs text-muted">Session</div>
                   <div className={`text-xs font-semibold ${project.hasActiveSession ? 'text-green-400' : 'text-muted'}`}>
@@ -312,7 +486,6 @@ export default function ProjectContextMenu({
                   </div>
                 </div>
 
-                {/* Last Modified */}
                 {project.lastModified && (
                   <div className="p-2 rounded" style={{ background: 'var(--bg-tertiary)' }}>
                     <div className="text-2xs text-muted">Modified</div>
@@ -322,7 +495,6 @@ export default function ProjectContextMenu({
                   </div>
                 )}
 
-                {/* File Count */}
                 {projectInfo.fileCount && (
                   <div className="p-2 rounded" style={{ background: 'var(--bg-tertiary)' }}>
                     <div className="text-2xs text-muted">Files</div>
@@ -330,7 +502,6 @@ export default function ProjectContextMenu({
                   </div>
                 )}
 
-                {/* Size */}
                 {projectInfo.size && (
                   <div className="p-2 rounded" style={{ background: 'var(--bg-tertiary)' }}>
                     <div className="text-2xs text-muted">Size</div>
@@ -339,7 +510,6 @@ export default function ProjectContextMenu({
                 )}
               </div>
 
-              {/* Git Info */}
               {projectInfo.git && (
                 <div>
                   <div className="text-2xs text-muted uppercase mb-1">Git</div>
@@ -359,7 +529,6 @@ export default function ProjectContextMenu({
                 </div>
               )}
 
-              {/* CLAUDE.md Status */}
               {projectInfo.hasClaudeMd !== undefined && (
                 <div className="flex items-center gap-2 text-xs">
                   <span className={projectInfo.hasClaudeMd ? 'text-green-400' : 'text-amber-400'}>
@@ -377,11 +546,199 @@ export default function ProjectContextMenu({
     );
   }
 
+  // Notes View
+  if (currentView === 'notes') {
+    return (
+      <div
+        ref={menuRef}
+        className="w-80 rounded-lg shadow-2xl overflow-hidden"
+        style={{
+          ...menuStyle,
+          background: 'var(--bg-elevated)',
+          border: '1px solid var(--border-default)',
+          backdropFilter: 'blur(16px)',
+        }}
+      >
+        <BackButton label="Project Notes" />
+
+        <div className="p-3 space-y-3 max-h-96 overflow-y-auto">
+          {/* Create note form */}
+          {isCreatingNote ? (
+            <div className="p-2 rounded space-y-2" style={{ background: 'var(--bg-tertiary)' }}>
+              <input
+                type="text"
+                value={newNoteTitle}
+                onChange={(e) => setNewNoteTitle(e.target.value)}
+                placeholder="Title (optional)"
+                className="w-full bg-transparent border-b border-accent/50 outline-none text-xs px-1 py-1"
+              />
+              <textarea
+                value={newNoteContent}
+                onChange={(e) => setNewNoteContent(e.target.value)}
+                placeholder="Note content..."
+                className="w-full bg-transparent outline-none text-xs resize-none"
+                rows={3}
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setIsCreatingNote(false);
+                    setNewNoteTitle('');
+                    setNewNoteContent('');
+                  }}
+                  className="px-2 py-1 text-2xs text-secondary hover:text-primary"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateNote}
+                  disabled={!newNoteContent.trim() || isLoading}
+                  className="px-2 py-1 text-2xs bg-accent/20 text-accent rounded hover:bg-accent/30 disabled:opacity-50"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsCreatingNote(true)}
+              className="w-full flex items-center justify-center gap-1 px-2 py-2 text-xs text-accent hover:bg-accent/10 rounded transition-colors"
+              style={{ border: '1px dashed var(--border-subtle)' }}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Note
+            </button>
+          )}
+
+          {/* Notes list */}
+          {notes.length === 0 && !isCreatingNote ? (
+            <div className="text-center py-4 text-muted text-xs">No notes yet</div>
+          ) : (
+            notes.map(note => (
+              <div
+                key={note.id}
+                className="p-2 rounded group"
+                style={{ background: 'var(--bg-tertiary)' }}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    {note.title && (
+                      <div className="text-xs font-semibold text-primary truncate">{note.title}</div>
+                    )}
+                    <div className="text-2xs text-secondary whitespace-pre-wrap break-words">
+                      {note.content}
+                    </div>
+                    <div className="text-2xs text-muted mt-1">
+                      {new Date(note.createdAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => handleToggleNotePin(note.id, note.isPinned)}
+                      className={`p-1 hover:bg-white/10 rounded ${note.isPinned ? 'text-accent' : 'text-muted'}`}
+                      title={note.isPinned ? 'Unpin' : 'Pin'}
+                    >
+                      <svg className="w-3 h-3" fill={note.isPinned ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteNote(note.id)}
+                      className="p-1 hover:bg-red-500/20 text-red-400 rounded"
+                      title="Delete"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Clone View
+  if (currentView === 'clone') {
+    return (
+      <div
+        ref={menuRef}
+        className="w-72 rounded-lg shadow-2xl overflow-hidden"
+        style={{
+          ...menuStyle,
+          background: 'var(--bg-elevated)',
+          border: '1px solid var(--border-default)',
+          backdropFilter: 'blur(16px)',
+        }}
+      >
+        <BackButton label="Clone Project" />
+
+        <div className="p-3 space-y-3">
+          <div>
+            <div className="text-2xs text-muted uppercase mb-1">Source</div>
+            <div className="text-xs font-mono text-secondary truncate">{project.name}</div>
+          </div>
+
+          <div>
+            <div className="text-2xs text-muted uppercase mb-1">New Project Name</div>
+            <input
+              type="text"
+              value={cloneName}
+              onChange={(e) => setCloneName(e.target.value)}
+              placeholder="project-name"
+              className="w-full px-2 py-1.5 text-xs rounded bg-black/20 border border-white/10 outline-none focus:border-accent"
+            />
+          </div>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={copySettings}
+              onChange={(e) => setCopySettings(e.target.checked)}
+              className="w-4 h-4 rounded accent-accent"
+            />
+            <span className="text-xs text-secondary">Copy tags, notes & settings</span>
+          </label>
+
+          <div className="text-2xs text-muted">
+            Note: Git history will be removed from the cloned project.
+          </div>
+
+          <button
+            onClick={handleCloneProject}
+            disabled={!cloneName.trim() || cloning}
+            className="w-full py-2 text-xs bg-accent/20 text-accent rounded hover:bg-accent/30 disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {cloning ? (
+              <>
+                <div className="animate-spin w-3 h-3 border-2 border-accent border-t-transparent rounded-full" />
+                Cloning...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Clone Project
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Main Context Menu
   return (
     <div
       ref={menuRef}
-      className="w-56 rounded-lg shadow-2xl overflow-hidden"
+      className="w-64 rounded-lg shadow-2xl overflow-hidden"
       style={{
         ...menuStyle,
         background: 'var(--bg-elevated)',
@@ -391,16 +748,67 @@ export default function ProjectContextMenu({
     >
       {/* Header */}
       <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-        <div className="text-xs font-semibold text-primary truncate">{project.name}</div>
+        <div className="flex items-center gap-2">
+          <div className="text-xs font-semibold text-primary truncate flex-1">{project.name}</div>
+          {priority && (
+            <span
+              className="text-2xs px-1.5 py-0.5 rounded font-medium"
+              style={{
+                backgroundColor: `${PRIORITY_OPTIONS.find(p => p.value === priority)?.color}20`,
+                color: PRIORITY_OPTIONS.find(p => p.value === priority)?.color,
+              }}
+            >
+              {priority}
+            </span>
+          )}
+        </div>
         <div className="text-2xs text-muted truncate">{project.path}</div>
+      </div>
+
+      {/* Settings Section - Skip Permissions Toggle */}
+      <div className="p-2" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+        <div className="px-1 py-1 text-2xs font-semibold uppercase text-muted">Session Settings</div>
+
+        <label className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-white/5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={skipPermissions}
+            onChange={(e) => handleUpdateSettings({ skipPermissions: e.target.checked })}
+            className="w-4 h-4 rounded accent-amber-500"
+          />
+          <div className="flex-1">
+            <div className="text-xs text-secondary">Skip Permissions</div>
+            <div className="text-2xs text-muted">Start Claude with --dangerously-skip-permissions</div>
+          </div>
+        </label>
+      </div>
+
+      {/* Priority Section */}
+      <div className="p-2" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+        <div className="px-1 py-1 text-2xs font-semibold uppercase text-muted">Priority</div>
+        <div className="flex gap-1">
+          {PRIORITY_OPTIONS.map(opt => (
+            <button
+              key={opt.value || 'none'}
+              onClick={() => handleUpdateSettings({ priority: opt.value })}
+              className={`flex-1 py-1 text-2xs rounded transition-colors ${
+                priority === opt.value
+                  ? 'bg-white/10 font-semibold'
+                  : 'hover:bg-white/5'
+              }`}
+              style={{ color: opt.color }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tags Section */}
       <div className="p-2" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-        <div className="text-2xs font-semibold uppercase text-muted mb-2">Tags</div>
+        <div className="px-1 py-1 text-2xs font-semibold uppercase text-muted">Tags</div>
 
-        {/* Existing tags */}
-        <div className="space-y-1 max-h-32 overflow-y-auto">
+        <div className="space-y-1 max-h-28 overflow-y-auto">
           {allTags.map(tag => {
             const isAssigned = projectTags.some(t => t.id === tag.id);
             return (
@@ -454,7 +862,6 @@ export default function ProjectContextMenu({
               />
             </div>
 
-            {/* Color picker */}
             <div className="flex gap-1 justify-center mb-2">
               {TAG_COLORS.map(color => (
                 <button
@@ -492,7 +899,7 @@ export default function ProjectContextMenu({
         ) : (
           <button
             onClick={() => setIsCreatingTag(true)}
-            className="w-full mt-2 flex items-center justify-center gap-1 px-2 py-1.5 text-2xs text-accent hover:bg-accent/10 rounded transition-colors"
+            className="w-full mt-1 flex items-center justify-center gap-1 px-2 py-1 text-2xs text-accent hover:bg-accent/10 rounded transition-colors"
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -540,13 +947,42 @@ export default function ProjectContextMenu({
         <div className="px-2 py-1 text-2xs font-semibold uppercase text-muted">Actions</div>
 
         <button
-          onClick={handleShowInfo}
+          onClick={() => {
+            setCurrentView('info');
+            fetchProjectInfo();
+          }}
           className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-secondary hover:bg-white/5 rounded transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           Project Info
+        </button>
+
+        <button
+          onClick={() => {
+            setCurrentView('notes');
+            fetchNotes();
+          }}
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-secondary hover:bg-white/5 rounded transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          Notes
+          {notes.length > 0 && (
+            <span className="ml-auto text-2xs text-muted">{notes.length}</span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setCurrentView('clone')}
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-secondary hover:bg-white/5 rounded transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+          Clone Project
         </button>
 
         <button
