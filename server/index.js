@@ -33,6 +33,16 @@ const log = createLogger('server');
 // Import authentication middleware
 import { authentikAuth, createAuthRouter } from './middleware/authentik.js';
 
+// Import security middleware
+import {
+  securityHeaders,
+  apiRateLimiter,
+  strictRateLimiter,
+  authRateLimiter,
+  globalErrorHandler,
+  notFoundHandler,
+} from './middleware/security.js';
+
 // Import modular routes
 import {
   createFoldersRouter,
@@ -194,13 +204,20 @@ const SOVEREIGN_SERVICES = {
   },
 };
 
+// =============================================================================
+// SECURITY MIDDLEWARE
+// =============================================================================
+
+// Security headers (helmet) - applied first for all responses
+app.use(securityHeaders);
+
 // CORS configuration
 app.use(cors({
   origin: CLIENT_URL,
   credentials: true
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));  // JSON body limit
 app.use(cookieParser());
 
 // Structured request logging - adds req.id and req.log to all requests
@@ -273,8 +290,8 @@ app.get('/api/watcher/health', async (req, res) => {
 // AUTHENTICATION
 // =============================================================================
 
-// Auth routes (login, logout, callback, me)
-app.use('/auth', createAuthRouter());
+// Auth routes (login, logout, callback, me) with strict rate limiting
+app.use('/auth', authRateLimiter, createAuthRouter());
 
 // System routes (version, update) - registered BEFORE auth middleware
 // These are management endpoints that should work regardless of auth status
@@ -289,6 +306,20 @@ app.use('/api', authentikAuth({
   required: process.env.AUTH_ENABLED !== 'false',
   excludePaths: ['/api/system']
 }));
+
+// =============================================================================
+// RATE LIMITING (After Authentication)
+// =============================================================================
+
+// General API rate limiting (1000 req/15min)
+app.use('/api', apiRateLimiter);
+
+// Strict rate limiting for sensitive operations (10 req/min)
+app.use('/api/agents/:id/run', strictRateLimiter);
+app.use('/api/docker', strictRateLimiter);
+app.use('/api/git', strictRateLimiter);
+app.use('/api/infrastructure', strictRateLimiter);
+app.use('/api/admin-users/firewall', strictRateLimiter);
 
 // =============================================================================
 // MODULAR API ROUTES
@@ -406,6 +437,20 @@ app.use('/api/db', createDbBrowserRouter(prisma));
 
 // DevTools: API proxy for testing
 app.use('/api/proxy', createProxyRouter());
+
+// =============================================================================
+// ERROR HANDLERS (Must be after all routes)
+// =============================================================================
+
+// 404 handler for unmatched routes
+app.use(notFoundHandler);
+
+// Global error handler (catches all unhandled errors)
+app.use(globalErrorHandler);
+
+// =============================================================================
+// SERVICES INITIALIZATION
+// =============================================================================
 
 // Initialize metrics collector
 const metricsCollector = new MetricsCollector(prisma, {
