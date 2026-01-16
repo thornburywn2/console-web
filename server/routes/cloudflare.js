@@ -8,8 +8,10 @@ import { exec, execSync } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
-
 import os from 'os';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('cloudflare');
 const execAsync = promisify(exec);
 const PROJECTS_DIR = process.env.PROJECTS_DIR || `${os.homedir()}/Projects`;
 
@@ -59,7 +61,7 @@ async function updateViteAllowedHosts(projectPath, hostname) {
       }
       content = content.replace(arrayPattern, `allowedHosts: [${newHosts}]`);
       fs.writeFileSync(configPath, content, 'utf-8');
-      console.log(`[Vite] Added ${hostname} to allowedHosts in ${configPath}`);
+      log.info({ hostname, configPath }, 'added hostname to vite allowedHosts');
       return { success: true, message: `Added ${hostname} to allowedHosts` };
     }
 
@@ -73,7 +75,7 @@ async function updateViteAllowedHosts(projectPath, hostname) {
       const newServerContent = serverContent.trimEnd() + `,\n    allowedHosts: ['${hostname}']`;
       content = content.replace(serverPattern, `server: {${newServerContent}}`);
       fs.writeFileSync(configPath, content, 'utf-8');
-      console.log(`[Vite] Created allowedHosts with ${hostname} in ${configPath}`);
+      log.info({ hostname, configPath }, 'created vite allowedHosts with hostname');
       return { success: true, message: `Created allowedHosts with ${hostname}` };
     }
 
@@ -88,13 +90,13 @@ async function updateViteAllowedHosts(projectPath, hostname) {
       const afterInsert = content.slice(insertPoint);
       content = beforeInsert + `\n  server: {\n    allowedHosts: ['${hostname}'],\n  },` + afterInsert;
       fs.writeFileSync(configPath, content, 'utf-8');
-      console.log(`[Vite] Created server.allowedHosts with ${hostname} in ${configPath}`);
+      log.info({ hostname, configPath }, 'created vite server.allowedHosts with hostname');
       return { success: true, message: `Created server.allowedHosts with ${hostname}` };
     }
 
     return { success: false, message: 'Could not find appropriate location to add allowedHosts' };
   } catch (error) {
-    console.error(`[Vite] Error updating ${configPath}:`, error);
+    log.error({ error: error.message, configPath }, 'error updating vite config');
     return { success: false, message: error.message };
   }
 }
@@ -396,7 +398,7 @@ export function createCloudflareRouter(prisma) {
         }
       }
     } catch (err) {
-      console.error('[Cloudflare] Error building project port map:', err);
+      log.error({ error: err.message }, 'error building project port map');
     }
 
     return { portToProject, projectToPort, subdomainToProject, projectToSubdomain };
@@ -522,7 +524,7 @@ export function createCloudflareRouter(prisma) {
       try {
         await authentikFetch(`/core/applications/${appId}/`, { method: 'DELETE' });
       } catch (e) {
-        console.warn(`Failed to delete Authentik app ${appId}:`, e.message);
+        log.warn({ error: e.message, appId }, 'failed to delete authentik app');
       }
     }
 
@@ -531,7 +533,7 @@ export function createCloudflareRouter(prisma) {
       try {
         await authentikFetch(`/providers/proxy/${providerId}/`, { method: 'DELETE' });
       } catch (e) {
-        console.warn(`Failed to delete Authentik provider ${providerId}:`, e.message);
+        log.warn({ error: e.message, providerId }, 'failed to delete authentik provider');
       }
     }
   }
@@ -551,15 +553,15 @@ export function createCloudflareRouter(prisma) {
 
       // Create provider
       const provider = await createAuthentikProvider(hostname, internalUrl);
-      console.log(`[Authentik] Created provider ${provider.pk} for ${hostname}`);
+      log.info({ providerId: provider.pk, hostname }, 'created authentik provider');
 
       // Create application
       const app = await createAuthentikApp(hostname, provider.pk);
-      console.log(`[Authentik] Created application ${app.pk} (${app.slug}) for ${hostname}`);
+      log.info({ appId: app.pk, appSlug: app.slug, hostname }, 'created authentik application');
 
       // Bind to outpost
       await bindAppToOutpost(app.slug);
-      console.log(`[Authentik] Bound ${app.slug} to outpost`);
+      log.info({ appSlug: app.slug }, 'bound app to authentik outpost');
 
       return {
         enabled: true,
@@ -568,7 +570,7 @@ export function createCloudflareRouter(prisma) {
         providerId: provider.pk
       };
     } catch (error) {
-      console.error(`[Authentik] Failed to setup protection for ${hostname}:`, error);
+      log.error({ error: error.message, hostname }, 'failed to setup authentik protection');
       return { enabled: false, error: error.message };
     }
   }
@@ -581,9 +583,9 @@ export function createCloudflareRouter(prisma) {
 
     try {
       await deleteAuthentikApp(route.authentikAppId, route.authentikProviderId);
-      console.log(`[Authentik] Removed protection for ${route.hostname}`);
+      log.info({ hostname: route.hostname }, 'removed authentik protection');
     } catch (error) {
-      console.error(`[Authentik] Failed to remove protection for ${route.hostname}:`, error);
+      log.error({ error: error.message, hostname: route.hostname }, 'failed to remove authentik protection');
     }
   }
 
@@ -615,7 +617,7 @@ export function createCloudflareRouter(prisma) {
         hasApiToken: !!settings.apiToken
       });
     } catch (error) {
-      console.error('Error getting Cloudflare settings:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get cloudflare settings');
       res.status(500).json({ error: error.message });
     }
   });
@@ -704,7 +706,7 @@ export function createCloudflareRouter(prisma) {
         zoneName: settings.zoneName
       });
     } catch (error) {
-      console.error('Error saving Cloudflare settings:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to save cloudflare settings');
       res.status(500).json({ error: error.message });
     }
   });
@@ -730,7 +732,7 @@ export function createCloudflareRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Error removing Cloudflare settings:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to remove cloudflare settings');
       res.status(500).json({ error: error.message });
     }
   });
@@ -745,7 +747,7 @@ export function createCloudflareRouter(prisma) {
       const config = await getTunnelConfig();
       res.json({ success: true, config });
     } catch (error) {
-      console.error('Error getting tunnel config:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get tunnel config');
       res.status(500).json({ error: error.message });
     }
   });
@@ -761,7 +763,7 @@ export function createCloudflareRouter(prisma) {
       );
       res.json({ success: true, tunnel: data.result });
     } catch (error) {
-      console.error('Error getting tunnel info:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get tunnel info');
       res.status(500).json({ error: error.message });
     }
   });
@@ -778,7 +780,7 @@ export function createCloudflareRouter(prisma) {
       });
       res.json({ routes });
     } catch (error) {
-      console.error('Error listing routes:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to list routes');
       res.status(500).json({ error: error.message });
     }
   });
@@ -834,7 +836,7 @@ export function createCloudflareRouter(prisma) {
         suggestedHostname
       });
     } catch (error) {
-      console.error('Error getting project routes:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get project routes');
       res.status(500).json({ error: error.message });
     }
   });
@@ -863,7 +865,7 @@ export function createCloudflareRouter(prisma) {
       }
 
       // Step 1: Get current tunnel config
-      console.log(`[Cloudflare] Publishing ${hostname} -> ${service} (websocket: ${websocket})`);
+      log.info({ hostname, service, websocket }, 'publishing route');
       const config = await getTunnelConfig();
       const ingress = config.ingress || [];
 
@@ -885,17 +887,17 @@ export function createCloudflareRouter(prisma) {
 
       // Step 3: Update tunnel configuration
       await updateTunnelConfig({ ingress });
-      console.log(`[Cloudflare] Updated tunnel config with ${hostname}`);
+      log.info({ hostname }, 'updated tunnel config');
 
       // Step 4: Create DNS record
       let dnsRecordId = null;
       try {
         const dnsResult = await createDnsRecord(hostname);
         dnsRecordId = dnsResult.result?.id;
-        console.log(`[Cloudflare] Created DNS record for ${hostname}: ${dnsRecordId}`);
+        log.info({ hostname, dnsRecordId }, 'created DNS record');
       } catch (dnsError) {
         // DNS record might already exist
-        console.warn(`[Cloudflare] DNS record creation warning:`, dnsError.message);
+        log.warn({ error: dnsError.message, hostname }, 'DNS record creation warning');
         const existingDns = await findDnsRecord(hostname);
         if (existingDns) {
           dnsRecordId = existingDns.id;
@@ -930,7 +932,7 @@ export function createCloudflareRouter(prisma) {
 
       // Step 7: Restart cloudflared
       const restartResult = await restartCloudflared();
-      console.log(`[Cloudflare] Restart result:`, restartResult);
+      log.info({ restartResult }, 'cloudflared restart completed');
 
       // Update status based on restart
       if (restartResult.success) {
@@ -963,7 +965,7 @@ export function createCloudflareRouter(prisma) {
         viteConfig: viteResult
       });
     } catch (error) {
-      console.error('Error publishing route:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to publish route');
       res.status(500).json({ error: error.message });
     }
   });
@@ -984,7 +986,7 @@ export function createCloudflareRouter(prisma) {
         return res.status(404).json({ error: 'Route not found' });
       }
 
-      console.log(`[Cloudflare] Unpublishing ${hostname}`);
+      log.info({ hostname }, 'unpublishing route');
 
       // Step 1: Get current tunnel config
       const config = await getTunnelConfig();
@@ -995,15 +997,15 @@ export function createCloudflareRouter(prisma) {
 
       // Step 3: Update tunnel configuration
       await updateTunnelConfig({ ingress: updatedIngress });
-      console.log(`[Cloudflare] Removed ${hostname} from tunnel config`);
+      log.info({ hostname }, 'removed route from tunnel config');
 
       // Step 4: Delete DNS record
       if (route.dnsRecordId) {
         try {
           await deleteDnsRecord(route.dnsRecordId);
-          console.log(`[Cloudflare] Deleted DNS record ${route.dnsRecordId}`);
+          log.info({ dnsRecordId: route.dnsRecordId }, 'deleted DNS record');
         } catch (dnsError) {
-          console.warn(`[Cloudflare] DNS deletion warning:`, dnsError.message);
+          log.warn({ error: dnsError.message, dnsRecordId: route.dnsRecordId }, 'DNS deletion warning');
         }
       }
 
@@ -1019,7 +1021,7 @@ export function createCloudflareRouter(prisma) {
 
       // Step 7: Restart cloudflared
       const restartResult = await restartCloudflared();
-      console.log(`[Cloudflare] Restart result:`, restartResult);
+      log.info({ restartResult }, 'cloudflared restart completed');
 
       res.json({
         success: true,
@@ -1028,7 +1030,7 @@ export function createCloudflareRouter(prisma) {
         authentikRemoved: route.authentikEnabled
       });
     } catch (error) {
-      console.error('Error unpublishing route:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to unpublish route');
       res.status(500).json({ error: error.message });
     }
   });
@@ -1060,7 +1062,7 @@ export function createCloudflareRouter(prisma) {
         return res.status(404).json({ error: 'Route not found' });
       }
 
-      console.log(`[Cloudflare] Updating port for ${hostname}: ${route.localPort} -> ${portNum}`);
+      log.info({ hostname, oldPort: route.localPort, newPort: portNum }, 'updating route port');
 
       // Get current tunnel config
       const config = await getTunnelConfig();
@@ -1084,7 +1086,7 @@ export function createCloudflareRouter(prisma) {
 
       // Update tunnel configuration
       await updateTunnelConfig({ ingress });
-      console.log(`[Cloudflare] Updated tunnel config with new port for ${hostname}`);
+      log.info({ hostname }, 'updated tunnel config with new port');
 
       // Update database
       await prisma.publishedRoute.update({
@@ -1098,7 +1100,7 @@ export function createCloudflareRouter(prisma) {
 
       // Restart cloudflared
       const restartResult = await restartCloudflared();
-      console.log(`[Cloudflare] Restart result:`, restartResult);
+      log.info({ restartResult }, 'cloudflared restart completed');
 
       // Update vite.config.js with allowedHosts (if project exists)
       let viteResult = { success: false, message: 'No project linked' };
@@ -1119,7 +1121,7 @@ export function createCloudflareRouter(prisma) {
         viteConfig: viteResult
       });
     } catch (error) {
-      console.error('Error updating route port:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to update route port');
       res.status(500).json({ error: error.message });
     }
   });
@@ -1146,7 +1148,7 @@ export function createCloudflareRouter(prisma) {
         return res.status(404).json({ error: 'Route not found' });
       }
 
-      console.log(`[Cloudflare] ${enabled ? 'Enabling' : 'Disabling'} WebSocket for ${hostname}`);
+      log.info({ hostname, websocketEnabled: enabled }, 'updating websocket setting');
 
       // Get current tunnel config
       const config = await getTunnelConfig();
@@ -1177,7 +1179,7 @@ export function createCloudflareRouter(prisma) {
 
       // Update tunnel configuration
       await updateTunnelConfig({ ingress });
-      console.log(`[Cloudflare] Updated tunnel config with WebSocket ${enabled ? 'enabled' : 'disabled'} for ${hostname}`);
+      log.info({ hostname, websocketEnabled: enabled }, 'updated tunnel config with websocket setting');
 
       // Update database
       await prisma.publishedRoute.update({
@@ -1190,7 +1192,7 @@ export function createCloudflareRouter(prisma) {
 
       // Restart cloudflared
       const restartResult = await restartCloudflared();
-      console.log(`[Cloudflare] Restart result:`, restartResult);
+      log.info({ restartResult }, 'cloudflared restart completed');
 
       res.json({
         success: true,
@@ -1199,7 +1201,7 @@ export function createCloudflareRouter(prisma) {
         restartResult
       });
     } catch (error) {
-      console.error('Error updating route WebSocket setting:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to update route websocket setting');
       res.status(500).json({ error: error.message });
     }
   });
@@ -1212,7 +1214,7 @@ export function createCloudflareRouter(prisma) {
       const result = await restartCloudflared();
       res.json(result);
     } catch (error) {
-      console.error('Error restarting cloudflared:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to restart cloudflared');
       res.status(500).json({ error: error.message });
     }
   });
@@ -1248,7 +1250,7 @@ export function createCloudflareRouter(prisma) {
         status: response.status
       });
     } catch (error) {
-      console.error('Error checking route:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to check route');
 
       // Update route status to error
       try {
@@ -1295,7 +1297,7 @@ export function createCloudflareRouter(prisma) {
         zoneInfo = await cfFetch(`/zones/${settings.zoneId}`);
       } catch (e) {
         zoneError = e.message;
-        console.log('[Cloudflare] Zone access not available (token may lack Zone permissions):', e.message);
+        log.info({ error: e.message }, 'zone access not available (token may lack Zone permissions)');
       }
 
       // Validation succeeds if tunnel access works
@@ -1326,7 +1328,7 @@ export function createCloudflareRouter(prisma) {
         warnings: zoneError ? ['Zone access limited - DNS records may need manual creation'] : []
       });
     } catch (error) {
-      console.error('Error validating Cloudflare config:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to validate cloudflare config');
       res.status(500).json({ valid: false, error: error.message });
     }
   });
@@ -1344,8 +1346,8 @@ export function createCloudflareRouter(prisma) {
 
       // Get project port mappings from CLAUDE.md files
       const { portToProject } = await getProjectPortMap();
-      console.log(`[Cloudflare] Syncing ${ingress.length} ingress rules from tunnel`);
-      console.log(`[Cloudflare] Found ${portToProject.size} projects with configured ports`);
+      log.info({ ingressCount: ingress.length }, 'syncing ingress rules from tunnel');
+      log.info({ projectCount: portToProject.size }, 'found projects with configured ports');
 
       const synced = [];
       const skipped = [];
@@ -1414,7 +1416,7 @@ export function createCloudflareRouter(prisma) {
               const dnsRecord = await findDnsRecord(rule.hostname);
               dnsRecordId = dnsRecord?.id || null;
             } catch (e) {
-              console.warn(`[Cloudflare] Could not find DNS record for ${rule.hostname}`);
+              log.warn({ hostname: rule.hostname }, 'could not find DNS record');
             }
 
             // Create new route in database with project mapping
@@ -1473,7 +1475,7 @@ export function createCloudflareRouter(prisma) {
         details: { synced, skipped, errors }
       });
     } catch (error) {
-      console.error('Error syncing Cloudflare routes:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to sync cloudflare routes');
       res.status(500).json({ error: error.message });
     }
   });
@@ -1484,18 +1486,18 @@ export function createCloudflareRouter(prisma) {
    */
   router.get('/routes/mapped', async (req, res) => {
     try {
-      console.log('[Cloudflare] Getting mapped routes...');
+      log.info('getting mapped routes');
 
       // Get all routes from database
       const routes = await prisma.publishedRoute.findMany({
         orderBy: { createdAt: 'desc' }
       });
-      console.log(`[Cloudflare] Found ${routes.length} routes in database`);
+      log.info({ routeCount: routes.length }, 'found routes in database');
 
       // Get project port and subdomain mappings from CLAUDE.md (source of truth)
       const { portToProject, subdomainToProject, projectToSubdomain } = await getProjectPortMap();
-      console.log(`[Cloudflare] Found ${portToProject.size} projects with configured ports`);
-      console.log(`[Cloudflare] Found ${subdomainToProject.size} projects with configured subdomains`);
+      log.info({ portProjectCount: portToProject.size }, 'found projects with configured ports');
+      log.info({ subdomainProjectCount: subdomainToProject.size }, 'found projects with configured subdomains');
 
       // Get all projects from database for fallback matching
       const projects = await prisma.project.findMany();
@@ -1682,7 +1684,7 @@ export function createCloudflareRouter(prisma) {
       const linkedCount = mappedRoutes.filter(r => !r.isOrphaned).length;
       const activeCount = mappedRoutes.filter(r => r.portActive).length;
 
-      console.log(`[Cloudflare] Returning ${mappedRoutes.length} mapped routes (${linkedCount} linked, ${orphanedCount} orphaned, ${activeCount} active)`);
+      log.info({ total: mappedRoutes.length, linked: linkedCount, orphaned: orphanedCount, active: activeCount }, 'returning mapped routes');
       res.json({
         success: true,
         routes: mappedRoutes,
@@ -1694,7 +1696,7 @@ export function createCloudflareRouter(prisma) {
         }
       });
     } catch (error) {
-      console.error('[Cloudflare] Error getting mapped routes:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get mapped routes');
       res.status(500).json({ error: error.message });
     }
   });
@@ -1723,7 +1725,7 @@ export function createCloudflareRouter(prisma) {
         count: orphanedRoutes.length
       });
     } catch (error) {
-      console.error('Error getting orphaned routes:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get orphaned routes');
       res.status(500).json({ error: error.message });
     }
   });
@@ -1745,7 +1747,7 @@ export function createCloudflareRouter(prisma) {
         return res.status(404).json({ error: 'Route not found in database' });
       }
 
-      console.log(`[Cloudflare] Cleaning up orphaned route: ${hostname}`);
+      log.info({ hostname }, 'cleaning up orphaned route');
 
       // Step 1: Get current tunnel config
       const config = await getTunnelConfig();
@@ -1757,16 +1759,16 @@ export function createCloudflareRouter(prisma) {
       if (updatedIngress.length !== ingress.length) {
         // Step 3: Update tunnel configuration
         await updateTunnelConfig({ ingress: updatedIngress });
-        console.log(`[Cloudflare] Removed ${hostname} from tunnel config`);
+        log.info({ hostname }, 'removed orphaned route from tunnel config');
       }
 
       // Step 4: Delete DNS record
       if (route.dnsRecordId) {
         try {
           await deleteDnsRecord(route.dnsRecordId);
-          console.log(`[Cloudflare] Deleted DNS record ${route.dnsRecordId}`);
+          log.info({ dnsRecordId: route.dnsRecordId }, 'deleted DNS record for orphaned route');
         } catch (dnsError) {
-          console.warn(`[Cloudflare] DNS deletion warning:`, dnsError.message);
+          log.warn({ error: dnsError.message, dnsRecordId: route.dnsRecordId }, 'DNS deletion warning');
         }
       } else {
         // Try to find and delete the DNS record by hostname
@@ -1774,7 +1776,7 @@ export function createCloudflareRouter(prisma) {
           const dnsRecord = await findDnsRecord(hostname);
           if (dnsRecord?.id) {
             await deleteDnsRecord(dnsRecord.id);
-            console.log(`[Cloudflare] Deleted DNS record by hostname lookup`);
+            log.info({ hostname }, 'deleted DNS record by hostname lookup');
           }
         } catch {}
       }
@@ -1791,7 +1793,7 @@ export function createCloudflareRouter(prisma) {
 
       // Step 7: Restart cloudflared
       const restartResult = await restartCloudflared();
-      console.log(`[Cloudflare] Restart result:`, restartResult);
+      log.info({ restartResult }, 'cloudflared restart completed');
 
       res.json({
         success: true,
@@ -1800,7 +1802,7 @@ export function createCloudflareRouter(prisma) {
         restartResult
       });
     } catch (error) {
-      console.error('Error cleaning up orphaned route:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to clean up orphaned route');
       res.status(500).json({ error: error.message });
     }
   });
@@ -1871,7 +1873,7 @@ export function createCloudflareRouter(prisma) {
         });
       }
 
-      console.log(`[Cloudflare] Bulk cleaning ${orphanedRoutes.length} orphaned routes`);
+      log.info({ count: orphanedRoutes.length }, 'bulk cleaning orphaned routes');
 
       // Get tunnel config once
       const config = await getTunnelConfig();
@@ -1920,7 +1922,7 @@ export function createCloudflareRouter(prisma) {
         restartResult
       });
     } catch (error) {
-      console.error('Error bulk cleaning orphaned routes:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to bulk clean orphaned routes');
       res.status(500).json({ error: error.message });
     }
   });
@@ -1945,7 +1947,7 @@ export function createCloudflareRouter(prisma) {
         );
         ingressCount = configData.result?.config?.ingress?.length || 0;
       } catch (e) {
-        console.warn('Could not fetch tunnel config for ingress count');
+        log.warn('could not fetch tunnel config for ingress count');
       }
 
       const connections = connectionsData.result || [];
@@ -1963,7 +1965,7 @@ export function createCloudflareRouter(prisma) {
         tunnelName: settings.tunnelName
       });
     } catch (error) {
-      console.error('Error getting tunnel status:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get tunnel status');
       res.status(500).json({
         error: error.message,
         status: 'error',
@@ -1989,7 +1991,7 @@ export function createCloudflareRouter(prisma) {
         total: data.result_info?.total_count || 0
       });
     } catch (error) {
-      console.error('Error getting DNS records:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get DNS records');
       res.status(500).json({ error: error.message });
     }
   });
@@ -2012,7 +2014,7 @@ export function createCloudflareRouter(prisma) {
         timeseries: data.result?.timeseries || []
       });
     } catch (error) {
-      console.error('Error getting analytics:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get analytics');
       res.status(500).json({ error: error.message });
     }
   });
@@ -2042,7 +2044,7 @@ export function createCloudflareRouter(prisma) {
         // Never return apiToken
       });
     } catch (error) {
-      console.error('Error getting Authentik settings:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get authentik settings');
       res.status(500).json({ error: error.message });
     }
   });
@@ -2105,7 +2107,7 @@ export function createCloudflareRouter(prisma) {
         lastValidated: settings.lastValidated
       });
     } catch (error) {
-      console.error('Error saving Authentik settings:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to save authentik settings');
       res.status(500).json({ error: error.message });
     }
   });
@@ -2118,7 +2120,7 @@ export function createCloudflareRouter(prisma) {
       await prisma.authentikSettings.deleteMany({});
       res.json({ success: true, message: 'Authentik configuration cleared' });
     } catch (error) {
-      console.error('Error clearing Authentik settings:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to clear authentik settings');
       res.status(500).json({ error: error.message });
     }
   });
@@ -2160,7 +2162,7 @@ export function createCloudflareRouter(prisma) {
         email: user.email
       });
     } catch (error) {
-      console.error('Error validating Authentik:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to validate authentik');
       res.status(500).json({ valid: false, error: error.message });
     }
   });
@@ -2177,7 +2179,7 @@ export function createCloudflareRouter(prisma) {
         outposts: outposts.results || []
       });
     } catch (error) {
-      console.error('Error fetching Authentik outposts:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch authentik outposts');
       res.status(500).json({ error: error.message });
     }
   });
@@ -2243,7 +2245,7 @@ export function createCloudflareRouter(prisma) {
         });
       }
     } catch (error) {
-      console.error('Error updating route Authentik protection:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to update route authentik protection');
       res.status(500).json({ error: error.message });
     }
   });

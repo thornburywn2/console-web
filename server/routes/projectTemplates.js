@@ -5,6 +5,9 @@
 
 import { Router } from 'express';
 import { getTemplateService } from '../services/templateService.js';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('project-templates');
 
 export function createProjectTemplatesRouter() {
   const router = Router();
@@ -19,7 +22,7 @@ export function createProjectTemplatesRouter() {
       const templates = await templateService.listTemplates();
       res.json({ templates });
     } catch (error) {
-      console.error('Error listing templates:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to list templates');
       res.status(500).json({ error: 'Failed to list templates' });
     }
   });
@@ -34,7 +37,7 @@ export function createProjectTemplatesRouter() {
       const template = await templateService.getTemplate(id);
       res.json(template);
     } catch (error) {
-      console.error('Error getting template:', error);
+      log.error({ error: error.message, templateId: req.params.id, requestId: req.id }, 'failed to get template');
       if (error.message.includes('not found')) {
         res.status(404).json({ error: error.message });
       } else {
@@ -70,7 +73,7 @@ export function createProjectTemplatesRouter() {
       const result = await templateService.createProject(templateId, variables, options || {});
       res.status(201).json(result);
     } catch (error) {
-      console.error('Error creating project:', error);
+      log.error({ error: error.message, templateId: req.body.templateId, projectName: req.body.variables?.PROJECT_NAME, requestId: req.id }, 'failed to create project');
       if (error.message.includes('already exists')) {
         res.status(409).json({ error: error.message });
       } else if (error.message.includes('not found')) {
@@ -96,7 +99,7 @@ export function createProjectTemplatesRouter() {
       const result = await templateService.migrateProject(projectPath, options || {});
       res.json(result);
     } catch (error) {
-      console.error('Error migrating project:', error);
+      log.error({ error: error.message, projectPath: req.body.projectPath, requestId: req.id }, 'failed to migrate project');
       res.status(500).json({ error: 'Failed to migrate project' });
     }
   });
@@ -114,7 +117,7 @@ export function createProjectTemplatesRouter() {
       const result = await templateService.checkCompliance(projectPath);
       res.json(result);
     } catch (error) {
-      console.error('Error checking compliance:', error);
+      log.error({ error: error.message, project: req.params.project || req.body.projectPath, requestId: req.id }, 'failed to check compliance');
       res.status(500).json({ error: 'Failed to check compliance' });
     }
   });
@@ -128,7 +131,7 @@ export function createProjectTemplatesRouter() {
       const result = await templateService.checkAllProjects();
       res.json(result);
     } catch (error) {
-      console.error('Error getting compliance overview:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get compliance overview');
       res.status(500).json({ error: 'Failed to get compliance overview' });
     }
   });
@@ -142,7 +145,7 @@ export function createProjectTemplatesRouter() {
       const config = await templateService.getComplianceConfig();
       res.json(config);
     } catch (error) {
-      console.error('Error getting compliance config:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get compliance config');
       res.status(500).json({ error: 'Failed to get compliance config' });
     }
   });
@@ -162,7 +165,7 @@ export function createProjectTemplatesRouter() {
       const result = await templateService.checkCompliance(projectPath);
       res.json(result);
     } catch (error) {
-      console.error('Error checking compliance:', error);
+      log.error({ error: error.message, project: req.params.project || req.body.projectPath, requestId: req.id }, 'failed to check compliance');
       res.status(500).json({ error: 'Failed to check compliance' });
     }
   });

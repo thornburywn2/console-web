@@ -6,6 +6,9 @@
 import { Router } from 'express';
 import { spawn } from 'child_process';
 import path from 'path';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('git');
 
 export function createGitRouter(prisma) {
   const router = Router();
@@ -78,7 +81,7 @@ export function createGitRouter(prisma) {
         untracked,
       });
     } catch (error) {
-      console.error('Git status error:', error);
+      log.error({ error: error.message, projectPath: req.params.projectPath }, 'failed to get git status');
       res.status(500).json({ error: error.message });
     }
   });

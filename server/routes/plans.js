@@ -4,6 +4,9 @@
  */
 
 import { Router } from 'express';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('plans');
 
 export function createPlansRouter(prisma) {
   const router = Router();
@@ -51,7 +54,7 @@ export function createPlansRouter(prisma) {
         pagination: { total, limit: parseInt(limit), offset: parseInt(offset) }
       });
     } catch (error) {
-      console.error('Error fetching plans:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch plans');
       res.status(500).json({ error: 'Failed to fetch plans' });
     }
   });
@@ -76,7 +79,7 @@ export function createPlansRouter(prisma) {
 
       res.json(plan);
     } catch (error) {
-      console.error('Error fetching plan:', error);
+      log.error({ error: error.message, planId: req.params.id, requestId: req.id }, 'failed to fetch plan');
       res.status(500).json({ error: 'Failed to fetch plan' });
     }
   });
@@ -132,7 +135,7 @@ export function createPlansRouter(prisma) {
 
       res.status(201).json(plan);
     } catch (error) {
-      console.error('Error creating plan:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to create plan');
       res.status(500).json({ error: 'Failed to create plan' });
     }
   });
@@ -184,7 +187,7 @@ export function createPlansRouter(prisma) {
 
       res.json(plan);
     } catch (error) {
-      console.error('Error updating plan:', error);
+      log.error({ error: error.message, planId: req.params.id, requestId: req.id }, 'failed to update plan');
       res.status(500).json({ error: 'Failed to update plan' });
     }
   });
@@ -200,7 +203,7 @@ export function createPlansRouter(prisma) {
 
       res.json({ success: true, id: req.params.id });
     } catch (error) {
-      console.error('Error deleting plan:', error);
+      log.error({ error: error.message, planId: req.params.id, requestId: req.id }, 'failed to delete plan');
       res.status(500).json({ error: 'Failed to delete plan' });
     }
   });
@@ -261,7 +264,7 @@ export function createPlansRouter(prisma) {
 
       res.status(201).json(step);
     } catch (error) {
-      console.error('Error adding step:', error);
+      log.error({ error: error.message, planId: req.params.id, requestId: req.id }, 'failed to add step');
       res.status(500).json({ error: 'Failed to add step' });
     }
   });
@@ -319,7 +322,7 @@ export function createPlansRouter(prisma) {
 
       res.json(step);
     } catch (error) {
-      console.error('Error updating step:', error);
+      log.error({ error: error.message, stepId: req.params.stepId, requestId: req.id }, 'failed to update step');
       res.status(500).json({ error: 'Failed to update step' });
     }
   });
@@ -355,7 +358,7 @@ export function createPlansRouter(prisma) {
 
       res.json({ success: true, id: stepId });
     } catch (error) {
-      console.error('Error deleting step:', error);
+      log.error({ error: error.message, stepId: req.params.stepId, requestId: req.id }, 'failed to delete step');
       res.status(500).json({ error: 'Failed to delete step' });
     }
   });
@@ -390,7 +393,7 @@ export function createPlansRouter(prisma) {
 
       res.json(plan);
     } catch (error) {
-      console.error('Error reordering steps:', error);
+      log.error({ error: error.message, planId: req.params.id, requestId: req.id }, 'failed to reorder steps');
       res.status(500).json({ error: 'Failed to reorder steps' });
     }
   });
@@ -423,7 +426,7 @@ export function createPlansRouter(prisma) {
 
       res.json(plan);
     } catch (error) {
-      console.error('Error starting execution:', error);
+      log.error({ error: error.message, planId: req.params.id, requestId: req.id }, 'failed to start execution');
       res.status(500).json({ error: 'Failed to start execution' });
     }
   });
@@ -443,7 +446,7 @@ export function createPlansRouter(prisma) {
 
       res.json(plan);
     } catch (error) {
-      console.error('Error pausing:', error);
+      log.error({ error: error.message, planId: req.params.id, requestId: req.id }, 'failed to pause execution');
       res.status(500).json({ error: 'Failed to pause' });
     }
   });
@@ -475,7 +478,7 @@ export function createPlansRouter(prisma) {
 
       res.json(plan);
     } catch (error) {
-      console.error('Error cancelling:', error);
+      log.error({ error: error.message, planId: req.params.id, requestId: req.id }, 'failed to cancel execution');
       res.status(500).json({ error: 'Failed to cancel' });
     }
   });
@@ -537,7 +540,7 @@ export function createPlansRouter(prisma) {
 
       res.json({ diagram: mermaid, steps: plan.steps });
     } catch (error) {
-      console.error('Error generating diagram:', error);
+      log.error({ error: error.message, planId: req.params.id, requestId: req.id }, 'failed to generate diagram');
       res.status(500).json({ error: 'Failed to generate diagram' });
     }
   });

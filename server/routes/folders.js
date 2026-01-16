@@ -4,6 +4,9 @@
  */
 
 import { Router } from 'express';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('folders');
 
 export function createFoldersRouter(prisma) {
   const router = Router();
@@ -31,7 +34,7 @@ export function createFoldersRouter(prisma) {
       });
       res.json(folders);
     } catch (error) {
-      console.error('Error fetching folders:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch folders');
       res.status(500).json({ error: 'Failed to fetch folders' });
     }
   });
@@ -63,7 +66,7 @@ export function createFoldersRouter(prisma) {
 
       res.status(201).json(folder);
     } catch (error) {
-      console.error('Error creating folder:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to create folder');
       res.status(500).json({ error: 'Failed to create folder' });
     }
   });
@@ -98,7 +101,7 @@ export function createFoldersRouter(prisma) {
 
       res.json(folder);
     } catch (error) {
-      console.error('Error updating folder:', error);
+      log.error({ error: error.message, folderId: req.params.id, requestId: req.id }, 'failed to update folder');
       res.status(500).json({ error: 'Failed to update folder' });
     }
   });
@@ -137,7 +140,7 @@ export function createFoldersRouter(prisma) {
 
       res.json({ success: true, movedSessions: folder.sessions.length, movedFolders: folder.children.length });
     } catch (error) {
-      console.error('Error deleting folder:', error);
+      log.error({ error: error.message, folderId: req.params.id, requestId: req.id }, 'failed to delete folder');
       res.status(500).json({ error: 'Failed to delete folder' });
     }
   });
@@ -164,7 +167,7 @@ export function createFoldersRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Error reordering folders:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to reorder folders');
       res.status(500).json({ error: 'Failed to reorder folders' });
     }
   });
@@ -195,7 +198,7 @@ export function createFoldersRouter(prisma) {
 
       res.json(tagsWithCount);
     } catch (error) {
-      console.error('Error fetching tags:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch tags');
       res.status(500).json({ error: 'Failed to fetch tags' });
     }
   });
@@ -228,7 +231,7 @@ export function createFoldersRouter(prisma) {
       if (error.code === 'P2002') {
         return res.status(409).json({ error: 'Tag name already exists' });
       }
-      console.error('Error creating tag:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to create tag');
       res.status(500).json({ error: 'Failed to create tag' });
     }
   });
@@ -255,7 +258,7 @@ export function createFoldersRouter(prisma) {
       if (error.code === 'P2002') {
         return res.status(409).json({ error: 'Tag name already exists' });
       }
-      console.error('Error updating tag:', error);
+      log.error({ error: error.message, tagId: req.params.id, requestId: req.id }, 'failed to update tag');
       res.status(500).json({ error: 'Failed to update tag' });
     }
   });
@@ -269,7 +272,7 @@ export function createFoldersRouter(prisma) {
       await prisma.sessionTag.delete({ where: { id } });
       res.json({ success: true });
     } catch (error) {
-      console.error('Error deleting tag:', error);
+      log.error({ error: error.message, tagId: req.params.id, requestId: req.id }, 'failed to delete tag');
       res.status(500).json({ error: 'Failed to delete tag' });
     }
   });
@@ -290,7 +293,7 @@ export function createFoldersRouter(prisma) {
       if (error.code === 'P2002') {
         return res.status(409).json({ error: 'Tag already assigned to session' });
       }
-      console.error('Error assigning tag:', error);
+      log.error({ error: error.message, sessionId: req.params.sessionId, requestId: req.id }, 'failed to assign tag');
       res.status(500).json({ error: 'Failed to assign tag' });
     }
   });
@@ -308,7 +311,7 @@ export function createFoldersRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Error removing tag:', error);
+      log.error({ error: error.message, sessionId: req.params.sessionId, requestId: req.id }, 'failed to remove tag');
       res.status(500).json({ error: 'Failed to remove tag' });
     }
   });
@@ -328,7 +331,7 @@ export function createFoldersRouter(prisma) {
 
       res.json(session);
     } catch (error) {
-      console.error('Error moving session to folder:', error);
+      log.error({ error: error.message, sessionId: req.params.sessionId, requestId: req.id }, 'failed to move session to folder');
       res.status(500).json({ error: 'Failed to move session' });
     }
   });
@@ -348,7 +351,7 @@ export function createFoldersRouter(prisma) {
 
       res.json(session);
     } catch (error) {
-      console.error('Error pinning session:', error);
+      log.error({ error: error.message, sessionId: req.params.sessionId, requestId: req.id }, 'failed to pin session');
       res.status(500).json({ error: 'Failed to pin session' });
     }
   });
@@ -371,7 +374,7 @@ export function createFoldersRouter(prisma) {
 
       res.json(session);
     } catch (error) {
-      console.error('Error archiving session:', error);
+      log.error({ error: error.message, sessionId: req.params.sessionId, requestId: req.id }, 'failed to archive session');
       res.status(500).json({ error: 'Failed to archive session' });
     }
   });

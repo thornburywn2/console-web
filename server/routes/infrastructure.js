@@ -13,7 +13,9 @@ import { Router } from 'express';
 import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import { readFileSync, existsSync } from 'fs';
+import { createLogger } from '../services/logger.js';
 
+const log = createLogger('infrastructure');
 const execAsync = promisify(exec);
 
 export function createInfrastructureRouter() {
@@ -61,7 +63,7 @@ export function createInfrastructureRouter() {
 
       res.json({ packages, total });
     } catch (error) {
-      console.error('Error listing packages:', error);
+      log.error({ error: error.message, search: req.query.search, requestId: req.id }, 'failed to list packages');
       res.status(500).json({ error: 'Failed to list packages' });
     }
   });
@@ -99,7 +101,7 @@ export function createInfrastructureRouter() {
         lastChecked: new Date().toISOString()
       });
     } catch (error) {
-      console.error('Error checking updates:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to check for updates');
       res.status(500).json({ error: 'Failed to check for updates' });
     }
   });
@@ -121,7 +123,7 @@ export function createInfrastructureRouter() {
         timestamp: new Date().toISOString()
       });
     } catch (error) {
-      console.error('Error upgrading packages:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to upgrade packages');
       res.status(500).json({ error: error.message || 'Failed to upgrade packages' });
     }
   });
@@ -148,7 +150,7 @@ export function createInfrastructureRouter() {
         errors: stderr
       });
     } catch (error) {
-      console.error('Error installing package:', error);
+      log.error({ error: error.message, packageName: req.body.packageName, requestId: req.id }, 'failed to install package');
       res.status(500).json({ error: error.message || 'Failed to install package' });
     }
   });
@@ -181,7 +183,7 @@ export function createInfrastructureRouter() {
         errors: stderr
       });
     } catch (error) {
-      console.error('Error removing package:', error);
+      log.error({ error: error.message, packageName: req.body.packageName, requestId: req.id }, 'failed to remove package');
       res.status(500).json({ error: error.message || 'Failed to remove package' });
     }
   });
@@ -211,7 +213,7 @@ export function createInfrastructureRouter() {
 
       res.json({ results, query: q });
     } catch (error) {
-      console.error('Error searching packages:', error);
+      log.error({ error: error.message, query: req.query.q, requestId: req.id }, 'failed to search packages');
       res.status(500).json({ error: 'Failed to search packages' });
     }
   });
@@ -273,7 +275,7 @@ export function createInfrastructureRouter() {
 
       res.json({ logs, count: logs.length });
     } catch (error) {
-      console.error('Error fetching logs:', error);
+      log.error({ error: error.message, unit: req.query.unit, requestId: req.id }, 'failed to fetch logs');
       res.status(500).json({ error: 'Failed to fetch logs' });
     }
   });
@@ -287,7 +289,7 @@ export function createInfrastructureRouter() {
       const units = stdout.trim().split('\n').filter(u => u.trim());
       res.json({ units });
     } catch (error) {
-      console.error('Error listing log units:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to list log units');
       res.status(500).json({ error: 'Failed to list log units' });
     }
   });
@@ -304,7 +306,7 @@ export function createInfrastructureRouter() {
         raw: stdout.trim()
       });
     } catch (error) {
-      console.error('Error getting log disk usage:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get log disk usage');
       res.status(500).json({ error: 'Failed to get disk usage' });
     }
   });
@@ -360,7 +362,7 @@ export function createInfrastructureRouter() {
 
       res.json({ processes, count: processes.length });
     } catch (error) {
-      console.error('Error listing processes:', error);
+      log.error({ error: error.message, sort: req.query.sort, requestId: req.id }, 'failed to list processes');
       res.status(500).json({ error: 'Failed to list processes' });
     }
   });
@@ -409,7 +411,7 @@ export function createInfrastructureRouter() {
         openFiles: openFiles.stdout.trim()
       });
     } catch (error) {
-      console.error('Error getting process details:', error);
+      log.error({ error: error.message, pid: req.params.pid, requestId: req.id }, 'failed to get process details');
       res.status(500).json({ error: 'Failed to get process details' });
     }
   });
@@ -467,7 +469,7 @@ export function createInfrastructureRouter() {
         name
       });
     } catch (error) {
-      console.error('Error killing process:', error);
+      log.error({ error: error.message, pid: req.params.pid, signal: req.body.signal, requestId: req.id }, 'failed to kill process');
       res.status(500).json({ error: error.message || 'Failed to kill process' });
     }
   });
@@ -499,7 +501,7 @@ export function createInfrastructureRouter() {
         }))
       });
     } catch (error) {
-      console.error('Error listing interfaces:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to list network interfaces');
       res.status(500).json({ error: 'Failed to list network interfaces' });
     }
   });
@@ -527,7 +529,7 @@ export function createInfrastructureRouter() {
 
       res.json({ connections, count: connections.length });
     } catch (error) {
-      console.error('Error listing connections:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to list network connections');
       res.status(500).json({ error: 'Failed to list connections' });
     }
   });
@@ -598,7 +600,7 @@ export function createInfrastructureRouter() {
         results: stdout.trim().split('\n').filter(r => r.trim())
       });
     } catch (error) {
-      console.error('Error doing DNS lookup:', error);
+      log.error({ error: error.message, host: req.body.host, type: req.body.type, requestId: req.id }, 'failed to perform DNS lookup');
       res.status(500).json({ error: 'DNS lookup failed' });
     }
   });
@@ -655,7 +657,7 @@ export function createInfrastructureRouter() {
 
       res.json({ entries, raw: content });
     } catch (error) {
-      console.error('Error reading hosts file:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to read hosts file');
       res.status(500).json({ error: 'Failed to read hosts file' });
     }
   });
@@ -686,7 +688,7 @@ export function createInfrastructureRouter() {
 
       res.json({ sessions, count: sessions.length });
     } catch (error) {
-      console.error('Error listing SSH sessions:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to list SSH sessions');
       res.status(500).json({ error: 'Failed to list SSH sessions' });
     }
   });
@@ -723,7 +725,7 @@ export function createInfrastructureRouter() {
 
       res.json({ attempts, count: attempts.length });
     } catch (error) {
-      console.error('Error fetching failed logins:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch failed login attempts');
       res.status(500).json({ error: 'Failed to fetch failed login attempts' });
     }
   });
@@ -768,7 +770,7 @@ export function createInfrastructureRouter() {
 
       res.json({ keys, count: keys.length });
     } catch (error) {
-      console.error('Error listing SSH keys:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to list SSH keys');
       res.status(500).json({ error: 'Failed to list SSH keys' });
     }
   });
@@ -815,7 +817,7 @@ export function createInfrastructureRouter() {
         jails
       });
     } catch (error) {
-      console.error('Error getting fail2ban status:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get fail2ban status');
       res.json({ installed: false, running: false, jails: [] });
     }
   });
@@ -839,7 +841,7 @@ export function createInfrastructureRouter() {
 
       res.json({ success: true, jail, ip });
     } catch (error) {
-      console.error('Error unbanning IP:', error);
+      log.error({ error: error.message, jail: req.body.jail, ip: req.body.ip, requestId: req.id }, 'failed to unban IP');
       res.status(500).json({ error: 'Failed to unban IP' });
     }
   });
@@ -872,7 +874,7 @@ export function createInfrastructureRouter() {
 
       res.json({ ports, count: ports.length });
     } catch (error) {
-      console.error('Error listing open ports:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to list open ports');
       res.status(500).json({ error: 'Failed to list open ports' });
     }
   });
@@ -900,7 +902,7 @@ export function createInfrastructureRouter() {
 
       res.json({ logins, count: logins.length });
     } catch (error) {
-      console.error('Error fetching last logins:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch login history');
       res.status(500).json({ error: 'Failed to fetch login history' });
     }
   });
@@ -967,7 +969,7 @@ export function createInfrastructureRouter() {
 
       res.json({ jobs: [...jobs, ...systemJobs] });
     } catch (error) {
-      console.error('Error listing cron jobs:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to list cron jobs');
       res.status(500).json({ error: 'Failed to list cron jobs' });
     }
   });
@@ -1005,7 +1007,7 @@ export function createInfrastructureRouter() {
 
       res.json({ timers, count: timers.length });
     } catch (error) {
-      console.error('Error listing timers:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to list systemd timers');
       res.status(500).json({ error: 'Failed to list systemd timers' });
     }
   });
@@ -1031,7 +1033,7 @@ export function createInfrastructureRouter() {
 
       res.json({ success: true, timer: name, enabled });
     } catch (error) {
-      console.error('Error toggling timer:', error);
+      log.error({ error: error.message, timer: req.params.name, enabled: req.body.enabled, requestId: req.id }, 'failed to toggle timer');
       res.status(500).json({ error: 'Failed to toggle timer' });
     }
   });
@@ -1064,7 +1066,7 @@ export function createInfrastructureRouter() {
 
       res.json({ success: true, schedule, command });
     } catch (error) {
-      console.error('Error adding cron job:', error);
+      log.error({ error: error.message, schedule: req.body.schedule, requestId: req.id }, 'failed to add cron job');
       res.status(500).json({ error: 'Failed to add cron job' });
     }
   });
@@ -1105,7 +1107,7 @@ export function createInfrastructureRouter() {
 
       res.json({ success: true, index: idx });
     } catch (error) {
-      console.error('Error removing cron job:', error);
+      log.error({ error: error.message, index: req.params.index, requestId: req.id }, 'failed to remove cron job');
       res.status(500).json({ error: 'Failed to remove cron job' });
     }
   });

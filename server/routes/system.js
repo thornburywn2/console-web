@@ -9,6 +9,9 @@ import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { createLogger } from '../services/logger.js';
+
+const sysLog = createLogger('system');
 
 const execAsync = promisify(exec);
 const __filename = fileURLToPath(import.meta.url);
@@ -33,7 +36,7 @@ export function createSystemRouter() {
    */
   router.setSocketIO = (io) => {
     socketIO = io;
-    console.log('[System] Socket.IO instance registered for update progress');
+    sysLog.info('Socket.IO instance registered for update progress');
   };
 
   /**
@@ -45,7 +48,7 @@ export function createSystemRouter() {
     if (socketIO) {
       socketIO.emit('system-update-progress', logEntry);
     }
-    console.log(`[System Update] [${step}] ${status}: ${message}`);
+    sysLog.info({ step, status, message, details }, 'system update progress');
   }
 
   /**
@@ -154,7 +157,7 @@ export function createSystemRouter() {
         gitInfo.lastCommitDate = lastCommitDate.trim();
 
       } catch (gitError) {
-        console.warn('[System] Git info error:', gitError.message);
+        sysLog.warn({ error: gitError.message }, 'git info error');
       }
 
       res.json({
@@ -162,7 +165,7 @@ export function createSystemRouter() {
         ...gitInfo,
       });
     } catch (error) {
-      console.error('[System] Version check error:', error);
+      sysLog.error({ error: error.message, requestId: req.id }, 'version check error');
       res.status(500).json({ error: error.message });
     }
   });

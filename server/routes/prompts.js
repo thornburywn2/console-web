@@ -4,6 +4,9 @@
  */
 
 import { Router } from 'express';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('prompts');
 
 export function createPromptsRouter(prisma) {
   const router = Router();
@@ -49,7 +52,7 @@ export function createPromptsRouter(prisma) {
 
       res.json({ prompts, total, limit: parseInt(limit), offset: parseInt(offset) });
     } catch (error) {
-      console.error('Error fetching prompts:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch prompts');
       res.status(500).json({ error: 'Failed to fetch prompts' });
     }
   });
@@ -71,7 +74,7 @@ export function createPromptsRouter(prisma) {
         count: c._count.id
       })));
     } catch (error) {
-      console.error('Error fetching categories:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch prompt categories');
       res.status(500).json({ error: 'Failed to fetch categories' });
     }
   });
@@ -93,7 +96,7 @@ export function createPromptsRouter(prisma) {
 
       res.json(prompt);
     } catch (error) {
-      console.error('Error fetching prompt:', error);
+      log.error({ error: error.message, promptId: req.params.id, requestId: req.id }, 'failed to fetch prompt');
       res.status(500).json({ error: 'Failed to fetch prompt' });
     }
   });
@@ -126,7 +129,7 @@ export function createPromptsRouter(prisma) {
 
       res.status(201).json(prompt);
     } catch (error) {
-      console.error('Error creating prompt:', error);
+      log.error({ error: error.message, name: req.body.name, requestId: req.id }, 'failed to create prompt');
       res.status(500).json({ error: 'Failed to create prompt' });
     }
   });
@@ -153,7 +156,7 @@ export function createPromptsRouter(prisma) {
 
       res.json(prompt);
     } catch (error) {
-      console.error('Error updating prompt:', error);
+      log.error({ error: error.message, promptId: req.params.id, requestId: req.id }, 'failed to update prompt');
       res.status(500).json({ error: 'Failed to update prompt' });
     }
   });
@@ -167,7 +170,7 @@ export function createPromptsRouter(prisma) {
       await prisma.prompt.delete({ where: { id } });
       res.json({ success: true });
     } catch (error) {
-      console.error('Error deleting prompt:', error);
+      log.error({ error: error.message, promptId: req.params.id, requestId: req.id }, 'failed to delete prompt');
       res.status(500).json({ error: 'Failed to delete prompt' });
     }
   });
@@ -224,7 +227,7 @@ export function createPromptsRouter(prisma) {
         promptName: prompt.name
       });
     } catch (error) {
-      console.error('Error executing prompt:', error);
+      log.error({ error: error.message, promptId: req.params.id, requestId: req.id }, 'failed to execute prompt');
       res.status(500).json({ error: 'Failed to execute prompt' });
     }
   });
@@ -244,7 +247,7 @@ export function createPromptsRouter(prisma) {
 
       res.json(prompt);
     } catch (error) {
-      console.error('Error toggling favorite:', error);
+      log.error({ error: error.message, promptId: req.params.id, requestId: req.id }, 'failed to toggle prompt favorite');
       res.status(500).json({ error: 'Failed to toggle favorite' });
     }
   });
@@ -278,7 +281,7 @@ export function createPromptsRouter(prisma) {
 
       res.status(201).json(duplicate);
     } catch (error) {
-      console.error('Error duplicating prompt:', error);
+      log.error({ error: error.message, promptId: req.params.id, requestId: req.id }, 'failed to duplicate prompt');
       res.status(500).json({ error: 'Failed to duplicate prompt' });
     }
   });

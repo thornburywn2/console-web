@@ -4,6 +4,9 @@
  */
 
 import { Router } from 'express';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('contexts');
 
 export function createContextsRouter(prisma) {
   const router = Router();
@@ -37,7 +40,7 @@ export function createContextsRouter(prisma) {
 
       res.json(contexts);
     } catch (error) {
-      console.error('[Contexts API] Error fetching contexts:', error);
+      log.error({ error: error.message, projectName: req.params.projectName, requestId: req.id }, 'failed to fetch contexts');
       res.status(500).json({ error: 'Failed to fetch contexts' });
     }
   });
@@ -80,7 +83,7 @@ export function createContextsRouter(prisma) {
 
       res.status(201).json(newContext);
     } catch (error) {
-      console.error('[Contexts API] Error adding context:', error);
+      log.error({ error: error.message, projectName: req.params.projectName, requestId: req.id }, 'failed to add context');
       res.status(500).json({ error: 'Failed to add context' });
     }
   });
@@ -122,7 +125,7 @@ export function createContextsRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('[Contexts API] Error removing context:', error);
+      log.error({ error: error.message, projectName: req.params.projectName, contextId: req.params.contextId, requestId: req.id }, 'failed to remove context');
       res.status(500).json({ error: 'Failed to remove context' });
     }
   });
@@ -148,7 +151,7 @@ export function createContextsRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('[Contexts API] Error reordering contexts:', error);
+      log.error({ error: error.message, projectName: req.params.projectName, requestId: req.id }, 'failed to reorder contexts');
       res.status(500).json({ error: 'Failed to reorder contexts' });
     }
   });

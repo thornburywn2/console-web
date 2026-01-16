@@ -5,6 +5,9 @@
  */
 
 import { Router } from 'express';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('agents');
 
 export function createAgentsRouter(prisma, agentRunner) {
   const router = Router();
@@ -67,7 +70,7 @@ export function createAgentsRouter(prisma, agentRunner) {
 
       res.json(agentsWithStatus);
     } catch (error) {
-      console.error('Error fetching agents:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch agents');
       res.status(500).json({ error: 'Failed to fetch agents' });
     }
   });
@@ -122,7 +125,7 @@ export function createAgentsRouter(prisma, agentRunner) {
         }
       });
     } catch (error) {
-      console.error('Error fetching agent:', error);
+      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to fetch agent');
       res.status(500).json({ error: 'Failed to fetch agent' });
     }
   });
@@ -189,7 +192,7 @@ export function createAgentsRouter(prisma, agentRunner) {
 
       res.status(201).json(agent);
     } catch (error) {
-      console.error('Error creating agent:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to create agent');
       res.status(500).json({ error: 'Failed to create agent' });
     }
   });
@@ -261,7 +264,7 @@ export function createAgentsRouter(prisma, agentRunner) {
 
       res.json(agent);
     } catch (error) {
-      console.error('Error updating agent:', error);
+      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to update agent');
       res.status(500).json({ error: 'Failed to update agent' });
     }
   });
@@ -290,7 +293,7 @@ export function createAgentsRouter(prisma, agentRunner) {
 
       res.json({ success: true, id });
     } catch (error) {
-      console.error('Error deleting agent:', error);
+      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to delete agent');
       res.status(500).json({ error: 'Failed to delete agent' });
     }
   });
@@ -328,7 +331,7 @@ export function createAgentsRouter(prisma, agentRunner) {
         status: 'RUNNING'
       });
     } catch (error) {
-      console.error('Error running agent:', error);
+      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to run agent');
       res.status(500).json({ error: error.message || 'Failed to run agent' });
     }
   });
@@ -348,7 +351,7 @@ export function createAgentsRouter(prisma, agentRunner) {
 
       res.json({ success: true, status: 'CANCELLED' });
     } catch (error) {
-      console.error('Error stopping agent:', error);
+      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to stop agent');
       res.status(500).json({ error: 'Failed to stop agent' });
     }
   });
@@ -380,7 +383,7 @@ export function createAgentsRouter(prisma, agentRunner) {
 
       res.json(updated);
     } catch (error) {
-      console.error('Error toggling agent:', error);
+      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to toggle agent');
       res.status(500).json({ error: 'Failed to toggle agent' });
     }
   });
@@ -411,7 +414,7 @@ export function createAgentsRouter(prisma, agentRunner) {
 
       res.json(execution);
     } catch (error) {
-      console.error('Error fetching execution:', error);
+      log.error({ error: error.message, executionId: req.params.executionId, requestId: req.id }, 'failed to fetch execution');
       res.status(500).json({ error: 'Failed to fetch execution' });
     }
   });
@@ -437,7 +440,7 @@ export function createAgentsRouter(prisma, agentRunner) {
         cutoffDate: cutoff
       });
     } catch (error) {
-      console.error('Error cleaning up executions:', error);
+      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to clean up executions');
       res.status(500).json({ error: 'Failed to clean up executions' });
     }
   });
@@ -454,7 +457,7 @@ export function createAgentsRouter(prisma, agentRunner) {
       const status = agentRunner.getStatus();
       res.json(status);
     } catch (error) {
-      console.error('Error fetching runner status:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch runner status');
       res.status(500).json({ error: 'Failed to fetch runner status' });
     }
   });

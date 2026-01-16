@@ -10,7 +10,9 @@ import { Router } from 'express';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { readFileSync, existsSync, writeFileSync } from 'fs';
+import { createLogger } from '../services/logger.js';
 
+const log = createLogger('users-firewall');
 const execAsync = promisify(exec);
 
 // Default Authentik URL from env (can be overridden in settings)
@@ -207,7 +209,7 @@ export function createUsersFirewallRouter(prisma) {
         }
       });
     } catch (error) {
-      console.error('Error listing Authentik users:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to list authentik users');
       res.status(500).json({ error: error.message });
     }
   });
@@ -236,7 +238,7 @@ export function createUsersFirewallRouter(prisma) {
         attributes: user.attributes || {}
       });
     } catch (error) {
-      console.error('Error getting Authentik user:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get authentik user');
       res.status(500).json({ error: error.message });
     }
   });
@@ -284,7 +286,7 @@ export function createUsersFirewallRouter(prisma) {
         }
       });
     } catch (error) {
-      console.error('Error creating Authentik user:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to create authentik user');
       res.status(500).json({ error: error.message });
     }
   });
@@ -320,7 +322,7 @@ export function createUsersFirewallRouter(prisma) {
         }
       });
     } catch (error) {
-      console.error('Error updating Authentik user:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to update authentik user');
       res.status(500).json({ error: error.message });
     }
   });
@@ -344,7 +346,7 @@ export function createUsersFirewallRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Error setting password:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to set password');
       res.status(500).json({ error: error.message });
     }
   });
@@ -364,7 +366,7 @@ export function createUsersFirewallRouter(prisma) {
 
       res.json({ success: true, isActive });
     } catch (error) {
-      console.error('Error toggling user status:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to toggle user status');
       res.status(500).json({ error: error.message });
     }
   });
@@ -382,7 +384,7 @@ export function createUsersFirewallRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Error deleting Authentik user:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to delete authentik user');
       res.status(500).json({ error: error.message });
     }
   });
@@ -405,7 +407,7 @@ export function createUsersFirewallRouter(prisma) {
         }))
       });
     } catch (error) {
-      console.error('Error listing Authentik groups:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to list authentik groups');
       res.status(500).json({ error: error.message });
     }
   });
@@ -469,7 +471,7 @@ export function createUsersFirewallRouter(prisma) {
 
       res.json({ users, count: users.length });
     } catch (error) {
-      console.error('Error listing server users:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to list server users');
       res.status(500).json({ error: 'Failed to list users' });
     }
   });
@@ -508,7 +510,7 @@ export function createUsersFirewallRouter(prisma) {
         user: { username, fullName, shell, groups }
       });
     } catch (error) {
-      console.error('Error creating server user:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to create server user');
       res.status(500).json({ error: error.message || 'Failed to create user' });
     }
   });
@@ -559,7 +561,7 @@ export function createUsersFirewallRouter(prisma) {
 
       res.json({ success: true, username });
     } catch (error) {
-      console.error('Error updating server user:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to update server user');
       res.status(500).json({ error: error.message || 'Failed to update user' });
     }
   });
@@ -581,7 +583,7 @@ export function createUsersFirewallRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Error setting password:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to set password');
       res.status(500).json({ error: error.message || 'Failed to set password' });
     }
   });
@@ -608,7 +610,7 @@ export function createUsersFirewallRouter(prisma) {
 
       res.json({ success: true, username, homeRemoved: removeHome === 'true' });
     } catch (error) {
-      console.error('Error deleting server user:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to delete server user');
       res.status(500).json({ error: error.message || 'Failed to delete user' });
     }
   });
@@ -637,7 +639,7 @@ export function createUsersFirewallRouter(prisma) {
 
       res.json({ groups, count: groups.length });
     } catch (error) {
-      console.error('Error listing server groups:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to list server groups');
       res.status(500).json({ error: 'Failed to list groups' });
     }
   });
@@ -654,7 +656,7 @@ export function createUsersFirewallRouter(prisma) {
 
       res.json({ shells });
     } catch (error) {
-      console.error('Error listing shells:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to list shells');
       res.json({ shells: ['/bin/bash', '/bin/sh', '/usr/bin/zsh', '/bin/false', '/usr/sbin/nologin'] });
     }
   });
@@ -728,7 +730,7 @@ export function createUsersFirewallRouter(prisma) {
         raw: result.stdout
       });
     } catch (error) {
-      console.error('Error getting firewall status:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get firewall status');
       res.status(500).json({ error: 'Failed to get firewall status', details: error.message });
     }
   });
@@ -762,7 +764,7 @@ export function createUsersFirewallRouter(prisma) {
 
       res.json({ rules, count: rules.length });
     } catch (error) {
-      console.error('Error listing firewall rules:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to list firewall rules');
       res.status(500).json({ error: 'Failed to list firewall rules' });
     }
   });
@@ -778,7 +780,7 @@ export function createUsersFirewallRouter(prisma) {
       }
       res.json({ success: true, message: 'Firewall enabled' });
     } catch (error) {
-      console.error('Error enabling firewall:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to enable firewall');
       res.status(500).json({ error: 'Failed to enable firewall' });
     }
   });
@@ -794,7 +796,7 @@ export function createUsersFirewallRouter(prisma) {
       }
       res.json({ success: true, message: 'Firewall disabled' });
     } catch (error) {
-      console.error('Error disabling firewall:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to disable firewall');
       res.status(500).json({ error: 'Failed to disable firewall' });
     }
   });
@@ -868,7 +870,7 @@ export function createUsersFirewallRouter(prisma) {
         rule: { action, direction, port, protocol, from, to, comment }
       });
     } catch (error) {
-      console.error('Error adding firewall rule:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to add firewall rule');
       res.status(500).json({ error: error.message || 'Failed to add firewall rule' });
     }
   });
@@ -911,7 +913,7 @@ export function createUsersFirewallRouter(prisma) {
 
       res.json({ success: true, message: `Rule ${number} deleted` });
     } catch (error) {
-      console.error('Error deleting firewall rule:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to delete firewall rule');
       res.status(500).json({ error: error.message || 'Failed to delete rule' });
     }
   });
@@ -941,7 +943,7 @@ export function createUsersFirewallRouter(prisma) {
 
       res.json({ success: true, direction, policy });
     } catch (error) {
-      console.error('Error setting default policy:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to set default policy');
       res.status(500).json({ error: 'Failed to set default policy' });
     }
   });
@@ -957,7 +959,7 @@ export function createUsersFirewallRouter(prisma) {
       }
       res.json({ success: true, message: 'Firewall reset to defaults. Remember to re-enable and add essential rules!' });
     } catch (error) {
-      console.error('Error resetting firewall:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to reset firewall');
       res.status(500).json({ error: 'Failed to reset firewall' });
     }
   });
@@ -981,7 +983,7 @@ export function createUsersFirewallRouter(prisma) {
 
       res.json({ success: true, level });
     } catch (error) {
-      console.error('Error setting logging level:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to set logging level');
       res.status(500).json({ error: 'Failed to set logging level' });
     }
   });
@@ -1002,7 +1004,7 @@ export function createUsersFirewallRouter(prisma) {
 
       res.json({ apps });
     } catch (error) {
-      console.error('Error listing app profiles:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to list app profiles');
       res.status(500).json({ error: 'Failed to list application profiles' });
     }
   });
@@ -1028,7 +1030,7 @@ export function createUsersFirewallRouter(prisma) {
         info: result.stdout.trim()
       });
     } catch (error) {
-      console.error('Error getting app info:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get app info');
       res.status(500).json({ error: 'Failed to get app info' });
     }
   });
@@ -1145,7 +1147,7 @@ export function createUsersFirewallRouter(prisma) {
         message: logs.length === 0 ? 'No UFW logs found. Ensure UFW logging is enabled (ufw logging on).' : null
       });
     } catch (error) {
-      console.error('Error fetching firewall logs:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch firewall logs');
       res.status(500).json({ error: 'Failed to fetch firewall logs' });
     }
   });
@@ -1176,7 +1178,7 @@ export function createUsersFirewallRouter(prisma) {
         res.json({ success: true, message: 'SSH rule already exists', created: false });
       }
     } catch (error) {
-      console.error('Error ensuring SSH rule:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to ensure SSH rule');
       res.status(500).json({ error: 'Failed to ensure SSH rule' });
     }
   });
@@ -1239,7 +1241,7 @@ export function createUsersFirewallRouter(prisma) {
         }
       } catch (e) {
         // Continue without listening ports
-        console.log('[Firewall] Could not scan listening ports:', e.message);
+        log.warn({ error: e.message }, 'could not scan listening ports');
       }
 
       // Step 4: Combine all ports (published routes + listening)
@@ -1320,7 +1322,7 @@ export function createUsersFirewallRouter(prisma) {
         details: results
       });
     } catch (error) {
-      console.error('Error syncing project ports to firewall:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to sync project ports to firewall');
       res.status(500).json({ error: error.message || 'Failed to sync project ports' });
     }
   });
@@ -1416,7 +1418,7 @@ export function createUsersFirewallRouter(prisma) {
         }
       });
     } catch (error) {
-      console.error('Error getting project ports:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get project ports');
       res.status(500).json({ error: error.message });
     }
   });

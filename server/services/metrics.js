@@ -6,6 +6,9 @@
 import os from 'os';
 import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
+import { createLogger } from './logger.js';
+
+const log = createLogger('metrics');
 
 export class MetricsCollector {
   constructor(prisma, options = {}) {
@@ -30,7 +33,7 @@ export class MetricsCollector {
       this.collectAndStore();
     }, this.intervalMs);
 
-    console.log(`Metrics collector started (interval: ${this.intervalMs}ms)`);
+    log.info({ intervalMs: this.intervalMs }, 'metrics collector started');
   }
 
   /**
@@ -42,7 +45,7 @@ export class MetricsCollector {
       this.timer = null;
     }
     this.isRunning = false;
-    console.log('Metrics collector stopped');
+    log.info('metrics collector stopped');
   }
 
   /**
@@ -168,7 +171,7 @@ export class MetricsCollector {
       await this.cleanup();
 
     } catch (error) {
-      console.error('Error collecting metrics:', error);
+      log.error({ error: error.message }, 'error collecting metrics');
     }
   }
 
@@ -186,7 +189,7 @@ export class MetricsCollector {
         }
       });
     } catch (error) {
-      console.error('Error cleaning up metrics:', error);
+      log.error({ error: error.message }, 'error cleaning up metrics');
     }
   }
 
@@ -214,7 +217,7 @@ export class MetricsCollector {
 
       return metrics;
     } catch (error) {
-      console.error('Error getting metric history:', error);
+      log.error({ error: error.message, type }, 'error getting metric history');
       return [];
     }
   }
@@ -247,7 +250,7 @@ export class MetricsCollector {
         samples: result._count
       };
     } catch (error) {
-      console.error('Error getting metric stats:', error);
+      log.error({ error: error.message, type }, 'error getting metric stats');
       return null;
     }
   }
@@ -267,7 +270,7 @@ export function createMetricsRouter(prisma, collector, Router) {
       const metrics = collector.collectMetrics();
       res.json(metrics);
     } catch (error) {
-      console.error('Error getting current metrics:', error);
+      log.error({ error: error.message }, 'error getting current metrics');
       res.status(500).json({ error: 'Failed to get metrics' });
     }
   });
@@ -292,7 +295,7 @@ export function createMetricsRouter(prisma, collector, Router) {
         data: metrics
       });
     } catch (error) {
-      console.error('Error getting metric history:', error);
+      log.error({ error: error.message, type: req.params.type }, 'error getting metric history');
       res.status(500).json({ error: 'Failed to get history' });
     }
   });
@@ -313,7 +316,7 @@ export function createMetricsRouter(prisma, collector, Router) {
 
       res.json(stats);
     } catch (error) {
-      console.error('Error getting metric stats:', error);
+      log.error({ error: error.message, type: req.params.type }, 'error getting metric stats');
       res.status(500).json({ error: 'Failed to get stats' });
     }
   });
@@ -344,7 +347,7 @@ export function createMetricsRouter(prisma, collector, Router) {
         }
       });
     } catch (error) {
-      console.error('Error getting metrics overview:', error);
+      log.error({ error: error.message }, 'error getting metrics overview');
       res.status(500).json({ error: 'Failed to get overview' });
     }
   });

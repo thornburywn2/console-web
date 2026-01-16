@@ -8,6 +8,9 @@
 import express from 'express';
 import os from 'os';
 import { claudeFlowManager } from '../services/claudeFlowManager.js';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('claude-flow');
 
 const PROJECTS_DIR = process.env.PROJECTS_DIR || `${os.homedir()}/Projects`;
 
@@ -37,7 +40,7 @@ export function createClaudeFlowRouter(prisma, io) {
         templates: Object.keys(templates)
       });
     } catch (error) {
-      console.error('Error getting Claude Flow status:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get Claude Flow status');
       res.status(500).json({ error: 'Failed to get status' });
     }
   });
@@ -52,7 +55,7 @@ export function createClaudeFlowRouter(prisma, io) {
       const result = await claudeFlowManager.install(global);
       res.json(result);
     } catch (error) {
-      console.error('Error installing Claude Flow:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to install Claude Flow');
       res.status(500).json({ error: error.message || 'Failed to install' });
     }
   });
@@ -69,7 +72,7 @@ export function createClaudeFlowRouter(prisma, io) {
       const result = await claudeFlowManager.initProject(projectPath);
       res.json(result);
     } catch (error) {
-      console.error('Error initializing Claude Flow:', error);
+      log.error({ error: error.message, project: req.params.project, requestId: req.id }, 'failed to initialize Claude Flow');
       res.status(500).json({ error: error.message || 'Failed to initialize' });
     }
   });
@@ -184,7 +187,7 @@ export function createClaudeFlowRouter(prisma, io) {
             }
           });
         } catch (dbError) {
-          console.error('Failed to store swarm:', dbError);
+          log.error({ error: dbError.message, swarmId: swarm.id }, 'failed to store swarm in database');
         }
       }
 
@@ -193,7 +196,7 @@ export function createClaudeFlowRouter(prisma, io) {
         swarm: swarm.getInfo()
       });
     } catch (error) {
-      console.error('Error creating swarm:', error);
+      log.error({ error: error.message, projectPath: req.body.projectPath, requestId: req.id }, 'failed to create swarm');
       res.status(500).json({ error: error.message || 'Failed to create swarm' });
     }
   });
@@ -238,7 +241,7 @@ export function createClaudeFlowRouter(prisma, io) {
             data: { status: 'stopped' }
           });
         } catch (dbError) {
-          console.error('Failed to update swarm status:', dbError);
+          log.error({ error: dbError.message, swarmId: req.params.id }, 'failed to update swarm status in database');
         }
       }
 
@@ -348,7 +351,7 @@ export function createClaudeFlowRouter(prisma, io) {
       const result = await claudeFlowManager.runQuickTask(projectPath, task, role);
       res.json(result);
     } catch (error) {
-      console.error('Error running task:', error);
+      log.error({ error: error.message, projectPath: req.body.projectPath, requestId: req.id }, 'failed to run quick task');
       res.status(500).json({ error: error.message || 'Failed to run task' });
     }
   });

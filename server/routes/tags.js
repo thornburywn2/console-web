@@ -4,6 +4,9 @@
  */
 
 import { Router } from 'express';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('tags');
 
 export function createTagsRouter(prisma) {
   const router = Router();
@@ -22,7 +25,7 @@ export function createTagsRouter(prisma) {
 
       res.json(tags);
     } catch (error) {
-      console.error('Error fetching tags:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch tags');
       res.status(500).json({ error: 'Failed to fetch tags' });
     }
   });
@@ -55,7 +58,7 @@ export function createTagsRouter(prisma) {
 
       res.status(201).json(tag);
     } catch (error) {
-      console.error('Error creating tag:', error);
+      log.error({ error: error.message, tagName: req.body.name, requestId: req.id }, 'failed to create tag');
       if (error.code === 'P2002') {
         return res.status(409).json({ error: 'A tag with this name already exists' });
       }
@@ -98,7 +101,7 @@ export function createTagsRouter(prisma) {
 
       res.json(tag);
     } catch (error) {
-      console.error('Error fetching tag:', error);
+      log.error({ error: error.message, tagId: req.params.id, requestId: req.id }, 'failed to fetch tag');
       res.status(500).json({ error: 'Failed to fetch tag' });
     }
   });
@@ -125,7 +128,7 @@ export function createTagsRouter(prisma) {
 
       res.json(tag);
     } catch (error) {
-      console.error('Error updating tag:', error);
+      log.error({ error: error.message, tagId: req.params.id, requestId: req.id }, 'failed to update tag');
       if (error.code === 'P2025') {
         return res.status(404).json({ error: 'Tag not found' });
       }
@@ -145,7 +148,7 @@ export function createTagsRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Error deleting tag:', error);
+      log.error({ error: error.message, tagId: req.params.id, requestId: req.id }, 'failed to delete tag');
       if (error.code === 'P2025') {
         return res.status(404).json({ error: 'Tag not found' });
       }
@@ -184,7 +187,7 @@ export function createTagsRouter(prisma) {
       const sessions = assignments.map(a => a.session);
       res.json(sessions);
     } catch (error) {
-      console.error('Error fetching sessions for tag:', error);
+      log.error({ error: error.message, tagId: req.params.id, requestId: req.id }, 'failed to fetch sessions for tag');
       res.status(500).json({ error: 'Failed to fetch sessions' });
     }
   });

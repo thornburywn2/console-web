@@ -5,6 +5,9 @@
 
 import { Router } from 'express';
 import crypto from 'crypto';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('collaboration');
 
 // ============================================
 // Share Router - Session sharing functionality
@@ -56,7 +59,7 @@ export function createShareRouter(prisma) {
         type,
       });
     } catch (error) {
-      console.error('Failed to create share link:', error);
+      log.error({ error: error.message, sessionId: req.body.sessionId, requestId: req.id }, 'failed to create share link');
       res.status(500).json({ error: 'Failed to create share link' });
     }
   });
@@ -104,7 +107,7 @@ export function createShareRouter(prisma) {
         viewCount: share.viewCount + 1,
       });
     } catch (error) {
-      console.error('Failed to get shared session:', error);
+      log.error({ error: error.message, token: req.params.token, requestId: req.id }, 'failed to get shared session');
       res.status(500).json({ error: 'Failed to get shared session' });
     }
   });
@@ -120,7 +123,7 @@ export function createShareRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Failed to revoke share:', error);
+      log.error({ error: error.message, shareId: req.params.id, requestId: req.id }, 'failed to revoke share');
       res.status(500).json({ error: 'Failed to revoke share' });
     }
   });
@@ -137,7 +140,7 @@ export function createShareRouter(prisma) {
 
       res.json({ shares });
     } catch (error) {
-      console.error('Failed to list shares:', error);
+      log.error({ error: error.message, sessionId: req.params.sessionId, requestId: req.id }, 'failed to list shares');
       res.status(500).json({ error: 'Failed to list shares' });
     }
   });
@@ -175,7 +178,7 @@ export function createActivityRouter(prisma) {
 
       res.json({ activities });
     } catch (error) {
-      console.error('Failed to fetch activities:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch activities');
       // Return empty for graceful degradation
       res.json({ activities: [] });
     }
@@ -200,7 +203,7 @@ export function createActivityRouter(prisma) {
 
       res.json({ activity });
     } catch (error) {
-      console.error('Failed to log activity:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to log activity');
       res.status(500).json({ error: 'Failed to log activity' });
     }
   });
@@ -239,7 +242,7 @@ export function createActivityRouter(prisma) {
         }, {}),
       });
     } catch (error) {
-      console.error('Failed to get activity summary:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get activity summary');
       res.json({ total: 0, byType: {}, byProject: {} });
     }
   });
@@ -271,7 +274,7 @@ export function createCommentsRouter(prisma) {
 
       res.json({ comments });
     } catch (error) {
-      console.error('Failed to fetch comments:', error);
+      log.error({ error: error.message, sessionId: req.params.sessionId, requestId: req.id }, 'failed to fetch comments');
       res.json({ comments: [] });
     }
   });
@@ -296,7 +299,7 @@ export function createCommentsRouter(prisma) {
 
       res.json({ counts });
     } catch (error) {
-      console.error('Failed to fetch comment counts:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch comment counts');
       res.json({ counts: {} });
     }
   });
@@ -337,7 +340,7 @@ export function createCommentsRouter(prisma) {
 
       res.json({ comment });
     } catch (error) {
-      console.error('Failed to add comment:', error);
+      log.error({ error: error.message, sessionId: req.params.sessionId, requestId: req.id }, 'failed to add comment');
       res.status(500).json({ error: 'Failed to add comment' });
     }
   });
@@ -353,7 +356,7 @@ export function createCommentsRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Failed to delete comment:', error);
+      log.error({ error: error.message, commentId: req.params.commentId, requestId: req.id }, 'failed to delete comment');
       res.status(500).json({ error: 'Failed to delete comment' });
     }
   });
@@ -376,7 +379,7 @@ export function createTeamRouter(prisma) {
 
       res.json({ members });
     } catch (error) {
-      console.error('Failed to fetch team members:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch team members');
       // Return demo data for development
       res.json({
         members: [
@@ -406,7 +409,7 @@ export function createTeamRouter(prisma) {
 
       res.json({ member });
     } catch (error) {
-      console.error('Failed to add team member:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to add team member');
       res.status(500).json({ error: 'Failed to add team member' });
     }
   });
@@ -424,7 +427,7 @@ export function createTeamRouter(prisma) {
 
       res.json({ member });
     } catch (error) {
-      console.error('Failed to update member status:', error);
+      log.error({ error: error.message, memberId: req.params.memberId, requestId: req.id }, 'failed to update member status');
       res.status(500).json({ error: 'Failed to update status' });
     }
   });
@@ -440,7 +443,7 @@ export function createTeamRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Failed to remove team member:', error);
+      log.error({ error: error.message, memberId: req.params.memberId, requestId: req.id }, 'failed to remove team member');
       res.status(500).json({ error: 'Failed to remove member' });
     }
   });
@@ -493,7 +496,7 @@ export function createHandoffRouter(prisma) {
 
       res.json({ handoff });
     } catch (error) {
-      console.error('Failed to initiate handoff:', error);
+      log.error({ error: error.message, sessionId: req.params.sessionId, requestId: req.id }, 'failed to initiate handoff');
       res.status(500).json({ error: 'Failed to initiate handoff' });
     }
   });
@@ -523,7 +526,7 @@ export function createHandoffRouter(prisma) {
 
       res.json({ handoff, success: true });
     } catch (error) {
-      console.error('Failed to accept handoff:', error);
+      log.error({ error: error.message, handoffId: req.params.handoffId, requestId: req.id }, 'failed to accept handoff');
       res.status(500).json({ error: 'Failed to accept handoff' });
     }
   });
@@ -544,7 +547,7 @@ export function createHandoffRouter(prisma) {
 
       res.json({ handoff, success: true });
     } catch (error) {
-      console.error('Failed to decline handoff:', error);
+      log.error({ error: error.message, handoffId: req.params.handoffId, requestId: req.id }, 'failed to decline handoff');
       res.status(500).json({ error: 'Failed to decline handoff' });
     }
   });
@@ -565,7 +568,7 @@ export function createHandoffRouter(prisma) {
 
       res.json({ handoffs });
     } catch (error) {
-      console.error('Failed to fetch pending handoffs:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch pending handoffs');
       res.json({ handoffs: [] });
     }
   });

@@ -17,6 +17,19 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
 
+// Structured logging
+import logger, {
+  createLogger,
+  requestLogger,
+  createSocketLogger,
+  logStartup,
+  logShutdown,
+  logError,
+  logSecurityEvent
+} from './services/logger.js';
+
+const log = createLogger('server');
+
 // Import authentication middleware
 import { authentikAuth, createAuthRouter } from './middleware/authentik.js';
 
@@ -190,9 +203,19 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
+// Structured request logging - adds req.id and req.log to all requests
+app.use(requestLogger);
+
 // =============================================================================
 // HEALTH CHECK (Unauthenticated - for watcher service)
 // =============================================================================
+
+// Create component-specific loggers
+const httpLog = createLogger('http');
+const dbLog = createLogger('database');
+const socketLog = createLogger('socket');
+const sessionLog = createLogger('session');
+const startupLog = createLogger('startup');
 
 app.get('/api/watcher/health', async (req, res) => {
   const startTime = Date.now();
@@ -207,7 +230,7 @@ app.get('/api/watcher/health', async (req, res) => {
       dbLatency = Date.now() - dbStart;
       dbHealthy = true;
     } catch (dbError) {
-      console.error('[HealthCheck] Database check failed:', dbError.message);
+      dbLog.error({ error: dbError.message }, 'health check database query failed');
     }
 
     // Get memory usage
@@ -236,11 +259,12 @@ app.get('/api/watcher/health', async (req, res) => {
       responseTimeMs: Date.now() - startTime,
     });
   } catch (error) {
-    console.error('[HealthCheck] Health check failed:', error.message);
+    httpLog.error({ error: error.message, stack: error.stack }, 'health check failed');
     res.status(503).json({
       status: 'unhealthy',
       error: error.message,
       timestamp: new Date().toISOString(),
+      requestId: req.id,
     });
   }
 });
@@ -312,8 +336,8 @@ app.get('/api/sessions/persisted', async (req, res) => {
     });
     res.json(sessions);
   } catch (error) {
-    console.error('Error getting persisted sessions:', error);
-    res.status(500).json({ error: 'Failed to get sessions' });
+    sessionLog.error({ error: error.message, requestId: req.id }, 'failed to get persisted sessions');
+    res.status(500).json({ error: 'Failed to get sessions', requestId: req.id });
   }
 });
 
@@ -421,7 +445,7 @@ const MIN_ACTIVITY_MS = 500; // Minimum activity time before considering complet
 
 // Initialize Code Puppy Initializer
 const codePuppyInitializer = createInitializer(prisma);
-console.log('✅ Code Puppy Initializer ready');
+startupLog.info('Code Puppy Initializer ready');
 
 // =============================================================================
 // BACKGROUND AGENTS SYSTEM
@@ -437,8 +461,9 @@ app.use('/api/agents', createAgentsRouter(prisma, agentRunner));
 app.use('/api/marketplace', createMarketplaceRouter(prisma));
 
 // Initialize agent runner on startup
+const agentLog = createLogger('agent');
 agentRunner.initialize().catch(err => {
-  console.error('[AgentRunner] Failed to initialize:', err);
+  agentLog.error({ error: err.message, stack: err.stack }, 'agent runner failed to initialize');
 });
 
 // =============================================================================
@@ -534,8 +559,9 @@ app.get('/api/config', (req, res) => {
 });
 
 // Initialize MCP manager on startup
+const mcpLog = createLogger('mcp');
 mcpManager.initialize().catch(err => {
-  console.error('[MCPManager] Failed to initialize:', err);
+  mcpLog.error({ error: err.message, stack: err.stack }, 'MCP manager failed to initialize');
 });
 
 // =============================================================================
@@ -560,7 +586,7 @@ async function getOrCreateProject(projectPath) {
     }
     return project;
   } catch (error) {
-    console.error('Error getting/creating project:', error);
+    dbLog.error({ error: error.message, projectPath }, 'failed to get/create project');
     return null;
   }
 }
@@ -612,7 +638,7 @@ async function saveSessionState(projectPath, sessionName, terminalSize = null, w
     await updateProjectAccess(projectPath);
     return session;
   } catch (error) {
-    console.error('Error saving session state:', error);
+    sessionLog.error({ error: error.message, projectPath, sessionName }, 'failed to save session state');
     return null;
   }
 }
@@ -634,7 +660,7 @@ async function getSessionState(projectPath, sessionName) {
       }
     });
   } catch (error) {
-    console.error('Error getting session state:', error);
+    sessionLog.error({ error: error.message, projectPath, sessionName }, 'failed to get session state');
     return null;
   }
 }
@@ -657,8 +683,9 @@ async function markSessionDisconnected(projectPath, sessionName) {
         lastActiveAt: new Date()
       }
     });
+    sessionLog.debug({ projectPath, sessionName }, 'session marked disconnected');
   } catch (error) {
-    console.error('Error marking session disconnected:', error);
+    sessionLog.error({ error: error.message, projectPath, sessionName }, 'failed to mark session disconnected');
   }
 }
 
@@ -675,7 +702,7 @@ async function getUserSettings() {
     }
     return settings;
   } catch (error) {
-    console.error('Error getting user settings:', error);
+    dbLog.error({ error: error.message }, 'failed to get user settings');
     return null;
   }
 }
@@ -691,7 +718,7 @@ async function updateUserSettings(data) {
       create: { id: 'default', ...data }
     });
   } catch (error) {
-    console.error('Error updating user settings:', error);
+    dbLog.error({ error: error.message }, 'failed to update user settings');
     return null;
   }
 }
@@ -765,7 +792,7 @@ function shpoolSessionExists(sessionName) {
   // Validate session name to prevent command injection
   const validName = validateSessionName(sessionName);
   if (!validName) {
-    console.warn(`[SECURITY] Invalid session name rejected: ${sessionName}`);
+    log.warn({ sessionName }, 'invalid session name rejected');
     return false;
   }
   try {
@@ -913,7 +940,7 @@ function buildAICommand(config) {
         // If Claude MCP config exists, we can sync it (done on first run)
         if (existsSync(claudeMcpConfig)) {
           // The sync is handled by the Code Puppy dashboard or can be done manually
-          console.log('[Hybrid Mode] Claude MCP config available for sync');
+          log.debug('hybrid mode: Claude MCP config available for sync');
         }
         return cmd;
       } else {
@@ -1129,7 +1156,7 @@ function calculateProjectCompletion(projectPath) {
     }
 
   } catch (error) {
-    console.error('Error calculating completion:', error);
+    log.error({ error: error.message, projectPath }, 'error calculating completion');
   }
 
   // Calculate total percentage
@@ -1230,7 +1257,7 @@ function detectTechnologies(projectPath) {
  */
 async function getProjects() {
   if (!existsSync(PROJECTS_DIR)) {
-    console.error(`Projects directory not found: ${PROJECTS_DIR}`);
+    log.error({ projectsDir: PROJECTS_DIR }, 'projects directory not found');
     return [];
   }
 
@@ -1297,7 +1324,7 @@ async function getProjects() {
 
     return projectsWithSettings;
   } catch (error) {
-    console.error('Error reading projects directory:', error);
+    log.error({ error: error.message }, 'error reading projects directory');
     return [];
   }
 }
@@ -1367,7 +1394,7 @@ app.get('/api/admin/project-stats', async (req, res) => {
 
     res.json(stats);
   } catch (error) {
-    console.error('Error getting project stats:', error);
+    log.error({ error: error.message, projectPath: req.query.path }, 'error getting project stats');
     res.status(500).json({ error: 'Failed to get project stats' });
   }
 });
@@ -1594,11 +1621,11 @@ Template: PROJECT-CLAUDE-TEMPLATE.md v1.0.0
       lastModified: new Date().toISOString()
     };
 
-    console.log(`[API] Created new project: ${name} at ${projectPath} (skipPermissions: ${skipPermissions})`);
+    log.info({ name, projectPath, skipPermissions }, 'created new project');
 
     res.status(201).json(project);
   } catch (error) {
-    console.error('[API] Error creating project:', error);
+    log.error({ error: error.message, name: req.body.name }, 'error creating project');
     res.status(500).json({ error: 'Failed to create project' });
   }
 });
@@ -1637,7 +1664,7 @@ app.patch('/api/projects/:projectName/settings', async (req, res) => {
       });
     }
 
-    console.log(`[API] Updated project settings for ${projectName}: skipPermissions=${skipPermissions}`);
+    log.info({ projectName, skipPermissions }, 'updated project settings');
 
     res.json({
       success: true,
@@ -1648,7 +1675,7 @@ app.patch('/api/projects/:projectName/settings', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('[API] Error updating project settings:', error);
+    log.error({ error: error.message, projectName: req.params.projectName }, 'error updating project settings');
     res.status(500).json({ error: 'Failed to update project settings' });
   }
 });
@@ -1671,7 +1698,7 @@ app.get('/api/projects/:projectName/settings', async (req, res) => {
       skipPermissions: project?.skipPermissions || false,
     });
   } catch (error) {
-    console.error('[API] Error getting project settings:', error);
+    log.error({ error: error.message, projectName: req.params.projectName }, 'error getting project settings');
     res.status(500).json({ error: 'Failed to get project settings' });
   }
 });
@@ -1755,7 +1782,7 @@ app.post('/api/projects/clone', async (req, res) => {
       }
     }
 
-    console.log(`[API] Cloned project from ${sourcePath} to ${newPath}`);
+    log.info({ sourcePath, newPath }, 'cloned project');
 
     res.status(201).json({
       success: true,
@@ -1765,7 +1792,7 @@ app.post('/api/projects/clone', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('[API] Error cloning project:', error);
+    log.error({ error: error.message }, 'error cloning project');
     res.status(500).json({ error: 'Failed to clone project' });
   }
 });
@@ -1852,7 +1879,7 @@ app.get('/api/admin/history', async (req, res) => {
       offset
     });
   } catch (error) {
-    console.error('Error reading history:', error);
+    log.error({ error: error.message }, 'error reading history');
     res.status(500).json({ error: 'Failed to read history' });
   }
 });
@@ -1888,7 +1915,7 @@ app.get('/api/admin/sessions/:projectName', (req, res) => {
 
     res.json({ sessions });
   } catch (error) {
-    console.error('Error reading sessions:', error);
+    log.error({ error: error.message, projectName: req.params.projectName }, 'error reading sessions');
     res.status(500).json({ error: 'Failed to read sessions' });
   }
 });
@@ -1916,7 +1943,7 @@ app.get('/api/admin/mcp', (req, res) => {
       permissions: localSettings.permissions || {}
     });
   } catch (error) {
-    console.error('Error reading MCP config:', error);
+    log.error({ error: error.message }, 'error reading MCP config');
     res.status(500).json({ error: 'Failed to read MCP configuration' });
   }
 });
@@ -1943,7 +1970,7 @@ app.put('/api/admin/mcp', (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Error updating MCP config:', error);
+    log.error({ error: error.message }, 'error updating MCP config');
     res.status(500).json({ error: 'Failed to update MCP configuration' });
   }
 });
@@ -1976,7 +2003,7 @@ app.get('/api/admin/claude-md/:projectName', (req, res) => {
       projectPath
     });
   } catch (error) {
-    console.error('Error reading CLAUDE.md:', error);
+    log.error({ error: error.message, projectName: req.params.projectName }, 'error reading CLAUDE.md');
     res.status(500).json({ error: 'Failed to read CLAUDE.md' });
   }
 });
@@ -2004,7 +2031,7 @@ app.put('/api/admin/claude-md/:projectName', (req, res) => {
       size: stat.size
     });
   } catch (error) {
-    console.error('Error writing CLAUDE.md:', error);
+    log.error({ error: error.message, projectName: req.params.projectName }, 'error writing CLAUDE.md');
     res.status(500).json({ error: 'Failed to write CLAUDE.md' });
   }
 });
@@ -2082,7 +2109,7 @@ Add project description here.
       updated: true
     });
   } catch (error) {
-    console.error('Error updating port in CLAUDE.md:', error);
+    log.error({ error: error.message, projectName: req.params.projectName, port: req.body.port }, 'error updating port in CLAUDE.md');
     res.status(500).json({ error: 'Failed to update port in CLAUDE.md' });
   }
 });
@@ -2097,7 +2124,7 @@ app.post('/api/projects/:projectName/restart', async (req, res) => {
     // Validate project name to prevent command injection
     const safeProjectName = projectName.replace(/[^a-zA-Z0-9_-]/g, '_');
     if (safeProjectName !== projectName) {
-      console.warn(`[SECURITY] Project name sanitized: ${projectName} -> ${safeProjectName}`);
+      log.warn({ original: projectName, sanitized: safeProjectName }, 'project name sanitized');
     }
 
     const projectPath = join(PROJECTS_DIR, safeProjectName);
@@ -2106,7 +2133,7 @@ app.post('/api/projects/:projectName/restart', async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    console.log(`[Restart] Restarting project: ${safeProjectName}`);
+    log.info({ project: safeProjectName }, 'restarting project');
 
     // Find the session for this project - use safe name
     const sessionName = `project-${safeProjectName}`;
@@ -2116,7 +2143,7 @@ app.post('/api/projects/:projectName/restart', async (req, res) => {
       const { stdout: listOutput } = await execAsync('shpool list 2>/dev/null || echo ""');
       if (listOutput.includes(sessionName)) {
         await execAsync(`shpool kill "${sessionName}" 2>/dev/null`);
-        console.log(`[Restart] Killed existing session: ${sessionName}`);
+        log.info({ sessionName }, 'killed existing session');
         // Small delay to ensure session is fully killed
         await new Promise(resolve => setTimeout(resolve, 500));
       }
@@ -2153,7 +2180,7 @@ app.post('/api/projects/:projectName/restart', async (req, res) => {
     if (startCmd) {
       const logFile = join(projectPath, '.console-web-restart.log');
       await execAsync(`cd "${projectPath}" && nohup ${startCmd} > "${logFile}" 2>&1 &`);
-      console.log(`[Restart] Started background process with: ${startCmd}`);
+      log.info({ command: startCmd, projectPath }, 'started background process');
 
       res.json({
         success: true,
@@ -2174,7 +2201,7 @@ app.post('/api/projects/:projectName/restart', async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('Error restarting project:', error);
+    log.error({ error: error.message, projectName: req.params.projectName }, 'error restarting project');
     res.status(500).json({ error: error.message });
   }
 });
@@ -2200,7 +2227,7 @@ app.get('/api/admin/claude-md-global', (req, res) => {
       size: stat.size
     });
   } catch (error) {
-    console.error('Error reading global CLAUDE.md:', error);
+    log.error({ error: error.message }, 'error reading global CLAUDE.md');
     res.status(500).json({ error: 'Failed to read global CLAUDE.md' });
   }
 });
@@ -2222,7 +2249,7 @@ app.put('/api/admin/claude-md-global', (req, res) => {
       size: stat.size
     });
   } catch (error) {
-    console.error('Error writing global CLAUDE.md:', error);
+    log.error({ error: error.message }, 'error writing global CLAUDE.md');
     res.status(500).json({ error: 'Failed to write global CLAUDE.md' });
   }
 });
@@ -2235,7 +2262,7 @@ app.get('/api/settings', async (req, res) => {
     const settings = await getUserSettings();
     res.json(settings || {});
   } catch (error) {
-    console.error('Error getting user settings:', error);
+    log.error({ error: error.message }, 'error getting user settings');
     res.status(500).json({ error: 'Failed to get user settings' });
   }
 });
@@ -2258,7 +2285,7 @@ app.put('/api/settings', async (req, res) => {
     });
     res.json(settings);
   } catch (error) {
-    console.error('Error updating user settings:', error);
+    log.error({ error: error.message }, 'error updating user settings');
     res.status(500).json({ error: 'Failed to update user settings' });
   }
 });
@@ -2408,7 +2435,7 @@ app.get('/api/admin/system', (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error getting system info:', error);
+    log.error({ error: error.message }, 'error getting system info');
     res.status(500).json({ error: 'Failed to get system information' });
   }
 });
@@ -2454,7 +2481,7 @@ function parsePortsMdFile() {
       }
     }
   } catch (error) {
-    console.error('Error parsing PORTS.md:', error);
+    log.error({ error: error.message }, 'error parsing PORTS.md');
   }
 
   return registered;
@@ -2556,7 +2583,7 @@ function getActivePorts() {
       });
     }
   } catch (error) {
-    console.error('Error getting ports:', error);
+    log.error({ error: error.message }, 'error getting ports');
   }
 
   // Sort by port number
@@ -2606,7 +2633,7 @@ app.get('/api/docker/system', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Docker system info error:', error);
+    log.error({ error: error.message }, 'docker system info error');
     res.status(500).json({ error: 'Failed to get Docker system info', details: error.message });
   }
 });
@@ -2638,7 +2665,7 @@ app.get('/api/docker/containers', async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error('Docker containers list error:', error);
+    log.error({ error: error.message }, 'docker containers list error');
     res.status(500).json({ error: 'Failed to list containers', details: error.message });
   }
 });
@@ -2674,7 +2701,7 @@ app.get('/api/docker/containers/:id', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Docker container info error:', error);
+    log.error({ error: error.message, containerId: req.params.id }, 'docker container info error');
     res.status(500).json({ error: 'Failed to get container info', details: error.message });
   }
 });
@@ -2714,7 +2741,7 @@ app.post('/api/docker/containers/:id/:action', async (req, res) => {
 
     res.json({ success: true, action, containerId: id });
   } catch (error) {
-    console.error(`Docker container ${action} error:`, error);
+    log.error({ error: error.message, containerId: id, action }, 'docker container action error');
     res.status(500).json({ error: `Failed to ${action} container`, details: error.message });
   }
 });
@@ -2745,7 +2772,7 @@ app.get('/api/docker/containers/:id/logs', async (req, res) => {
 
     res.json({ logs: logLines });
   } catch (error) {
-    console.error('Docker logs error:', error);
+    log.error({ error: error.message, containerId: req.params.id }, 'docker logs error');
     res.status(500).json({ error: 'Failed to get container logs', details: error.message });
   }
 });
@@ -2785,7 +2812,7 @@ app.get('/api/docker/containers/:id/stats', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Docker stats error:', error);
+    log.error({ error: error.message, containerId: req.params.id }, 'docker stats error');
     res.status(500).json({ error: 'Failed to get container stats', details: error.message });
   }
 });
@@ -2840,7 +2867,7 @@ app.get('/api/docker/containers/stats', async (req, res) => {
     const results = await Promise.all(statsPromises);
     res.json({ containers: results });
   } catch (error) {
-    console.error('Docker aggregated stats error:', error);
+    log.error({ error: error.message }, 'docker aggregated stats error');
     res.status(500).json({ error: 'Failed to get container stats', details: error.message });
   }
 });
@@ -2863,7 +2890,7 @@ app.get('/api/docker/images', async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error('Docker images list error:', error);
+    log.error({ error: error.message }, 'docker images list error');
     res.status(500).json({ error: 'Failed to list images', details: error.message });
   }
 });
@@ -2878,7 +2905,7 @@ app.delete('/api/docker/images/:id', async (req, res) => {
     await image.remove({ force: force === 'true', noprune: noprune === 'true' });
     res.json({ success: true, imageId: req.params.id });
   } catch (error) {
-    console.error('Docker image remove error:', error);
+    log.error({ error: error.message, imageId: req.params.id }, 'docker image remove error');
     res.status(500).json({ error: 'Failed to remove image', details: error.message });
   }
 });
@@ -2900,7 +2927,7 @@ app.get('/api/docker/volumes', async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error('Docker volumes list error:', error);
+    log.error({ error: error.message }, 'docker volumes list error');
     res.status(500).json({ error: 'Failed to list volumes', details: error.message });
   }
 });
@@ -2923,7 +2950,7 @@ app.get('/api/docker/networks', async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error('Docker networks list error:', error);
+    log.error({ error: error.message }, 'docker networks list error');
     res.status(500).json({ error: 'Failed to list networks', details: error.message });
   }
 });
@@ -2959,7 +2986,7 @@ app.get('/api/server/status', (req, res) => {
         mountpoint: parts[5],
       };
     } catch (e) {
-      console.error('Failed to get disk info:', e);
+      log.error({ error: e.message }, 'failed to get disk info');
     }
 
     res.json({
@@ -2982,7 +3009,7 @@ app.get('/api/server/status', (req, res) => {
       network: os.networkInterfaces(),
     });
   } catch (error) {
-    console.error('Server status error:', error);
+    log.error({ error: error.message }, 'server status error');
     res.status(500).json({ error: 'Failed to get server status', details: error.message });
   }
 });
@@ -3009,7 +3036,7 @@ app.get('/api/server/services', (req, res) => {
 
     res.json(services);
   } catch (error) {
-    console.error('Services list error:', error);
+    log.error({ error: error.message }, 'services list error');
     res.status(500).json({ error: 'Failed to list services', details: error.message });
   }
 });
@@ -3028,7 +3055,7 @@ app.post('/api/server/services/:name/:action', (req, res) => {
   // Validate service name to prevent command injection
   const validServiceName = validateServiceName(name);
   if (!validServiceName) {
-    console.warn(`[SECURITY] Invalid service name rejected: ${name}`);
+    log.warn({ serviceName: name }, 'invalid service name rejected');
     return res.status(400).json({ error: 'Invalid service name' });
   }
 
@@ -3040,7 +3067,7 @@ app.post('/api/server/services/:name/:action', (req, res) => {
     });
     res.json({ success: true, action, service: validServiceName, output: output.trim() });
   } catch (error) {
-    console.error(`Service ${action} error:`, error);
+    log.error({ error: error.message, service: validServiceName, action }, 'service control error');
     res.status(500).json({ error: `Failed to ${action} service`, details: error.message });
   }
 });
@@ -3058,7 +3085,7 @@ app.get('/api/server/logs', (req, res) => {
     if (unit) {
       const validUnit = validateUnitName(unit);
       if (!validUnit) {
-        console.warn(`[SECURITY] Invalid unit name rejected: ${unit}`);
+        log.warn({ unitName: unit }, 'invalid unit name rejected');
         return res.status(400).json({ error: 'Invalid unit name' });
       }
       cmd += ` -u ${validUnit}`;
@@ -3091,7 +3118,7 @@ app.get('/api/server/logs', (req, res) => {
 
     res.json({ logs: logLines, total: logLines.length });
   } catch (error) {
-    console.error('System logs error:', error);
+    log.error({ error: error.message }, 'system logs error');
     res.status(500).json({ error: 'Failed to get system logs', details: error.message });
   }
 });
@@ -3128,12 +3155,12 @@ app.post('/api/server/reboot', (req, res) => {
       res.json({ success: true, message });
     } catch (execError) {
       // Try alternative command if first fails
-      console.error('Primary reboot command failed:', execError.message);
+      log.error({ error: execError.message }, 'primary reboot command failed');
       try {
         execSync('sudo reboot', { encoding: 'utf-8', timeout: 5000 });
         res.json({ success: true, message: 'System reboot initiated (fallback)' });
       } catch (fallbackError) {
-        console.error('Fallback reboot also failed:', fallbackError.message);
+        log.error({ error: fallbackError.message }, 'fallback reboot also failed');
         res.status(500).json({
           error: 'Failed to initiate reboot',
           details: 'sudo permission may be required. Check sudoers configuration.',
@@ -3141,7 +3168,7 @@ app.post('/api/server/reboot', (req, res) => {
       }
     }
   } catch (error) {
-    console.error('Reboot error:', error);
+    log.error({ error: error.message }, 'reboot error');
     res.status(500).json({ error: 'Failed to initiate reboot', details: error.message });
   }
 });
@@ -3154,7 +3181,7 @@ app.post('/api/server/shutdown/cancel', (req, res) => {
     execSync('sudo shutdown -c "Console.web cancelled shutdown"', { encoding: 'utf-8' });
     res.json({ success: true, message: 'Scheduled shutdown cancelled' });
   } catch (error) {
-    console.error('Cancel shutdown error:', error);
+    log.error({ error: error.message }, 'cancel shutdown error');
     res.status(500).json({ error: 'Failed to cancel shutdown', details: error.message });
   }
 });
@@ -3193,7 +3220,7 @@ app.get('/api/stack/services', async (req, res) => {
             status: c.Status,
           }));
       } catch (e) {
-        console.error(`Failed to get containers for ${key}:`, e);
+        log.error({ error: e.message, service: key }, 'failed to get containers for stack service');
       }
 
       // Determine health status
@@ -3217,7 +3244,7 @@ app.get('/api/stack/services', async (req, res) => {
 
     res.json(services);
   } catch (error) {
-    console.error('Stack services error:', error);
+    log.error({ error: error.message }, 'stack services error');
     res.status(500).json({ error: 'Failed to get stack services', details: error.message });
   }
 });
@@ -3254,7 +3281,7 @@ app.get('/api/stack/health', async (req, res) => {
       total,
     });
   } catch (error) {
-    console.error('Stack health error:', error);
+    log.error({ error: error.message }, 'stack health error');
     res.status(500).json({ error: 'Failed to get stack health', details: error.message });
   }
 });
@@ -3284,7 +3311,7 @@ app.post('/api/stack/services/:serviceId/restart', async (req, res) => {
 
     res.json({ success: true, service: serviceId, containers: results });
   } catch (error) {
-    console.error(`Stack service restart error:`, error);
+    log.error({ error: error.message, serviceId }, 'stack service restart error');
     res.status(500).json({ error: 'Failed to restart service', details: error.message });
   }
 });
@@ -3301,7 +3328,7 @@ app.get('/api/ports', (req, res) => {
     const result = getActivePorts();
     res.json(result);
   } catch (error) {
-    console.error('Error getting ports:', error);
+    log.error({ error: error.message }, 'error getting ports');
     res.status(500).json({ error: 'Failed to get port information' });
   }
 });
@@ -3314,7 +3341,7 @@ app.post('/api/ports/scan', (req, res) => {
     const result = getActivePorts();
     res.json(result);
   } catch (error) {
-    console.error('Error scanning ports:', error);
+    log.error({ error: error.message }, 'error scanning ports');
     res.status(500).json({ error: 'Port scan failed' });
   }
 });
@@ -3327,7 +3354,7 @@ app.delete('/api/ports/kill/:port', (req, res) => {
     // Validate port to prevent command injection
     const port = validatePort(req.params.port);
     if (!port) {
-      console.warn(`[SECURITY] Invalid port rejected: ${req.params.port}`);
+      log.warn({ port: req.params.port }, 'invalid port rejected');
       return res.status(400).json({ error: 'Invalid port number' });
     }
 
@@ -3353,7 +3380,7 @@ app.delete('/api/ports/kill/:port', (req, res) => {
 
     res.json({ success: true, port });
   } catch (error) {
-    console.error('Error killing port:', error);
+    log.error({ error: error.message, port: req.params.port }, 'error killing port');
     res.status(500).json({ error: 'Failed to kill process' });
   }
 });
@@ -3366,7 +3393,7 @@ app.get('/api/ports/suggest', (req, res) => {
     const { suggestedPort } = getActivePorts();
     res.json({ suggestedPort });
   } catch (error) {
-    console.error('Error suggesting port:', error);
+    log.error({ error: error.message }, 'error suggesting port');
     res.status(500).json({ error: 'Failed to suggest port' });
   }
 });
@@ -3395,7 +3422,7 @@ app.get('/api/ports/registry', (req, res) => {
       registered: registeredList
     });
   } catch (error) {
-    console.error('Error reading PORTS.md:', error);
+    log.error({ error: error.message }, 'error reading PORTS.md');
     res.status(500).json({ error: 'Failed to read port registry' });
   }
 });
@@ -3507,7 +3534,7 @@ app.get('/api/admin/projects-extended', async (req, res) => {
 
     res.json(extended);
   } catch (error) {
-    console.error('Error getting extended projects:', error);
+    log.error({ error: error.message }, 'error getting extended projects');
     res.status(500).json({ error: 'Failed to get projects' });
   }
 });
@@ -3699,7 +3726,7 @@ app.get('/api/dashboard', async (req, res) => {
       shpoolSessions
     });
   } catch (error) {
-    console.error('Dashboard API error:', error);
+    log.error({ error: error.message }, 'dashboard API error');
     res.status(500).json({ error: 'Failed to load dashboard data' });
   }
 });
@@ -3735,7 +3762,7 @@ app.delete('/api/admin/projects/:projectName', async (req, res) => {
       // Permanently delete
       const { rm } = await import('fs/promises');
       await rm(projectPath, { recursive: true, force: true });
-      console.log(`[DELETE] Permanently deleted project: ${projectName}`);
+      log.info({ projectName }, 'permanently deleted project');
     } else {
       // Move to trash
       const trashDir = join(homedir(), '.Trash');
@@ -3748,7 +3775,7 @@ app.delete('/api/admin/projects/:projectName', async (req, res) => {
 
       const { rename } = await import('fs/promises');
       await rename(projectPath, trashPath);
-      console.log(`[DELETE] Moved project to trash: ${projectName} -> ${trashPath}`);
+      log.info({ projectName, trashPath }, 'moved project to trash');
     }
 
     // Clean up any database entries for this project
@@ -3768,7 +3795,7 @@ app.delete('/api/admin/projects/:projectName', async (req, res) => {
         where: { projectPath: projectPath }
       });
     } catch (dbError) {
-      console.warn('[DELETE] Database cleanup warning:', dbError.message);
+      log.warn({ error: dbError.message, projectName }, 'database cleanup warning during delete');
       // Continue even if DB cleanup fails
     }
 
@@ -3779,7 +3806,7 @@ app.delete('/api/admin/projects/:projectName', async (req, res) => {
         : `Project "${projectName}" moved to trash`
     });
   } catch (error) {
-    console.error('Error deleting project:', error);
+    log.error({ error: error.message, projectName: req.params.projectName }, 'error deleting project');
     res.status(500).json({ error: error.message || 'Failed to delete project' });
   }
 });
@@ -3825,7 +3852,7 @@ app.post('/api/projects/:projectName/rename', async (req, res) => {
     // Rename the folder
     const { rename: fsRename } = await import('fs/promises');
     await fsRename(oldPath, newPath);
-    console.log(`[RENAME] Renamed project: ${projectName} -> ${newName}`);
+    log.info({ oldName: projectName, newName }, 'renamed project');
 
     // Update database references
     try {
@@ -3853,7 +3880,7 @@ app.post('/api/projects/:projectName/rename', async (req, res) => {
         data: { path: newPath, name: newName }
       });
     } catch (dbError) {
-      console.warn('[RENAME] Database update warning:', dbError.message);
+      log.warn({ error: dbError.message, oldName: projectName, newName }, 'database update warning during rename');
       // Continue even if DB update fails - folder was renamed successfully
     }
 
@@ -3864,7 +3891,7 @@ app.post('/api/projects/:projectName/rename', async (req, res) => {
       newPath
     });
   } catch (error) {
-    console.error('Error renaming project:', error);
+    log.error({ error: error.message, projectName: req.params.projectName }, 'error renaming project');
     res.status(500).json({ error: error.message || 'Failed to rename project' });
   }
 });
@@ -3892,23 +3919,24 @@ if (process.env.NODE_ENV === 'production') {
 
   // SPA fallback - serve index.html for all routes
   app.get('*', (req, res) => {
-    console.log(`[DEBUG] Serving index.html for: ${req.path}`);
+    log.debug({ path: req.path }, 'serving index.html');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
     res.sendFile(join(process.cwd(), 'dist', 'index.html'));
   });
 
-  console.log('[PRODUCTION] Serving static files from dist/');
+  log.info('serving static files from dist/ (production mode)');
 }
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
-  console.log(`Client connected: ${socket.id}`);
+  const sockLog = createSocketLogger(socket.id);
+  sockLog.info('client connected');
 
   // Handle project selection
   socket.on('select-project', async (projectPath) => {
-    console.log(`Socket ${socket.id} selecting project: ${projectPath}`);
+    sockLog.info({ projectPath }, 'selecting project');
 
     // Clean up any existing session for this socket
     const existingProject = socketProjects.get(socket.id);
@@ -3930,7 +3958,7 @@ io.on('connection', (socket) => {
         projectSettings.skipPermissions = project.skipPermissions || false;
       }
     } catch (err) {
-      console.error('Error fetching project settings:', err);
+      sockLog.error({ error: err.message, projectPath }, 'failed to fetch project settings');
     }
 
     // Look up user settings for AI solution preference
@@ -3949,7 +3977,7 @@ io.on('connection', (socket) => {
         userSettings.hybridMode = settings.hybridMode || 'code-puppy-with-claude-tools';
       }
     } catch (err) {
-      console.error('Error fetching user settings:', err);
+      sockLog.error({ error: err.message }, 'failed to fetch user settings');
     }
 
     // Check if we already have a PTY session for this project
@@ -3982,7 +4010,7 @@ io.on('connection', (socket) => {
 
       // Save session state to database
       saveSessionState(projectPath, ptySession.sessionName, { cols: 120, rows: 30 }, projectPath)
-        .catch(err => console.error('Failed to save session state:', err));
+        .catch(err => sessionLog.error({ error: err.message, projectPath }, 'failed to save session state'));
 
       // Handle PTY output with activity tracking
       session.pty.onData((data) => {
@@ -4029,7 +4057,7 @@ io.on('connection', (socket) => {
 
       // Handle PTY exit
       session.pty.onExit(({ exitCode }) => {
-        console.log(`PTY exited for ${projectPath} with code ${exitCode}`);
+        log.info({ projectPath, exitCode }, 'PTY exited');
         sessions.delete(projectPath);
         session.sockets.forEach(socketId => {
           io.to(socketId).emit('terminal-exit', { exitCode, projectPath });
@@ -4050,7 +4078,7 @@ io.on('connection', (socket) => {
           try {
             session.pty.resize(cols, rows);
           } catch (err) {
-            console.error('Failed to trigger refresh resize:', err);
+            log.error({ error: err.message, projectPath }, 'failed to trigger refresh resize');
           }
         }, 50);
       }
@@ -4095,7 +4123,7 @@ io.on('connection', (socket) => {
           session.cols = cols;
           session.rows = rows;
         } catch (error) {
-          console.error('Error resizing PTY:', error);
+          sessionLog.error({ error: error.message }, 'failed to resize PTY');
         }
       }
     }
@@ -4103,7 +4131,7 @@ io.on('connection', (socket) => {
 
   // Handle manual reconnection to existing shpool session
   socket.on('reconnect-session', async (projectPath) => {
-    console.log(`Socket ${socket.id} requesting reconnection to: ${projectPath}`);
+    sockLog.info({ projectPath }, 'requesting reconnection');
     const sessionName = getSessionName(projectPath);
     const sessionExists = shpoolSessionExists(sessionName);
 
@@ -4121,9 +4149,9 @@ io.on('connection', (socket) => {
 
     if (!session) {
       // Create new PTY session (attaches to existing shpool or creates new one)
-      console.log(sessionExists
-        ? `Reattaching to existing shpool session: ${sessionName}`
-        : `Creating new shpool session: ${sessionName}`);
+      log.info({ sessionName, sessionExists }, sessionExists
+        ? 'reattaching to existing shpool session'
+        : 'creating new shpool session');
       const ptySession = createPtySession(projectPath, socket, { skipPermissions: false });
 
       session = {
@@ -4173,7 +4201,7 @@ io.on('connection', (socket) => {
 
       // Handle PTY exit
       session.pty.onExit(({ exitCode }) => {
-        console.log(`PTY exited for ${projectPath} with code ${exitCode}`);
+        log.info({ projectPath, exitCode }, 'PTY exited');
         sessions.delete(projectPath);
         session.sockets.forEach(socketId => {
           io.to(socketId).emit('terminal-exit', { exitCode, projectPath });
@@ -4198,7 +4226,7 @@ io.on('connection', (socket) => {
 
   // Handle disconnection
   socket.on('disconnect', () => {
-    console.log(`Client disconnected: ${socket.id}`);
+    sockLog.info('client disconnected');
 
     const projectPath = socketProjects.get(socket.id);
     if (projectPath) {
@@ -4208,7 +4236,7 @@ io.on('connection', (socket) => {
 
         // If no more sockets are connected, clean up the PTY but keep shpool running
         if (session.sockets.size === 0) {
-          console.log(`No more clients for ${projectPath}, cleaning up PTY session`);
+          sockLog.info({ projectPath }, 'no more clients, cleaning up PTY session');
 
           // Clear any pending idle timer
           if (session.idleTimer) {
@@ -4219,7 +4247,7 @@ io.on('connection', (socket) => {
           try {
             session.pty.kill();
           } catch (err) {
-            console.error(`Error killing PTY for ${projectPath}:`, err);
+            sockLog.error({ error: err.message, projectPath }, 'failed to kill PTY');
           }
 
           // Remove from sessions map so reconnect creates fresh PTY
@@ -4227,7 +4255,7 @@ io.on('connection', (socket) => {
 
           // Mark session as disconnected in database
           markSessionDisconnected(projectPath, session.sessionName)
-            .catch(err => console.error('Failed to mark session disconnected:', err));
+            .catch(err => sockLog.error({ error: err.message, projectPath }, 'failed to mark session disconnected'));
         }
       }
     }
@@ -4258,7 +4286,7 @@ io.on('connection', (socket) => {
         // Session might already be dead
       }
     } else {
-      console.warn(`[SECURITY] Invalid session name in kill-session: ${sessionName}`);
+      log.warn({ sessionName }, 'invalid session name in kill-session');
     }
 
     socket.emit('session-killed', { projectPath, sessionName });
@@ -4267,6 +4295,17 @@ io.on('connection', (socket) => {
 
 // Start server
 server.listen(PORT, '0.0.0.0', () => {
+  // Log startup with structured data
+  logStartup({
+    port: PORT,
+    host: '0.0.0.0',
+    projectsDir: PROJECTS_DIR,
+    environment: process.env.NODE_ENV || 'development',
+    authEnabled: process.env.AUTH_ENABLED !== 'false',
+    logLevel: process.env.LOG_LEVEL || 'info',
+  });
+
+  // Also print banner for console visibility
   console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║              Console.web - Backend Server                 ║
@@ -4282,19 +4321,19 @@ server.listen(PORT, '0.0.0.0', () => {
     try {
       const isInitialized = await codePuppyInitializer.isInitialized();
       if (!isInitialized) {
-        console.log('⚠️  Code Puppy not initialized - will auto-initialize on first access');
+        startupLog.warn('Code Puppy not initialized - will auto-initialize on first access');
       } else {
-        console.log('✅ Code Puppy is initialized and ready');
+        startupLog.info('Code Puppy initialized and ready');
       }
     } catch (error) {
-      console.error('Error checking Code Puppy status:', error);
+      startupLog.error({ error: error.message }, 'failed to check Code Puppy status');
     }
   })();
 });
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-  console.log('SIGTERM received, shutting down gracefully...');
+  logShutdown('SIGTERM', { activeSessions: sessions.size });
 
   // Stop metrics collection
   metricsCollector.stop();
@@ -4304,18 +4343,18 @@ process.on('SIGTERM', async () => {
 
   // Don't kill shpool sessions - they should persist
   sessions.forEach((session, projectPath) => {
-    console.log(`Detaching from ${projectPath}`);
+    sessionLog.info({ projectPath }, 'detaching from session');
     // Just kill the PTY wrapper, shpool continues in background
     session.pty.kill();
   });
 
   server.close(() => {
-    console.log('Server closed');
+    logger.info('server closed');
     process.exit(0);
   });
 });
 
 process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down...');
+  logShutdown('SIGINT', { activeSessions: sessions.size });
   process.exit(0);
 });

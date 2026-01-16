@@ -4,6 +4,9 @@
  */
 
 import { Router } from 'express';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('templates');
 
 // Default built-in templates
 const BUILT_IN_TEMPLATES = [
@@ -74,7 +77,7 @@ export function createTemplatesRouter(prisma) {
         }
       }
     } catch (error) {
-      console.error('Error initializing templates:', error);
+      log.error({ error: error.message }, 'failed to initialize built-in templates');
     }
   }
 
@@ -95,7 +98,7 @@ export function createTemplatesRouter(prisma) {
       });
       res.json(templates);
     } catch (error) {
-      console.error('Error fetching templates:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch templates');
       res.status(500).json({ error: 'Failed to fetch templates' });
     }
   });
@@ -117,7 +120,7 @@ export function createTemplatesRouter(prisma) {
 
       res.json(template);
     } catch (error) {
-      console.error('Error fetching template:', error);
+      log.error({ error: error.message, templateId: req.params.id, requestId: req.id }, 'failed to fetch template');
       res.status(500).json({ error: 'Failed to fetch template' });
     }
   });
@@ -151,7 +154,7 @@ export function createTemplatesRouter(prisma) {
 
       res.status(201).json(template);
     } catch (error) {
-      console.error('Error creating template:', error);
+      log.error({ error: error.message, templateName: req.body.name, requestId: req.id }, 'failed to create template');
       res.status(500).json({ error: 'Failed to create template' });
     }
   });
@@ -188,7 +191,7 @@ export function createTemplatesRouter(prisma) {
 
       res.json(template);
     } catch (error) {
-      console.error('Error updating template:', error);
+      log.error({ error: error.message, templateId: req.params.id, requestId: req.id }, 'failed to update template');
       res.status(500).json({ error: 'Failed to update template' });
     }
   });
@@ -213,7 +216,7 @@ export function createTemplatesRouter(prisma) {
       await prisma.sessionTemplate.delete({ where: { id } });
       res.json({ success: true });
     } catch (error) {
-      console.error('Error deleting template:', error);
+      log.error({ error: error.message, templateId: req.params.id, requestId: req.id }, 'failed to delete template');
       res.status(500).json({ error: 'Failed to delete template' });
     }
   });
@@ -247,7 +250,7 @@ export function createTemplatesRouter(prisma) {
         templateName: template.name
       });
     } catch (error) {
-      console.error('Error using template:', error);
+      log.error({ error: error.message, templateId: req.params.id, requestId: req.id }, 'failed to use template');
       res.status(500).json({ error: 'Failed to use template' });
     }
   });
@@ -282,7 +285,7 @@ export function createTemplatesRouter(prisma) {
 
       res.status(201).json(duplicate);
     } catch (error) {
-      console.error('Error duplicating template:', error);
+      log.error({ error: error.message, templateId: req.params.id, requestId: req.id }, 'failed to duplicate template');
       res.status(500).json({ error: 'Failed to duplicate template' });
     }
   });

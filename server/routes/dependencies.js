@@ -12,8 +12,10 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-
 import os from 'os';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('dependencies');
 const execAsync = promisify(exec);
 
 const PROJECTS_DIR = process.env.PROJECTS_DIR || `${os.homedir()}/Projects`;
@@ -174,7 +176,7 @@ export function createDependenciesRouter() {
         projectPath: fullPath
       });
     } catch (error) {
-      console.error('Error fetching dependencies:', error);
+      log.error({ error: error.message, projectPath: req.params.projectPath, requestId: req.id }, 'failed to fetch dependencies');
       res.status(500).json({ error: error.message });
     }
   });
@@ -216,7 +218,7 @@ export function createDependenciesRouter() {
         output: stdout + stderr
       });
     } catch (error) {
-      console.error('Error updating package:', error);
+      log.error({ error: error.message, packageName: req.body.packageName, projectPath: req.body.projectPath, requestId: req.id }, 'failed to update package');
       res.status(500).json({ error: error.message });
     }
   });
@@ -252,7 +254,7 @@ export function createDependenciesRouter() {
         output: stdout + stderr
       });
     } catch (error) {
-      console.error('Error updating all packages:', error);
+      log.error({ error: error.message, projectPath: req.body.projectPath, requestId: req.id }, 'failed to update all packages');
       res.status(500).json({ error: error.message });
     }
   });
@@ -289,7 +291,7 @@ export function createDependenciesRouter() {
         output: stdout + stderr
       });
     } catch (error) {
-      console.error('Error running audit fix:', error);
+      log.error({ error: error.message, projectPath: req.body.projectPath, requestId: req.id }, 'failed to run npm audit fix');
       res.status(500).json({ error: error.message });
     }
   });

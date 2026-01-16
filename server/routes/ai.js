@@ -4,6 +4,9 @@
  */
 
 import { Router } from 'express';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('ai');
 
 export function createAIRouter(prisma) {
   const router = Router();
@@ -75,7 +78,7 @@ export function createAIRouter(prisma) {
         history: Object.values(historyMap).slice(0, 7),
       });
     } catch (error) {
-      console.error('Error fetching AI usage:', error);
+      log.error({ error: error.message, range: req.query.range, sessionId: req.query.sessionId, requestId: req.id }, 'failed to fetch AI usage');
       res.status(500).json({ error: error.message });
     }
   });
@@ -101,7 +104,7 @@ export function createAIRouter(prisma) {
 
       res.json(usage);
     } catch (error) {
-      console.error('Error recording AI usage:', error);
+      log.error({ error: error.message, model: req.body.model, requestId: req.id }, 'failed to record AI usage');
       res.status(500).json({ error: error.message });
     }
   });
@@ -129,7 +132,7 @@ export function createAIRouter(prisma) {
 
       res.json(analysis);
     } catch (error) {
-      console.error('Error analyzing error:', error);
+      log.error({ error: error.message, projectPath: req.body.projectPath, requestId: req.id }, 'failed to analyze error');
       res.status(500).json({ error: error.message });
     }
   });
@@ -157,7 +160,7 @@ export function createAIRouter(prisma) {
 
       res.json(explanation);
     } catch (error) {
-      console.error('Error explaining code:', error);
+      log.error({ error: error.message, language: req.body.language, requestId: req.id }, 'failed to explain code');
       res.status(500).json({ error: error.message });
     }
   });
@@ -185,7 +188,7 @@ export function createAIRouter(prisma) {
 
       res.json({ suggestions, conventionalCommits });
     } catch (error) {
-      console.error('Error generating commit message:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to generate commit message');
       res.status(500).json({ error: error.message });
     }
   });
@@ -201,7 +204,7 @@ export function createAIRouter(prisma) {
       }).catch(() => []);
       res.json(personas);
     } catch (error) {
-      console.error('Error fetching personas:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch personas');
       res.status(500).json({ error: error.message });
     }
   });
@@ -220,7 +223,7 @@ export function createAIRouter(prisma) {
 
       res.status(201).json(persona);
     } catch (error) {
-      console.error('Error creating persona:', error);
+      log.error({ error: error.message, personaName: req.body.name, requestId: req.id }, 'failed to create persona');
       res.status(500).json({ error: error.message });
     }
   });
@@ -241,7 +244,7 @@ export function createAIRouter(prisma) {
 
       res.json(persona);
     } catch (error) {
-      console.error('Error updating persona:', error);
+      log.error({ error: error.message, personaId: req.params.id, requestId: req.id }, 'failed to update persona');
       res.status(500).json({ error: error.message });
     }
   });
@@ -258,7 +261,7 @@ export function createAIRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Error deleting persona:', error);
+      log.error({ error: error.message, personaId: req.params.id, requestId: req.id }, 'failed to delete persona');
       res.status(500).json({ error: error.message });
     }
   });

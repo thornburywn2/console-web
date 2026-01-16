@@ -13,6 +13,9 @@
 
 import jwt from 'jsonwebtoken';
 import { Router } from 'express';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('auth');
 
 // Authentik configuration from environment
 const AUTHENTIK_URL = process.env.AUTHENTIK_URL || 'http://localhost:9000';
@@ -120,8 +123,11 @@ function isFromAuthentikProxy(req) {
 
   // SECURITY: Log potential header injection attempts
   if (req.headers['x-authentik-username'] || req.headers['x-authentik-email']) {
-    console.warn(`[AUTH SECURITY] Blocked potential header injection from ${clientIP}`);
-    console.warn(`[AUTH SECURITY] Headers: x-forwarded-for=${req.headers['x-forwarded-for']}, req.ip=${req.ip}`);
+    log.warn({
+      clientIP,
+      xForwardedFor: req.headers['x-forwarded-for'],
+      reqIP: req.ip
+    }, 'blocked potential header injection');
   }
 
   return false;
@@ -144,7 +150,7 @@ async function fetchJWKS() {
       return jwksCache;
     }
   } catch (error) {
-    console.error('[AUTH] Failed to fetch JWKS:', error.message);
+    log.error({ error: error.message }, 'failed to fetch JWKS');
   }
   return jwksCache;
 }
@@ -176,7 +182,7 @@ async function validateToken(token) {
       ),
     };
   } catch (error) {
-    console.error('[AUTH] Token validation error:', error.message);
+    log.error({ error: error.message }, 'token validation error');
     return null;
   }
 }
@@ -233,7 +239,7 @@ export function authentikAuth(options = {}) {
 
     // Skip auth if explicitly disabled (ONLY for local development)
     if (!AUTH_ENABLED) {
-      console.warn('[AUTH] Authentication disabled - this should only happen in development!');
+      log.warn('authentication disabled - this should only happen in development');
       req.user = { id: 'local', name: 'Local Dev User', email: 'dev@localhost', isAdmin: true, groups: [] };
       return next();
     }
@@ -307,7 +313,7 @@ export async function handleOAuthCallback(req, res) {
 
     if (!tokenResponse.ok) {
       const error = await tokenResponse.text();
-      console.error('[AUTH] Token exchange failed:', error);
+      log.error({ error }, 'token exchange failed');
       return res.status(401).json({ error: 'Authentication failed' });
     }
 
@@ -322,7 +328,7 @@ export async function handleOAuthCallback(req, res) {
 
     res.redirect('/');
   } catch (error) {
-    console.error('[AUTH] OAuth callback error:', error);
+    log.error({ error: error.message }, 'OAuth callback error');
     res.status(500).json({ error: 'Authentication error' });
   }
 }

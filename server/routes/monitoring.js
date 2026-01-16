@@ -7,6 +7,9 @@ import { Router } from 'express';
 import os from 'os';
 import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('monitoring');
 
 // Store previous CPU stats for delta-based calculation
 let prevCpuStatsMonitoring = null;
@@ -44,7 +47,7 @@ export function createMetricsRouter(prisma) {
         })),
       });
     } catch (error) {
-      console.error('Failed to fetch metrics:', error);
+      log.error({ error: error.message, type: req.params.type, requestId: req.id }, 'failed to fetch metrics');
       res.json({ data: [] });
     }
   });
@@ -116,7 +119,7 @@ export function createMetricsRouter(prisma) {
         loadAverage: loadAvg,
       });
     } catch (error) {
-      console.error('Failed to get system metrics:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get system metrics');
       res.status(500).json({ error: 'Failed to get metrics' });
     }
   });
@@ -185,7 +188,7 @@ export function createUptimeRouter(prisma) {
 
       res.json({ services: result });
     } catch (error) {
-      console.error('Failed to fetch uptime data:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch uptime data');
       // Return empty for graceful degradation
       res.json({ services: [] });
     }
@@ -243,7 +246,7 @@ export function createUptimeRouter(prisma) {
 
       res.json({ status, responseTime });
     } catch (error) {
-      console.error('Failed to check service:', error);
+      log.error({ error: error.message, serviceId: req.params.id, requestId: req.id }, 'failed to check service');
       res.status(500).json({ error: 'Failed to check service' });
     }
   });
@@ -268,7 +271,7 @@ export function createUptimeRouter(prisma) {
 
       res.json({ service });
     } catch (error) {
-      console.error('Failed to add service:', error);
+      log.error({ error: error.message, serviceName: req.body.name, requestId: req.id }, 'failed to add service');
       res.status(500).json({ error: 'Failed to add service' });
     }
   });
@@ -284,7 +287,7 @@ export function createUptimeRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Failed to remove service:', error);
+      log.error({ error: error.message, serviceId: req.params.id, requestId: req.id }, 'failed to remove service');
       res.status(500).json({ error: 'Failed to remove service' });
     }
   });
@@ -342,7 +345,7 @@ export function createNetworkRouter(prisma) {
 
       res.json({ interfaces });
     } catch (error) {
-      console.error('Failed to get network stats:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get network stats');
       res.status(500).json({ error: 'Failed to get network stats' });
     }
   });
@@ -433,7 +436,7 @@ export function createCostRouter(prisma) {
         projectedMonthly,
       });
     } catch (error) {
-      console.error('Failed to get cost data:', error);
+      log.error({ error: error.message, range: req.query.range, requestId: req.id }, 'failed to get cost data');
       res.json({
         totalCost: 0,
         totalTokens: 0,
@@ -466,7 +469,7 @@ export function createCostRouter(prisma) {
 
       res.json({ usage });
     } catch (error) {
-      console.error('Failed to log API usage:', error);
+      log.error({ error: error.message, model: req.body.model, requestId: req.id }, 'failed to log API usage');
       res.status(500).json({ error: 'Failed to log usage' });
     }
   });

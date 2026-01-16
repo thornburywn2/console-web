@@ -13,7 +13,10 @@
 import Docker from 'dockerode';
 import { EventEmitter } from 'events';
 import os from 'os';
+import { createLogger } from './logger.js';
 // Note: Using native fetch (Node 18+)
+
+const log = createLogger('tabby-manager');
 
 // Tabby Docker configuration
 const TABBY_CONFIG = {
@@ -381,7 +384,7 @@ class TabbyManager extends EventEmitter {
           memoryLimit: Math.round(containerStats.memory_stats.limit / 1024 / 1024) + 'MB'
         };
       } catch (err) {
-        console.error('Failed to get container info:', err);
+        log.error({ error: err.message }, 'failed to get container info');
       }
     }
 

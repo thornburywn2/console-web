@@ -4,6 +4,9 @@
  */
 
 import { Router } from 'express';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('sessions');
 
 /**
  * Generate markdown format for session export
@@ -126,7 +129,7 @@ export function createSessionsRouter(prisma) {
 
       res.json(sessions);
     } catch (error) {
-      console.error('Error fetching sessions:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch sessions');
       res.status(500).json({ error: 'Failed to fetch sessions' });
     }
   });
@@ -151,7 +154,7 @@ export function createSessionsRouter(prisma) {
 
       res.json(session);
     } catch (error) {
-      console.error('Error fetching session:', error);
+      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to fetch session');
       res.status(500).json({ error: 'Failed to fetch session' });
     }
   });
@@ -179,7 +182,7 @@ export function createSessionsRouter(prisma) {
 
       res.json(session);
     } catch (error) {
-      console.error('Error updating session:', error);
+      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to update session');
       res.status(500).json({ error: 'Failed to update session' });
     }
   });
@@ -204,7 +207,7 @@ export function createSessionsRouter(prisma) {
 
       res.json(updated);
     } catch (error) {
-      console.error('Error toggling pin:', error);
+      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to toggle pin');
       res.status(500).json({ error: 'Failed to toggle pin' });
     }
   });
@@ -224,7 +227,7 @@ export function createSessionsRouter(prisma) {
 
       res.json(session);
     } catch (error) {
-      console.error('Error archiving session:', error);
+      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to archive session');
       res.status(500).json({ error: 'Failed to archive session' });
     }
   });
@@ -244,7 +247,7 @@ export function createSessionsRouter(prisma) {
 
       res.json(session);
     } catch (error) {
-      console.error('Error restoring session:', error);
+      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to restore session');
       res.status(500).json({ error: 'Failed to restore session' });
     }
   });
@@ -278,7 +281,7 @@ export function createSessionsRouter(prisma) {
 
       res.json(session);
     } catch (error) {
-      console.error('Error adding tags:', error);
+      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to add tags');
       res.status(500).json({ error: 'Failed to add tags' });
     }
   });
@@ -304,7 +307,7 @@ export function createSessionsRouter(prisma) {
 
       res.json(session);
     } catch (error) {
-      console.error('Error removing tag:', error);
+      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to remove tag');
       res.status(500).json({ error: 'Failed to remove tag' });
     }
   });
@@ -386,7 +389,7 @@ export function createSessionsRouter(prisma) {
 
       res.json({ success: true, affected: result.count });
     } catch (error) {
-      console.error('Error performing bulk action:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to perform bulk action');
       res.status(500).json({ error: 'Failed to perform bulk action' });
     }
   });
@@ -481,7 +484,7 @@ export function createSessionsRouter(prisma) {
       res.setHeader('Content-Disposition', `attachment; filename="session-${session.sessionName}-export.json"`);
       res.json(exportData);
     } catch (error) {
-      console.error('Error exporting session:', error);
+      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to export session');
       res.status(500).json({ error: 'Failed to export session' });
     }
   });
@@ -626,7 +629,7 @@ ${exportData.context?.notes?.map(n => `- ${n.title || 'Note'}: ${n.content.subst
         }
       });
     } catch (error) {
-      console.error('Error importing session:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to import session');
       res.status(500).json({ error: 'Failed to import session' });
     }
   });
@@ -669,7 +672,7 @@ ${exportData.context?.notes?.map(n => `- ${n.title || 'Note'}: ${n.content.subst
 
       res.status(201).json(forked);
     } catch (error) {
-      console.error('Error forking session:', error);
+      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to fork session');
       res.status(500).json({ error: 'Failed to fork session' });
     }
   });

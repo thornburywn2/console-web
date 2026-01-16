@@ -7,6 +7,9 @@ import { Router } from 'express';
 import { execSync } from 'child_process';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('checkpoints');
 
 export function createCheckpointsRouter(prisma, projectsDir) {
   const router = Router();
@@ -49,7 +52,7 @@ export function createCheckpointsRouter(prisma, projectsDir) {
 
       res.json(checkpoints);
     } catch (error) {
-      console.error('Error fetching checkpoints:', error);
+      log.error({ error: error.message, projectId: req.params.projectId, requestId: req.id }, 'failed to fetch checkpoints');
       res.status(500).json({ error: 'Failed to fetch checkpoints' });
     }
   });
@@ -71,7 +74,7 @@ export function createCheckpointsRouter(prisma, projectsDir) {
 
       res.json(checkpoint);
     } catch (error) {
-      console.error('Error fetching checkpoint:', error);
+      log.error({ error: error.message, checkpointId: req.params.id, requestId: req.id }, 'failed to fetch checkpoint');
       res.status(500).json({ error: 'Failed to fetch checkpoint' });
     }
   });
@@ -196,7 +199,7 @@ export function createCheckpointsRouter(prisma, projectsDir) {
 
       res.status(201).json(checkpoint);
     } catch (error) {
-      console.error('Error creating checkpoint:', error);
+      log.error({ error: error.message, projectId: req.body.projectId, requestId: req.id }, 'failed to create checkpoint');
       res.status(500).json({ error: 'Failed to create checkpoint' });
     }
   });
@@ -305,7 +308,7 @@ export function createCheckpointsRouter(prisma, projectsDir) {
         results
       });
     } catch (error) {
-      console.error('Error restoring checkpoint:', error);
+      log.error({ error: error.message, checkpointId: req.params.id, requestId: req.id }, 'failed to restore checkpoint');
       res.status(500).json({ error: 'Failed to restore checkpoint' });
     }
   });
@@ -329,7 +332,7 @@ export function createCheckpointsRouter(prisma, projectsDir) {
 
       res.json(checkpoint);
     } catch (error) {
-      console.error('Error updating checkpoint:', error);
+      log.error({ error: error.message, checkpointId: req.params.id, requestId: req.id }, 'failed to update checkpoint');
       res.status(500).json({ error: 'Failed to update checkpoint' });
     }
   });
@@ -347,7 +350,7 @@ export function createCheckpointsRouter(prisma, projectsDir) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Error deleting checkpoint:', error);
+      log.error({ error: error.message, checkpointId: req.params.id, requestId: req.id }, 'failed to delete checkpoint');
       res.status(500).json({ error: 'Failed to delete checkpoint' });
     }
   });
@@ -371,7 +374,7 @@ export function createCheckpointsRouter(prisma, projectsDir) {
         deleted: result.count
       });
     } catch (error) {
-      console.error('Error cleaning up checkpoints:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to cleanup expired checkpoints');
       res.status(500).json({ error: 'Failed to cleanup checkpoints' });
     }
   });
@@ -409,7 +412,7 @@ export function createCheckpointsRouter(prisma, projectsDir) {
         totalSizeBytes: totalSize._sum.sizeBytes || 0
       });
     } catch (error) {
-      console.error('Error fetching checkpoint stats:', error);
+      log.error({ error: error.message, projectId: req.params.projectId, requestId: req.id }, 'failed to fetch checkpoint stats');
       res.status(500).json({ error: 'Failed to fetch checkpoint stats' });
     }
   });

@@ -19,6 +19,9 @@ import { join } from 'path';
 import os from 'os';
 import { codePuppyManager } from '../services/codePuppyManager.js';
 import { getInitializer } from '../services/codePuppyInitializer.js';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('code-puppy');
 
 /**
  * Create Code Puppy router
@@ -46,7 +49,7 @@ export function createCodePuppyRouter(io, prisma) {
       const isInitialized = await initializer.isInitialized();
 
       if (!isInitialized) {
-        console.log('🐶 Auto-initializing Code Puppy on first access...');
+        log.info('auto-initializing Code Puppy on first access');
         const result = await initializer.initialize({
           preferredAISolution: 'hybrid',
           codePuppyProvider: 'anthropic',
@@ -55,15 +58,15 @@ export function createCodePuppyRouter(io, prisma) {
         });
 
         if (result.success) {
-          console.log('✅ Code Puppy auto-initialization successful');
+          log.info('Code Puppy auto-initialization successful');
         } else {
-          console.error('❌ Code Puppy auto-initialization failed:', result.error);
+          log.error({ error: result.error }, 'Code Puppy auto-initialization failed');
         }
       }
 
       autoInitAttempted = true;
     } catch (error) {
-      console.error('Error during Code Puppy auto-initialization:', error);
+      log.error({ error: error.message }, 'error during Code Puppy auto-initialization');
       autoInitAttempted = true; // Don't keep trying if it fails
     }
 

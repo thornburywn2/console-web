@@ -12,6 +12,9 @@ import MCP_CATALOG, {
   searchServers,
   getCategoriesWithCounts
 } from '../data/mcpCatalog.js';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('mcp');
 
 export function createMCPRouter(prisma, mcpManager) {
   const router = Router();
@@ -75,7 +78,7 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json(serversWithStatus);
     } catch (error) {
-      console.error('Error fetching MCP servers:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch MCP servers');
       res.status(500).json({ error: 'Failed to fetch MCP servers' });
     }
   });
@@ -185,7 +188,7 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json(installedMap);
     } catch (error) {
-      console.error('Error checking installed servers:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to check installed MCP servers');
       res.status(500).json({ error: 'Failed to check installed servers' });
     }
   });
@@ -277,7 +280,7 @@ export function createMCPRouter(prisma, mcpManager) {
         try {
           await mcpManager.startServer(server.id);
         } catch (err) {
-          console.error('Failed to auto-start installed server:', err);
+          log.error({ error: err.message, serverId: mcpServer.id }, 'failed to auto-start installed MCP server');
           return res.status(201).json({
             ...server,
             startError: err.message
@@ -287,7 +290,7 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.status(201).json(server);
     } catch (error) {
-      console.error('Error installing catalog server:', error);
+      log.error({ error: error.message, catalogId: req.params.catalogId, requestId: req.id }, 'failed to install catalog server');
       res.status(500).json({ error: 'Failed to install server from catalog' });
     }
   });
@@ -327,7 +330,7 @@ export function createMCPRouter(prisma, mcpManager) {
         runtimeStatus: runtimeStatus[id]?.status || server.status
       });
     } catch (error) {
-      console.error('Error fetching MCP server:', error);
+      log.error({ error: error.message, serverId: req.params.id, requestId: req.id }, 'failed to fetch MCP server');
       res.status(500).json({ error: 'Failed to fetch MCP server' });
     }
   });
@@ -401,13 +404,13 @@ export function createMCPRouter(prisma, mcpManager) {
         try {
           await mcpManager.startServer(server.id);
         } catch (err) {
-          console.error('Failed to start server after creation:', err);
+          log.error({ error: err.message, serverId: newServer.id }, 'failed to start MCP server after creation');
         }
       }
 
       res.status(201).json(server);
     } catch (error) {
-      console.error('Error creating MCP server:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to create MCP server');
       res.status(500).json({ error: 'Failed to create MCP server' });
     }
   });
@@ -482,7 +485,7 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json(server);
     } catch (error) {
-      console.error('Error updating MCP server:', error);
+      log.error({ error: error.message, serverId: req.params.id, requestId: req.id }, 'failed to update MCP server');
       res.status(500).json({ error: 'Failed to update MCP server' });
     }
   });
@@ -508,7 +511,7 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json({ success: true, id });
     } catch (error) {
-      console.error('Error deleting MCP server:', error);
+      log.error({ error: error.message, serverId: req.params.id, requestId: req.id }, 'failed to delete MCP server');
       res.status(500).json({ error: 'Failed to delete MCP server' });
     }
   });
@@ -533,7 +536,7 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json({ success: true, status: 'CONNECTED' });
     } catch (error) {
-      console.error('Error starting MCP server:', error);
+      log.error({ error: error.message, serverId: req.params.id, requestId: req.id }, 'failed to start MCP server');
       res.status(500).json({ error: error.message || 'Failed to start MCP server' });
     }
   });
@@ -549,7 +552,7 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json({ success: true, status: 'DISCONNECTED' });
     } catch (error) {
-      console.error('Error stopping MCP server:', error);
+      log.error({ error: error.message, serverId: req.params.id, requestId: req.id }, 'failed to stop MCP server');
       res.status(500).json({ error: 'Failed to stop MCP server' });
     }
   });
@@ -570,7 +573,7 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json({ success: true, status: 'CONNECTED' });
     } catch (error) {
-      console.error('Error restarting MCP server:', error);
+      log.error({ error: error.message, serverId: req.params.id, requestId: req.id }, 'failed to restart MCP server');
       res.status(500).json({ error: error.message || 'Failed to restart MCP server' });
     }
   });
@@ -607,7 +610,7 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json(updated);
     } catch (error) {
-      console.error('Error toggling MCP server:', error);
+      log.error({ error: error.message, serverId: req.params.id, enabled: req.body.enabled, requestId: req.id }, 'failed to toggle MCP server');
       res.status(500).json({ error: 'Failed to toggle MCP server' });
     }
   });
@@ -627,7 +630,7 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json({ success: true, tools });
     } catch (error) {
-      console.error('Error discovering tools:', error);
+      log.error({ error: error.message, serverId: req.params.id, requestId: req.id }, 'failed to discover MCP tools');
       res.status(500).json({ error: error.message || 'Failed to discover tools' });
     }
   });
@@ -656,7 +659,7 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json(tools);
     } catch (error) {
-      console.error('Error fetching tools:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch MCP tools');
       res.status(500).json({ error: 'Failed to fetch tools' });
     }
   });
@@ -675,7 +678,7 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json(tools);
     } catch (error) {
-      console.error('Error fetching server tools:', error);
+      log.error({ error: error.message, serverId: req.params.serverId, requestId: req.id }, 'failed to fetch server tools');
       res.status(500).json({ error: 'Failed to fetch tools' });
     }
   });
@@ -692,7 +695,7 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json({ success: true, result });
     } catch (error) {
-      console.error('Error calling tool:', error);
+      log.error({ error: error.message, toolName: req.body.tool, requestId: req.id }, 'failed to call MCP tool');
       res.status(500).json({ error: error.message || 'Failed to call tool' });
     }
   });
@@ -751,7 +754,7 @@ export function createMCPRouter(prisma, mcpManager) {
         }
       });
     } catch (error) {
-      console.error('Error fetching tool logs:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch MCP tool logs');
       res.status(500).json({ error: 'Failed to fetch tool logs' });
     }
   });
@@ -777,7 +780,7 @@ export function createMCPRouter(prisma, mcpManager) {
         cutoffDate: cutoff
       });
     } catch (error) {
-      console.error('Error cleaning up logs:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to clean up MCP logs');
       res.status(500).json({ error: 'Failed to clean up logs' });
     }
   });
@@ -794,7 +797,7 @@ export function createMCPRouter(prisma, mcpManager) {
       const status = mcpManager.getStatus();
       res.json(status);
     } catch (error) {
-      console.error('Error fetching manager status:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch MCP manager status');
       res.status(500).json({ error: 'Failed to fetch manager status' });
     }
   });

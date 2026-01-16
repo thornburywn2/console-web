@@ -328,8 +328,24 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     // Start initial fit attempt after a short delay
     setTimeout(() => attemptFit(), 100);
 
-    // Handle user input
+    // Paste deduplication - track recent input to prevent double paste
+    let lastInputData = '';
+    let lastInputTime = 0;
+    const PASTE_DEDUP_WINDOW = 100; // ms - ignore duplicate content within this window
+
+    // Handle user input with paste deduplication
     term.onData((data) => {
+      const now = Date.now();
+
+      // Check if this is likely a paste (multi-character input)
+      // and if it's a duplicate within the deduplication window
+      if (data.length > 1 && data === lastInputData && (now - lastInputTime) < PASTE_DEDUP_WINDOW) {
+        // Skip duplicate paste
+        return;
+      }
+
+      lastInputData = data;
+      lastInputTime = now;
       onInput(data);
     });
 

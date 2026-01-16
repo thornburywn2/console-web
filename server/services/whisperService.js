@@ -16,7 +16,9 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
 import { promisify } from 'util';
+import { createLogger } from './logger.js';
 
+const log = createLogger('whisper');
 const execAsync = promisify(exec);
 
 // Whisper configuration
@@ -78,7 +80,7 @@ class WhisperService {
       this.isAvailable = true;
       return true;
     } catch (err) {
-      console.error('Whisper initialization failed:', err.message);
+      log.error({ error: err.message }, 'whisper initialization failed');
       this.isAvailable = false;
       return false;
     }
@@ -104,7 +106,7 @@ class WhisperService {
       // Check if image exists locally
       const { stdout } = await execAsync(`docker images -q ${WHISPER_CONFIG.dockerImage}`);
       if (!stdout.trim()) {
-        console.log('Pulling Whisper Docker image...');
+        log.info({ image: WHISPER_CONFIG.dockerImage }, 'pulling whisper docker image');
         await execAsync(`docker pull ${WHISPER_CONFIG.dockerImage}`);
       }
       return true;
@@ -131,7 +133,7 @@ class WhisperService {
       // Model doesn't exist, need to download
     }
 
-    console.log(`Downloading Whisper model: ${modelName}...`);
+    log.info({ modelName }, 'downloading whisper model');
 
     // Download model using Docker
     const downloadCmd = `docker run --rm \
@@ -317,7 +319,7 @@ class WhisperService {
       return outputPath;
     } catch (err) {
       // If FFmpeg fails, try to use the file directly
-      console.warn('FFmpeg conversion failed, trying direct transcription');
+      log.warn('ffmpeg conversion failed, trying direct transcription');
       return inputPath;
     }
   }
@@ -361,7 +363,7 @@ class WhisperService {
         await fs.unlink(path.join(WHISPER_CONFIG.tempDir, file));
       }
     } catch (err) {
-      console.error('Cleanup failed:', err.message);
+      log.error({ error: err.message }, 'cleanup failed');
     }
   }
 }

@@ -4,6 +4,9 @@
  */
 
 import { Router } from 'express';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('themes');
 
 // Default built-in themes
 const BUILT_IN_THEMES = [
@@ -175,7 +178,7 @@ export function createThemesRouter(prisma) {
         });
       }
     } catch (error) {
-      console.error('Error initializing themes:', error);
+      log.error({ error: error.message }, 'failed to initialize built-in themes');
     }
   }
 
@@ -195,7 +198,7 @@ export function createThemesRouter(prisma) {
       });
       res.json(themes);
     } catch (error) {
-      console.error('Error fetching themes:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch themes');
       res.status(500).json({ error: 'Failed to fetch themes' });
     }
   });
@@ -210,7 +213,7 @@ export function createThemesRouter(prisma) {
       });
       res.json(theme || BUILT_IN_THEMES[0]);
     } catch (error) {
-      console.error('Error fetching active theme:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch active theme');
       res.status(500).json({ error: 'Failed to fetch active theme' });
     }
   });
@@ -232,7 +235,7 @@ export function createThemesRouter(prisma) {
 
       res.json(theme);
     } catch (error) {
-      console.error('Error fetching theme:', error);
+      log.error({ error: error.message, themeName: req.params.name, requestId: req.id }, 'failed to fetch theme');
       res.status(500).json({ error: 'Failed to fetch theme' });
     }
   });
@@ -267,7 +270,7 @@ export function createThemesRouter(prisma) {
       if (error.code === 'P2002') {
         return res.status(409).json({ error: 'Theme name already exists' });
       }
-      console.error('Error creating theme:', error);
+      log.error({ error: error.message, themeName: req.body.name, requestId: req.id }, 'failed to create theme');
       res.status(500).json({ error: 'Failed to create theme' });
     }
   });
@@ -300,7 +303,7 @@ export function createThemesRouter(prisma) {
 
       res.json(theme);
     } catch (error) {
-      console.error('Error updating theme:', error);
+      log.error({ error: error.message, themeName: req.params.name, requestId: req.id }, 'failed to update theme');
       res.status(500).json({ error: 'Failed to update theme' });
     }
   });
@@ -333,7 +336,7 @@ export function createThemesRouter(prisma) {
       await prisma.theme.delete({ where: { name } });
       res.json({ success: true });
     } catch (error) {
-      console.error('Error deleting theme:', error);
+      log.error({ error: error.message, themeName: req.params.name, requestId: req.id }, 'failed to delete theme');
       res.status(500).json({ error: 'Failed to delete theme' });
     }
   });
@@ -364,7 +367,7 @@ export function createThemesRouter(prisma) {
 
       res.json(updated);
     } catch (error) {
-      console.error('Error activating theme:', error);
+      log.error({ error: error.message, themeName: req.params.name, requestId: req.id }, 'failed to activate theme');
       res.status(500).json({ error: 'Failed to activate theme' });
     }
   });
@@ -400,7 +403,7 @@ export function createThemesRouter(prisma) {
       if (error.code === 'P2002') {
         return res.status(409).json({ error: 'Theme name already exists' });
       }
-      console.error('Error duplicating theme:', error);
+      log.error({ error: error.message, themeName: req.params.name, requestId: req.id }, 'failed to duplicate theme');
       res.status(500).json({ error: 'Failed to duplicate theme' });
     }
   });

@@ -4,6 +4,9 @@
  */
 
 import { Router } from 'express';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('shortcuts');
 
 // Default keyboard shortcuts
 const DEFAULT_SHORTCUTS = [
@@ -68,7 +71,7 @@ export function createShortcutsRouter(prisma) {
 
       res.json(shortcuts);
     } catch (error) {
-      console.error('Error fetching shortcuts:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch shortcuts');
       res.status(500).json({ error: 'Failed to fetch shortcuts' });
     }
   });
@@ -110,7 +113,7 @@ export function createShortcutsRouter(prisma) {
 
       res.json(shortcut);
     } catch (error) {
-      console.error('Error updating shortcut:', error);
+      log.error({ error: error.message, action: req.params.action, requestId: req.id }, 'failed to update shortcut');
       res.status(500).json({ error: 'Failed to update shortcut' });
     }
   });
@@ -135,7 +138,7 @@ export function createShortcutsRouter(prisma) {
         res.json({ message: 'Shortcut removed' });
       }
     } catch (error) {
-      console.error('Error resetting shortcut:', error);
+      log.error({ error: error.message, action: req.params.action, requestId: req.id }, 'failed to reset shortcut');
       res.status(500).json({ error: 'Failed to reset shortcut' });
     }
   });
@@ -149,7 +152,7 @@ export function createShortcutsRouter(prisma) {
       await prisma.keyboardShortcut.deleteMany({});
       res.json(DEFAULT_SHORTCUTS.map(s => ({ ...s, isCustom: false, isEnabled: true })));
     } catch (error) {
-      console.error('Error resetting all shortcuts:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to reset all shortcuts');
       res.status(500).json({ error: 'Failed to reset shortcuts' });
     }
   });

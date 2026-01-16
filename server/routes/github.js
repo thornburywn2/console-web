@@ -18,6 +18,9 @@ import fs from 'fs/promises';
 import { promisify } from 'util';
 import { exec } from 'child_process';
 import scanManager from '../services/scanManager.js';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('github');
 
 const execAsync = promisify(exec);
 
@@ -143,7 +146,7 @@ export function createGithubRouter(prisma) {
             },
             include: { githubRepo: true }
           });
-          console.log(`[GitHub] Auto-created project entry for: ${projectId}`);
+          log.info({ projectId }, 'auto-created project entry');
         }
       } catch (e) {
         // Project doesn't exist on filesystem either
@@ -415,7 +418,7 @@ export function createGithubRouter(prisma) {
     // Check if pre-push pipeline is enabled in settings
     const settings = scanManager.getScanSettings();
     if (!settings.enablePrePushPipeline) {
-      console.log(`[Pre-Push Pipeline] Disabled in settings, skipping...`);
+      log.info('pre-push pipeline disabled in settings, skipping');
       return { success: true, results: [], blockers: [], skipped: true, reason: 'disabled_in_settings' };
     }
 
@@ -423,8 +426,8 @@ export function createGithubRouter(prisma) {
       return { success: true, results: [], blockers: [], skipped: true };
     }
 
-    console.log(`[Pre-Push Pipeline] Starting for ${projectPath}...`);
-    console.log(`[Pre-Push Pipeline] Resource settings: concurrency=${settings.scanConcurrency}, nice=${settings.scanNiceLevel}, memory=${settings.scanMemoryLimitMb}MB`);
+    log.info({ projectPath }, 'starting pre-push pipeline');
+    log.info({ concurrency: settings.scanConcurrency, niceLevel: settings.scanNiceLevel, memoryLimitMb: settings.scanMemoryLimitMb }, 'pre-push pipeline resource settings');
 
     const results = [];
     const blockers = [];
@@ -434,12 +437,12 @@ export function createGithubRouter(prisma) {
       if (skipSecurity && stage.id === 'security') continue;
       if (skipQuality && stage.id === 'quality') continue;
 
-      console.log(`[Pre-Push Pipeline] Running ${stage.name}...`);
+      log.info({ stage: stage.name }, 'running pipeline stage');
 
       const result = await runPipelineStage(stage, projectPath);
       results.push(result);
 
-      console.log(`[Pre-Push Pipeline] ${stage.name}: ${result.status} (${result.duration}ms)`);
+      log.info({ stage: stage.name, status: result.status, duration: result.duration }, 'pipeline stage completed');
 
       // Check for blockers (required stages that failed)
       if (stage.required && (result.status === 'failed' || result.status === 'error')) {
@@ -452,7 +455,7 @@ export function createGithubRouter(prisma) {
 
     const success = blockers.length === 0;
 
-    console.log(`[Pre-Push Pipeline] Complete: ${success ? 'PASSED' : 'BLOCKED'}`);
+    log.info({ success, blockerCount: blockers.length }, 'pre-push pipeline complete');
 
     return { success, results, blockers };
   }
@@ -474,7 +477,7 @@ export function createGithubRouter(prisma) {
         username: settings?.username || null
       });
     } catch (error) {
-      console.error('Error checking GitHub settings:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to check github settings');
       res.json({ authenticated: false, configured: false });
     }
   });
@@ -503,7 +506,7 @@ export function createGithubRouter(prisma) {
         lastValidated: settings.lastValidated
       });
     } catch (error) {
-      console.error('Error checking GitHub auth:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to check github auth');
       res.status(500).json({ error: error.message });
     }
   });
@@ -570,7 +573,7 @@ export function createGithubRouter(prisma) {
         tokenScopes: settings.tokenScopes
       });
     } catch (error) {
-      console.error('Error authenticating GitHub:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to authenticate github');
 
       if (error.status === 401) {
         return res.status(401).json({ error: 'Invalid access token' });
@@ -600,7 +603,7 @@ export function createGithubRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Error disconnecting GitHub:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to disconnect github');
       res.status(500).json({ error: error.message });
     }
   });
@@ -658,7 +661,7 @@ export function createGithubRouter(prisma) {
         perPage: parseInt(per_page)
       });
     } catch (error) {
-      console.error('Error listing GitHub repos:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to list github repos');
 
       if (error.message === 'GitHub not authenticated') {
         return res.status(401).json({ error: 'GitHub not authenticated' });
@@ -721,7 +724,7 @@ export function createGithubRouter(prisma) {
         perPage: parseInt(per_page)
       });
     } catch (error) {
-      console.error('Error searching GitHub repos:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to search github repos');
       res.status(500).json({ error: error.message });
     }
   });
@@ -764,7 +767,7 @@ export function createGithubRouter(prisma) {
         }
       });
     } catch (error) {
-      console.error('Error getting project GitHub info:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get project github info');
       res.status(500).json({ error: error.message });
     }
   });
@@ -844,7 +847,7 @@ export function createGithubRouter(prisma) {
         repo: githubRepo
       });
     } catch (error) {
-      console.error('Error linking GitHub repo:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to link github repo');
       res.status(500).json({ error: error.message });
     }
   });
@@ -919,14 +922,14 @@ export function createGithubRouter(prisma) {
       let sanitizedFiles = [];
 
       if (sanitizeConfig && sanitizeConfig.enabled && !skipSanitize) {
-        console.log(`[GitHub Create] Sanitizing files for ${project.name}...`);
+        log.info({ project: project.name }, 'sanitizing files for github create');
 
         // Apply sanitization
         originalContents = await sanitizeProjectFiles(projectPath, sanitizeConfig);
         sanitizedFiles = Array.from(originalContents.keys()).map(f => path.relative(projectPath, f));
 
         if (sanitizedFiles.length > 0) {
-          console.log(`[GitHub Create] Sanitized ${sanitizedFiles.length} files`);
+          log.info({ fileCount: sanitizedFiles.length }, 'sanitized files for github create');
 
           // Amend the commit with sanitized files
           await execGit(['add', '-A'], projectPath);
@@ -939,7 +942,7 @@ export function createGithubRouter(prisma) {
 
       // Restore original files after push
       if (originalContents.size > 0) {
-        console.log(`[GitHub Create] Restoring original files...`);
+        log.info('restoring original files after github create');
         await restoreOriginalFiles(originalContents);
 
         // Amend back to original
@@ -974,14 +977,14 @@ export function createGithubRouter(prisma) {
         sanitizedFiles: sanitizedFiles.length > 0 ? sanitizedFiles : undefined
       });
     } catch (error) {
-      console.error('Error creating GitHub repo:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to create github repo');
 
       // Try to restore original files on error
       if (originalContents.size > 0) {
         try {
           await restoreOriginalFiles(originalContents);
         } catch (restoreError) {
-          console.error('Error restoring files:', restoreError);
+          log.error({ error: restoreError.message }, 'failed to restore files');
         }
       }
 
@@ -1022,7 +1025,7 @@ export function createGithubRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Error unlinking GitHub repo:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to unlink github repo');
       res.status(500).json({ error: error.message });
     }
   });
@@ -1103,7 +1106,7 @@ export function createGithubRouter(prisma) {
         }
       });
     } catch (error) {
-      console.error('Error cloning GitHub repo:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to clone github repo');
       res.status(500).json({ error: error.message });
     }
   });
@@ -1135,7 +1138,7 @@ export function createGithubRouter(prisma) {
         lastSyncedAt: new Date()
       });
     } catch (error) {
-      console.error('Error getting sync status:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get sync status');
       res.status(500).json({ error: error.message });
     }
   });
@@ -1178,13 +1181,13 @@ export function createGithubRouter(prisma) {
       const branch = await execGit(['rev-parse', '--abbrev-ref', 'HEAD'], project.path);
 
       // ==================== PRE-PUSH PIPELINE ====================
-      console.log(`[GitHub Push] Starting pre-push pipeline for ${project.name}...`);
+      log.info({ project: project.name }, 'starting pre-push pipeline for github push');
 
       const pipelineResult = await runPrePushPipeline(project.path, { skipPipeline });
 
       // If pipeline failed with blockers, reject the push
       if (!pipelineResult.success && pipelineResult.blockers.length > 0) {
-        console.log(`[GitHub Push] BLOCKED by pipeline - ${pipelineResult.blockers.length} blockers`);
+        log.warn({ blockerCount: pipelineResult.blockers.length }, 'github push blocked by pipeline');
         return res.status(400).json({
           error: 'Pre-push pipeline failed',
           blocked: true,
@@ -1199,7 +1202,7 @@ export function createGithubRouter(prisma) {
       let sanitizedFiles = [];
 
       if (sanitizeConfig && sanitizeConfig.enabled && !skipSanitize) {
-        console.log(`[GitHub Push] Sanitizing files for ${project.name}...`);
+        log.info({ project: project.name }, 'sanitizing files for github push');
 
         // Stash any uncommitted changes first
         let hasStash = false;
@@ -1215,7 +1218,7 @@ export function createGithubRouter(prisma) {
         sanitizedFiles = Array.from(originalContents.keys()).map(f => path.relative(project.path, f));
 
         if (sanitizedFiles.length > 0) {
-          console.log(`[GitHub Push] Sanitized ${sanitizedFiles.length} files`);
+          log.info({ fileCount: sanitizedFiles.length }, 'sanitized files for github push');
 
           // Stage and commit sanitized changes
           await execGit(['add', '-A'], project.path);
@@ -1238,7 +1241,7 @@ export function createGithubRouter(prisma) {
 
         // Restore original files
         if (originalContents.size > 0) {
-          console.log(`[GitHub Push] Restoring original files...`);
+          log.info('restoring original files after github push');
 
           // Reset to before the sanitize commit
           await execGit(['reset', '--hard', 'HEAD~1'], project.path);
@@ -1248,7 +1251,7 @@ export function createGithubRouter(prisma) {
             try {
               await execGit(['stash', 'pop'], project.path);
             } catch (e) {
-              console.warn('Could not pop stash:', e.message);
+              log.warn({ error: e.message }, 'could not pop stash');
             }
           }
         }
@@ -1278,14 +1281,14 @@ export function createGithubRouter(prisma) {
         }
       });
     } catch (error) {
-      console.error('Error pushing to GitHub:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to push to github');
 
       // Try to restore original files on error
       if (originalContents.size > 0) {
         try {
           await restoreOriginalFiles(originalContents);
         } catch (restoreError) {
-          console.error('Error restoring files:', restoreError);
+          log.error({ error: restoreError.message }, 'failed to restore files');
         }
       }
 
@@ -1318,7 +1321,7 @@ export function createGithubRouter(prisma) {
 
       res.json({ success: true, branch });
     } catch (error) {
-      console.error('Error pulling from GitHub:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to pull from github');
       res.status(500).json({ error: error.message });
     }
   });
@@ -1346,7 +1349,7 @@ export function createGithubRouter(prisma) {
 
       res.json({ success: true, ...status });
     } catch (error) {
-      console.error('Error fetching from GitHub:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch from github');
       res.status(500).json({ error: error.message });
     }
   });
@@ -1386,7 +1389,7 @@ export function createGithubRouter(prisma) {
         }))
       });
     } catch (error) {
-      console.error('Error listing workflows:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to list workflows');
       res.status(500).json({ error: error.message });
     }
   });
@@ -1465,7 +1468,7 @@ export function createGithubRouter(prisma) {
         }))
       });
     } catch (error) {
-      console.error('Error listing workflow runs:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to list workflow runs');
       res.status(500).json({ error: error.message });
     }
   });

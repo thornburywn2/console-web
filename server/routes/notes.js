@@ -4,6 +4,9 @@
  */
 
 import { Router } from 'express';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('notes');
 
 export function createNotesRouter(prisma) {
   const router = Router();
@@ -25,7 +28,7 @@ export function createNotesRouter(prisma) {
 
       res.json(notes);
     } catch (error) {
-      console.error('Error fetching notes:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch notes');
       res.status(500).json({ error: 'Failed to fetch notes' });
     }
   });
@@ -75,7 +78,7 @@ export function createNotesRouter(prisma) {
 
       res.json({ notes, total, limit: parseInt(limit), offset: parseInt(offset) });
     } catch (error) {
-      console.error('Error fetching notes:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch notes');
       res.status(500).json({ error: 'Failed to fetch notes' });
     }
   });
@@ -107,7 +110,7 @@ export function createNotesRouter(prisma) {
 
       res.json(note);
     } catch (error) {
-      console.error('Error fetching note:', error);
+      log.error({ error: error.message, noteId: req.params.id, requestId: req.id }, 'failed to fetch note');
       res.status(500).json({ error: 'Failed to fetch note' });
     }
   });
@@ -147,7 +150,7 @@ export function createNotesRouter(prisma) {
 
       res.status(201).json(note);
     } catch (error) {
-      console.error('Error creating note:', error);
+      log.error({ error: error.message, sessionId: req.body.sessionId, requestId: req.id }, 'failed to create note');
       res.status(500).json({ error: 'Failed to create note' });
     }
   });
@@ -171,7 +174,7 @@ export function createNotesRouter(prisma) {
 
       res.json(note);
     } catch (error) {
-      console.error('Error updating note:', error);
+      log.error({ error: error.message, noteId: req.params.id, requestId: req.id }, 'failed to update note');
       res.status(500).json({ error: 'Failed to update note' });
     }
   });
@@ -185,7 +188,7 @@ export function createNotesRouter(prisma) {
       await prisma.sessionNote.delete({ where: { id } });
       res.json({ success: true });
     } catch (error) {
-      console.error('Error deleting note:', error);
+      log.error({ error: error.message, noteId: req.params.id, requestId: req.id }, 'failed to delete note');
       res.status(500).json({ error: 'Failed to delete note' });
     }
   });
@@ -205,7 +208,7 @@ export function createNotesRouter(prisma) {
 
       res.json(note);
     } catch (error) {
-      console.error('Error toggling pin:', error);
+      log.error({ error: error.message, noteId: req.params.id, requestId: req.id }, 'failed to toggle note pin');
       res.status(500).json({ error: 'Failed to toggle pin' });
     }
   });
@@ -238,7 +241,7 @@ export function createNotesRouter(prisma) {
 
       res.json(note);
     } catch (error) {
-      console.error('Error moving note:', error);
+      log.error({ error: error.message, noteId: req.params.id, targetSessionId: req.body.sessionId, requestId: req.id }, 'failed to move note');
       res.status(500).json({ error: 'Failed to move note' });
     }
   });
@@ -270,7 +273,7 @@ export function createNotesRouter(prisma) {
 
       res.status(201).json(duplicate);
     } catch (error) {
-      console.error('Error duplicating note:', error);
+      log.error({ error: error.message, noteId: req.params.id, requestId: req.id }, 'failed to duplicate note');
       res.status(500).json({ error: 'Failed to duplicate note' });
     }
   });
@@ -320,7 +323,7 @@ export function createNotesRouter(prisma) {
       res.setHeader('Content-Disposition', `attachment; filename="${session.sessionName}-notes.md"`);
       res.send(markdown);
     } catch (error) {
-      console.error('Error exporting notes:', error);
+      log.error({ error: error.message, sessionId: req.params.sessionId, requestId: req.id }, 'failed to export notes');
       res.status(500).json({ error: 'Failed to export notes' });
     }
   });

@@ -6,6 +6,9 @@
 import { Router } from 'express';
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { join, basename } from 'path';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('search');
 
 export function createSearchRouter(prisma, projectsDir) {
   const router = Router();
@@ -82,7 +85,7 @@ export function createSearchRouter(prisma, projectsDir) {
 
           results.projects = results.projects.slice(0, searchLimit);
         } catch (error) {
-          console.error('Error searching projects:', error);
+          log.error({ error: error.message, query: q, requestId: req.id }, 'failed to search projects');
         }
       }
 
@@ -118,7 +121,7 @@ export function createSearchRouter(prisma, projectsDir) {
             match: 'name'
           }));
         } catch (error) {
-          console.error('Error searching sessions:', error);
+          log.error({ error: error.message, query: q, requestId: req.id }, 'failed to search sessions');
         }
       }
 
@@ -149,7 +152,7 @@ export function createSearchRouter(prisma, projectsDir) {
             match: p.content.toLowerCase().includes(query) ? 'content' : 'name'
           }));
         } catch (error) {
-          console.error('Error searching prompts:', error);
+          log.error({ error: error.message, query: q, requestId: req.id }, 'failed to search prompts');
         }
       }
 
@@ -181,7 +184,7 @@ export function createSearchRouter(prisma, projectsDir) {
             match: s.command.toLowerCase().includes(query) ? 'command' : 'name'
           }));
         } catch (error) {
-          console.error('Error searching snippets:', error);
+          log.error({ error: error.message, query: q, requestId: req.id }, 'failed to search snippets');
         }
       }
 
@@ -210,7 +213,7 @@ export function createSearchRouter(prisma, projectsDir) {
             match: 'name'
           }));
         } catch (error) {
-          console.error('Error searching workflows:', error);
+          log.error({ error: error.message, query: q, requestId: req.id }, 'failed to search workflows');
         }
       }
 
@@ -256,7 +259,7 @@ export function createSearchRouter(prisma, projectsDir) {
             }
           }
         } catch (error) {
-          console.error('Error searching files:', error);
+          log.error({ error: error.message, query: q, requestId: req.id }, 'failed to search files');
         }
       }
 
@@ -271,7 +274,7 @@ export function createSearchRouter(prisma, projectsDir) {
         results
       });
     } catch (error) {
-      console.error('Error in global search:', error);
+      log.error({ error: error.message, query: req.query.q, requestId: req.id }, 'global search failed');
       res.status(500).json({ error: 'Search failed' });
     }
   });
@@ -338,7 +341,7 @@ export function createSearchRouter(prisma, projectsDir) {
         suggestions: Array.from(suggestions).slice(0, parseInt(limit))
       });
     } catch (error) {
-      console.error('Error getting suggestions:', error);
+      log.error({ error: error.message, query: req.query.q, requestId: req.id }, 'failed to get search suggestions');
       res.status(500).json({ error: 'Failed to get suggestions' });
     }
   });
@@ -356,7 +359,7 @@ export function createSearchRouter(prisma, projectsDir) {
 
       res.json({ recentSearches });
     } catch (error) {
-      console.error('Error getting recent searches:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get recent searches');
       res.status(500).json({ error: 'Failed to get recent searches' });
     }
   });
@@ -397,7 +400,7 @@ export function createSearchRouter(prisma, projectsDir) {
 
       res.json({ recentSearches });
     } catch (error) {
-      console.error('Error saving recent search:', error);
+      log.error({ error: error.message, query: req.body.query, requestId: req.id }, 'failed to save recent search');
       res.status(500).json({ error: 'Failed to save recent search' });
     }
   });
@@ -425,7 +428,7 @@ export function createSearchRouter(prisma, projectsDir) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Error clearing recent searches:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to clear recent searches');
       res.status(500).json({ error: 'Failed to clear recent searches' });
     }
   });

@@ -84,6 +84,37 @@ End of Day:
 
 ---
 
+## [1.0.4] - 2026-01-16
+
+### Paste Fix & Structured Logging
+
+This release fixes the double paste bug and implements structured logging throughout the server.
+
+### Bug Fixes
+
+#### Paste Deduplication
+- **Fixed double paste**: Content no longer duplicates when pasting in terminal
+- **Deduplication window**: 100ms window prevents duplicate paste events from firing
+- **Multi-character detection**: Only deduplicates paste-like input (2+ characters)
+
+### Improvements
+
+#### Structured Logging
+- **Pino integration**: Replaced console.log/error/warn with pino structured logging
+- **JSON-formatted logs**: All server logs now output structured JSON for better parsing
+- **Context fields**: Logs include relevant context (projectPath, sessionId, error details)
+- **Child loggers**: Separate loggers for server, session, socket, docker, and git operations
+- **Log levels**: Proper use of info, warn, error, and debug levels
+
+### Technical Details
+
+- Updated `server/index.js` with structured logging (~70+ replacements)
+- Updated `server/services/` with structured logging
+- Updated `server/middleware/` with structured logging
+- Added paste deduplication to `Terminal.jsx` onData handler
+
+---
+
 ## [1.0.3] - 2026-01-16
 
 ### Terminal Session Fixes & Project Management

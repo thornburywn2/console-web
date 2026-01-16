@@ -4,6 +4,9 @@
  */
 
 import { Router } from 'express';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('project-tags');
 
 export function createProjectTagsRouter(prisma) {
   const router = Router();
@@ -35,7 +38,7 @@ export function createProjectTagsRouter(prisma) {
 
       res.json(tagsWithCount);
     } catch (error) {
-      console.error('Error fetching project tags:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch project tags');
       res.status(500).json({ error: 'Failed to fetch project tags' });
     }
   });
@@ -68,7 +71,7 @@ export function createProjectTagsRouter(prisma) {
       if (error.code === 'P2002') {
         return res.status(409).json({ error: 'Tag name already exists' });
       }
-      console.error('Error creating project tag:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to create project tag');
       res.status(500).json({ error: 'Failed to create project tag' });
     }
   });
@@ -95,7 +98,7 @@ export function createProjectTagsRouter(prisma) {
       if (error.code === 'P2002') {
         return res.status(409).json({ error: 'Tag name already exists' });
       }
-      console.error('Error updating project tag:', error);
+      log.error({ error: error.message, tagId: req.params.id, requestId: req.id }, 'failed to update project tag');
       res.status(500).json({ error: 'Failed to update project tag' });
     }
   });
@@ -109,7 +112,7 @@ export function createProjectTagsRouter(prisma) {
       await prisma.projectTag.delete({ where: { id } });
       res.json({ success: true });
     } catch (error) {
-      console.error('Error deleting project tag:', error);
+      log.error({ error: error.message, tagId: req.params.id, requestId: req.id }, 'failed to delete project tag');
       res.status(500).json({ error: 'Failed to delete project tag' });
     }
   });
@@ -156,7 +159,7 @@ export function createProjectTagsRouter(prisma) {
       const tags = assignments.map(a => a.tag);
       res.json(tags);
     } catch (error) {
-      console.error('Error fetching project tags:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch project tags');
       res.status(500).json({ error: 'Failed to fetch project tags' });
     }
   });
@@ -181,7 +184,7 @@ export function createProjectTagsRouter(prisma) {
       if (error.code === 'P2002') {
         return res.status(409).json({ error: 'Tag already assigned to project' });
       }
-      console.error('Error assigning tag to project:', error);
+      log.error({ error: error.message, projectId: req.params.projectId, requestId: req.id }, 'failed to assign tag to project');
       res.status(500).json({ error: 'Failed to assign tag to project' });
     }
   });
@@ -206,7 +209,7 @@ export function createProjectTagsRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Error removing tag from project:', error);
+      log.error({ error: error.message, projectId: req.params.projectId, requestId: req.id }, 'failed to remove tag from project');
       res.status(500).json({ error: 'Failed to remove tag from project' });
     }
   });
@@ -244,7 +247,7 @@ export function createProjectTagsRouter(prisma) {
       const tags = assignments.map(a => a.tag);
       res.json(tags);
     } catch (error) {
-      console.error('Error setting project tags:', error);
+      log.error({ error: error.message, projectId: req.params.projectId, requestId: req.id }, 'failed to set project tags');
       res.status(500).json({ error: 'Failed to set project tags' });
     }
   });
@@ -268,7 +271,7 @@ export function createProjectTagsRouter(prisma) {
         description: project.description || null,
       });
     } catch (error) {
-      console.error('Error fetching project settings:', error);
+      log.error({ error: error.message, projectId: req.params.projectId, requestId: req.id }, 'failed to fetch project settings');
       res.status(500).json({ error: 'Failed to fetch project settings' });
     }
   });
@@ -300,7 +303,7 @@ export function createProjectTagsRouter(prisma) {
         description: updatedProject.description,
       });
     } catch (error) {
-      console.error('Error updating project settings:', error);
+      log.error({ error: error.message, projectId: req.params.projectId, requestId: req.id }, 'failed to update project settings');
       res.status(500).json({ error: 'Failed to update project settings' });
     }
   });
@@ -327,7 +330,7 @@ export function createProjectTagsRouter(prisma) {
 
       res.json(notes);
     } catch (error) {
-      console.error('Error fetching project notes:', error);
+      log.error({ error: error.message, projectId: req.params.projectId, requestId: req.id }, 'failed to fetch project notes');
       res.status(500).json({ error: 'Failed to fetch project notes' });
     }
   });
@@ -357,7 +360,7 @@ export function createProjectTagsRouter(prisma) {
 
       res.status(201).json(note);
     } catch (error) {
-      console.error('Error creating project note:', error);
+      log.error({ error: error.message, projectId: req.params.projectId, requestId: req.id }, 'failed to create project note');
       res.status(500).json({ error: 'Failed to create project note' });
     }
   });
@@ -381,7 +384,7 @@ export function createProjectTagsRouter(prisma) {
 
       res.json(note);
     } catch (error) {
-      console.error('Error updating project note:', error);
+      log.error({ error: error.message, noteId: req.params.noteId, requestId: req.id }, 'failed to update project note');
       res.status(500).json({ error: 'Failed to update project note' });
     }
   });
@@ -395,7 +398,7 @@ export function createProjectTagsRouter(prisma) {
       await prisma.projectNote.delete({ where: { id: noteId } });
       res.json({ success: true });
     } catch (error) {
-      console.error('Error deleting project note:', error);
+      log.error({ error: error.message, noteId: req.params.noteId, requestId: req.id }, 'failed to delete project note');
       res.status(500).json({ error: 'Failed to delete project note' });
     }
   });

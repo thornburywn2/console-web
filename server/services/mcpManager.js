@@ -6,6 +6,9 @@
 
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
+import { createLogger } from './logger.js';
+
+const log = createLogger('mcp-manager');
 
 class MCPManager extends EventEmitter {
   constructor(prisma, io) {
@@ -21,7 +24,7 @@ class MCPManager extends EventEmitter {
    * Initialize MCP manager - load and start enabled servers
    */
   async initialize() {
-    console.log('[MCPManager] Initializing...');
+    log.info('initializing MCP manager');
 
     // Load enabled servers from database
     const servers = await this.prisma.mCPServer.findMany({
@@ -33,14 +36,14 @@ class MCPManager extends EventEmitter {
       try {
         await this.startServer(server.id);
       } catch (error) {
-        console.error(`[MCPManager] Failed to start server ${server.name}:`, error.message);
+        log.error({ error: error.message, serverName: server.name }, 'failed to start MCP server');
       }
     }
 
     // Start health check interval
     this.startHealthChecks();
 
-    console.log(`[MCPManager] Initialized with ${servers.length} servers`);
+    log.info({ serverCount: servers.length }, 'MCP manager initialized');
   }
 
   /**
@@ -69,7 +72,7 @@ class MCPManager extends EventEmitter {
       try {
         await this.checkServerHealth(serverId);
       } catch (error) {
-        console.error(`[MCPManager] Health check failed for ${serverId}:`, error.message);
+        log.error({ error: error.message, serverId }, 'health check failed');
       }
     }
   }
@@ -126,7 +129,7 @@ class MCPManager extends EventEmitter {
       await this.stopServer(serverId);
     }
 
-    console.log(`[MCPManager] Starting server: ${server.name} (${server.transport})`);
+    log.info({ serverName: server.name, transport: server.transport }, 'starting MCP server');
 
     let serverState = {
       transport: server.transport,
@@ -154,12 +157,12 @@ class MCPManager extends EventEmitter {
 
         // Handle stderr (logs)
         proc.stderr.on('data', (data) => {
-          console.log(`[MCP:${server.name}] ${data.toString()}`);
+          log.debug({ serverName: server.name, output: data.toString() }, 'MCP server stderr');
         });
 
         // Handle process exit
         proc.on('exit', async (code, signal) => {
-          console.log(`[MCPManager] Server ${server.name} exited with code ${code}`);
+          log.info({ serverName: server.name, exitCode: code, signal }, 'MCP server exited');
 
           await this.prisma.mCPServer.update({
             where: { id: serverId },
@@ -171,7 +174,7 @@ class MCPManager extends EventEmitter {
         });
 
         proc.on('error', async (error) => {
-          console.error(`[MCPManager] Server ${server.name} error:`, error);
+          log.error({ error: error.message, serverName: server.name }, 'MCP server error');
 
           await this.prisma.mCPServer.update({
             where: { id: serverId },
@@ -215,7 +218,7 @@ class MCPManager extends EventEmitter {
 
       return true;
     } catch (error) {
-      console.error(`[MCPManager] Failed to start server ${server.name}:`, error);
+      log.error({ error: error.message, serverName: server.name }, 'failed to start MCP server');
 
       await this.prisma.mCPServer.update({
         where: { id: serverId },
@@ -306,7 +309,7 @@ class MCPManager extends EventEmitter {
     const serverState = this.servers.get(serverId);
     if (!serverState) return;
 
-    console.log(`[MCPManager] Stopping server: ${serverId}`);
+    log.info({ serverId }, 'stopping MCP server');
 
     if (serverState.process) {
       serverState.process.kill('SIGTERM');
@@ -358,12 +361,12 @@ class MCPManager extends EventEmitter {
         });
       }
 
-      console.log(`[MCPManager] Discovered ${tools.length} tools for server ${serverId}`);
+      log.info({ serverId, toolCount: tools.length }, 'discovered MCP tools');
       this.io.emit('mcp-tools-updated', { serverId, count: tools.length });
 
       return tools;
     } catch (error) {
-      console.error(`[MCPManager] Tool discovery failed for ${serverId}:`, error.message);
+      log.error({ error: error.message, serverId }, 'MCP tool discovery failed');
       return [];
     }
   }
@@ -480,7 +483,7 @@ class MCPManager extends EventEmitter {
    * Shutdown manager - stop all servers
    */
   async shutdown() {
-    console.log('[MCPManager] Shutting down...');
+    log.info('MCP manager shutting down');
 
     if (this.healthCheckInterval) {
       clearInterval(this.healthCheckInterval);
@@ -491,7 +494,7 @@ class MCPManager extends EventEmitter {
       await this.stopServer(serverId);
     }
 
-    console.log('[MCPManager] Shutdown complete');
+    log.info('MCP manager shutdown complete');
   }
 }
 

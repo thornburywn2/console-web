@@ -12,6 +12,9 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { createLogger } from './logger.js';
+
+const log = createLogger('voice-ai');
 
 // System prompt for voice command parsing
 const VOICE_PARSER_SYSTEM_PROMPT = `You are a voice command parser for a development terminal called "Console.web". Your job is to interpret natural language voice commands and convert them into structured actions.
@@ -63,7 +66,7 @@ class VoiceAIService {
   initialize() {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      console.warn('ANTHROPIC_API_KEY not set - AI voice parsing disabled');
+      log.warn('ANTHROPIC_API_KEY not set - AI voice parsing disabled');
       return false;
     }
 
@@ -132,7 +135,7 @@ class VoiceAIService {
         rawResponse: assistantMessage
       };
     } catch (error) {
-      console.error('AI parsing error:', error);
+      log.error({ error: error.message }, 'AI parsing error');
       throw error;
     }
   }
@@ -191,7 +194,7 @@ class VoiceAIService {
         };
       }
     } catch (e) {
-      console.error('Failed to parse AI response:', e);
+      log.error({ error: e.message }, 'failed to parse AI response');
     }
 
     // Fallback: return as passthrough to Claude
@@ -287,7 +290,7 @@ Return a JSON array of suggestions:
         return JSON.parse(jsonMatch[0]);
       }
     } catch (error) {
-      console.error('Suggestion generation error:', error);
+      log.error({ error: error.message }, 'suggestion generation error');
     }
 
     return [];
@@ -325,7 +328,7 @@ Respond with just the number (1, 2, 3, etc.) of the most likely interpretation.`
         return alternatives[choice - 1];
       }
     } catch (error) {
-      console.error('Disambiguation error:', error);
+      log.error({ error: error.message }, 'disambiguation error');
     }
 
     return alternatives[0] || null;
@@ -370,7 +373,7 @@ Ask clarifying questions if needed, or provide the final parsed command when rea
         parsed: hasCommand ? this.parseAIResponse(assistantMessage, userMessage) : null
       };
     } catch (error) {
-      console.error('Conversation error:', error);
+      log.error({ error: error.message }, 'conversation error');
       throw error;
     }
   }

@@ -8,7 +8,9 @@ import fs from 'fs/promises';
 import path from 'path';
 import { execSync, exec } from 'child_process';
 import { promisify } from 'util';
+import { createLogger } from './logger.js';
 
+const log = createLogger('templates');
 const execAsync = promisify(exec);
 
 // Path to templates directory
@@ -34,7 +36,7 @@ export class TemplateService {
       this.registry = JSON.parse(content);
       return this.registry;
     } catch (error) {
-      console.error('Error loading template registry:', error);
+      log.error({ error: error.message }, 'error loading template registry');
       throw new Error('Failed to load template registry');
     }
   }
@@ -181,7 +183,7 @@ export class TemplateService {
         execSync('git add .', { cwd: projectPath, stdio: 'pipe' });
         execSync('git commit -m "Initial commit from template"', { cwd: projectPath, stdio: 'pipe' });
       } catch (error) {
-        console.error('Error initializing git:', error.message);
+        log.error({ error: error.message, projectPath }, 'error initializing git');
       }
     }
 
@@ -203,7 +205,7 @@ export class TemplateService {
       try {
         execSync('npx husky install', { cwd: projectPath, stdio: 'pipe' });
       } catch (error) {
-        console.error('Error setting up husky:', error.message);
+        log.error({ error: error.message, projectPath }, 'error setting up husky');
       }
     }
 
@@ -395,7 +397,7 @@ export class TemplateService {
       try {
         execSync('npx husky install', { cwd: projectPath, stdio: 'pipe' });
       } catch (error) {
-        console.error('Error setting up husky:', error.message);
+        log.error({ error: error.message, projectPath }, 'error setting up husky');
       }
     }
 
@@ -453,11 +455,11 @@ export class TemplateService {
           const compliance = await this.checkCompliance(projectPath);
           projects.push(compliance);
         } catch (error) {
-          console.error(`Error checking ${entry.name}:`, error.message);
+          log.error({ error: error.message, project: entry.name }, 'error checking project compliance');
         }
       }
     } catch (error) {
-      console.error('Error listing projects:', error);
+      log.error({ error: error.message }, 'error listing projects');
     }
 
     return {

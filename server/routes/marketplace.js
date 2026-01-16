@@ -12,6 +12,9 @@ import {
   getCategoriesWithCounts,
   getAgentsByTrigger
 } from '../data/agentCatalog.js';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('marketplace');
 
 export function createMarketplaceRouter(prisma) {
   const router = Router();
@@ -25,7 +28,7 @@ export function createMarketplaceRouter(prisma) {
       const categories = getCategoriesWithCounts();
       res.json(categories);
     } catch (error) {
-      console.error('Error fetching categories:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch categories');
       res.status(500).json({ error: 'Failed to fetch categories' });
     }
   });
@@ -83,7 +86,7 @@ export function createMarketplaceRouter(prisma) {
 
       res.json(agents);
     } catch (error) {
-      console.error('Error fetching agents:', error);
+      log.error({ error: error.message, category: req.query.category, requestId: req.id }, 'failed to fetch agents');
       res.status(500).json({ error: 'Failed to fetch agents' });
     }
   });
@@ -111,7 +114,7 @@ export function createMarketplaceRouter(prisma) {
         installedAgentId: installed?.id || null
       });
     } catch (error) {
-      console.error('Error fetching agent:', error);
+      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to fetch agent');
       res.status(500).json({ error: 'Failed to fetch agent' });
     }
   });
@@ -188,7 +191,7 @@ export function createMarketplaceRouter(prisma) {
         message: `${catalogAgent.name} installed successfully`
       });
     } catch (error) {
-      console.error('Error installing agent:', error);
+      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to install agent');
       res.status(500).json({ error: 'Failed to install agent' });
     }
   });
@@ -218,7 +221,7 @@ export function createMarketplaceRouter(prisma) {
         message: 'Agent uninstalled successfully'
       });
     } catch (error) {
-      console.error('Error uninstalling agent:', error);
+      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to uninstall agent');
       res.status(500).json({ error: 'Failed to uninstall agent' });
     }
   });
@@ -261,7 +264,7 @@ export function createMarketplaceRouter(prisma) {
 
       res.json(enriched);
     } catch (error) {
-      console.error('Error fetching installed agents:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch installed agents');
       res.status(500).json({ error: 'Failed to fetch installed agents' });
     }
   });
@@ -325,7 +328,7 @@ export function createMarketplaceRouter(prisma) {
         agent: updated
       });
     } catch (error) {
-      console.error('Error updating agent:', error);
+      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to update agent');
       res.status(500).json({ error: 'Failed to update agent' });
     }
   });
@@ -374,7 +377,7 @@ export function createMarketplaceRouter(prisma) {
           .map(([category, count]) => ({ category, count }))
       });
     } catch (error) {
-      console.error('Error fetching marketplace stats:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch marketplace stats');
       res.status(500).json({ error: 'Failed to fetch stats' });
     }
   });

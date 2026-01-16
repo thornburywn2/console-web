@@ -4,6 +4,9 @@
  */
 
 import { Router } from 'express';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('snippets');
 
 export function createSnippetsRouter(prisma) {
   const router = Router();
@@ -53,7 +56,7 @@ export function createSnippetsRouter(prisma) {
 
       res.json({ snippets, total, limit: parseInt(limit), offset: parseInt(offset) });
     } catch (error) {
-      console.error('Error fetching snippets:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch snippets');
       res.status(500).json({ error: 'Failed to fetch snippets' });
     }
   });
@@ -75,7 +78,7 @@ export function createSnippetsRouter(prisma) {
         count: c._count.id
       })));
     } catch (error) {
-      console.error('Error fetching categories:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch snippet categories');
       res.status(500).json({ error: 'Failed to fetch categories' });
     }
   });
@@ -102,7 +105,7 @@ export function createSnippetsRouter(prisma) {
 
       res.json(tags);
     } catch (error) {
-      console.error('Error fetching tags:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch snippet tags');
       res.status(500).json({ error: 'Failed to fetch tags' });
     }
   });
@@ -124,7 +127,7 @@ export function createSnippetsRouter(prisma) {
 
       res.json(snippet);
     } catch (error) {
-      console.error('Error fetching snippet:', error);
+      log.error({ error: error.message, snippetId: req.params.id, requestId: req.id }, 'failed to fetch snippet');
       res.status(500).json({ error: 'Failed to fetch snippet' });
     }
   });
@@ -157,7 +160,7 @@ export function createSnippetsRouter(prisma) {
 
       res.status(201).json(snippet);
     } catch (error) {
-      console.error('Error creating snippet:', error);
+      log.error({ error: error.message, name: req.body.name, requestId: req.id }, 'failed to create snippet');
       res.status(500).json({ error: 'Failed to create snippet' });
     }
   });
@@ -184,7 +187,7 @@ export function createSnippetsRouter(prisma) {
 
       res.json(snippet);
     } catch (error) {
-      console.error('Error updating snippet:', error);
+      log.error({ error: error.message, snippetId: req.params.id, requestId: req.id }, 'failed to update snippet');
       res.status(500).json({ error: 'Failed to update snippet' });
     }
   });
@@ -198,7 +201,7 @@ export function createSnippetsRouter(prisma) {
       await prisma.commandSnippet.delete({ where: { id } });
       res.json({ success: true });
     } catch (error) {
-      console.error('Error deleting snippet:', error);
+      log.error({ error: error.message, snippetId: req.params.id, requestId: req.id }, 'failed to delete snippet');
       res.status(500).json({ error: 'Failed to delete snippet' });
     }
   });
@@ -233,7 +236,7 @@ export function createSnippetsRouter(prisma) {
         snippetName: snippet.name
       });
     } catch (error) {
-      console.error('Error running snippet:', error);
+      log.error({ error: error.message, snippetId: req.params.id, requestId: req.id }, 'failed to run snippet');
       res.status(500).json({ error: 'Failed to run snippet' });
     }
   });
@@ -253,7 +256,7 @@ export function createSnippetsRouter(prisma) {
 
       res.json(snippet);
     } catch (error) {
-      console.error('Error toggling favorite:', error);
+      log.error({ error: error.message, snippetId: req.params.id, requestId: req.id }, 'failed to toggle snippet favorite');
       res.status(500).json({ error: 'Failed to toggle favorite' });
     }
   });
@@ -287,7 +290,7 @@ export function createSnippetsRouter(prisma) {
 
       res.status(201).json(duplicate);
     } catch (error) {
-      console.error('Error duplicating snippet:', error);
+      log.error({ error: error.message, snippetId: req.params.id, requestId: req.id }, 'failed to duplicate snippet');
       res.status(500).json({ error: 'Failed to duplicate snippet' });
     }
   });

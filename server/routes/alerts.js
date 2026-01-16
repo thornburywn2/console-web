@@ -4,6 +4,9 @@
  */
 
 import { Router } from 'express';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('alerts');
 
 export function createAlertsRouter(prisma) {
   const router = Router();
@@ -36,7 +39,7 @@ export function createAlertsRouter(prisma) {
 
       res.json(rules);
     } catch (error) {
-      console.error('Error fetching alert rules:', error);
+      log.error({ error: error.message, type: req.query.type, requestId: req.id }, 'failed to fetch alert rules');
       res.status(500).json({ error: 'Failed to fetch alert rules' });
     }
   });
@@ -58,7 +61,7 @@ export function createAlertsRouter(prisma) {
 
       res.json(rule);
     } catch (error) {
-      console.error('Error fetching alert rule:', error);
+      log.error({ error: error.message, ruleId: req.params.id, requestId: req.id }, 'failed to fetch alert rule');
       res.status(500).json({ error: 'Failed to fetch alert rule' });
     }
   });
@@ -114,7 +117,7 @@ export function createAlertsRouter(prisma) {
 
       res.status(201).json(rule);
     } catch (error) {
-      console.error('Error creating alert rule:', error);
+      log.error({ error: error.message, name: req.body.name, requestId: req.id }, 'failed to create alert rule');
       res.status(500).json({ error: 'Failed to create alert rule' });
     }
   });
@@ -156,7 +159,7 @@ export function createAlertsRouter(prisma) {
 
       res.json(rule);
     } catch (error) {
-      console.error('Error updating alert rule:', error);
+      log.error({ error: error.message, ruleId: req.params.id, requestId: req.id }, 'failed to update alert rule');
       res.status(500).json({ error: 'Failed to update alert rule' });
     }
   });
@@ -170,7 +173,7 @@ export function createAlertsRouter(prisma) {
       await prisma.alertRule.delete({ where: { id } });
       res.json({ success: true });
     } catch (error) {
-      console.error('Error deleting alert rule:', error);
+      log.error({ error: error.message, ruleId: req.params.id, requestId: req.id }, 'failed to delete alert rule');
       res.status(500).json({ error: 'Failed to delete alert rule' });
     }
   });
@@ -190,7 +193,7 @@ export function createAlertsRouter(prisma) {
 
       res.json(rule);
     } catch (error) {
-      console.error('Error toggling alert rule:', error);
+      log.error({ error: error.message, ruleId: req.params.id, requestId: req.id }, 'failed to toggle alert rule');
       res.status(500).json({ error: 'Failed to toggle alert rule' });
     }
   });
@@ -217,7 +220,7 @@ export function createAlertsRouter(prisma) {
         message: `Alert "${rule.name}" test triggered`
       });
     } catch (error) {
-      console.error('Error testing alert rule:', error);
+      log.error({ error: error.message, ruleId: req.params.id, requestId: req.id }, 'failed to test alert rule');
       res.status(500).json({ error: 'Failed to test alert rule' });
     }
   });
@@ -244,7 +247,7 @@ export function createAlertsRouter(prisma) {
         currentValue
       });
     } catch (error) {
-      console.error('Error recording alert trigger:', error);
+      log.error({ error: error.message, ruleId: req.params.id, requestId: req.id }, 'failed to record alert trigger');
       res.status(500).json({ error: 'Failed to record trigger' });
     }
   });
@@ -272,7 +275,7 @@ export function createAlertsRouter(prisma) {
 
       res.json(rule);
     } catch (error) {
-      console.error('Error fetching alert history:', error);
+      log.error({ error: error.message, ruleId: req.params.id, requestId: req.id }, 'failed to fetch alert history');
       res.status(500).json({ error: 'Failed to fetch history' });
     }
   });
@@ -294,7 +297,7 @@ export function createAlertsRouter(prisma) {
 
       res.json(rule);
     } catch (error) {
-      console.error('Error resetting alert:', error);
+      log.error({ error: error.message, ruleId: req.params.id, requestId: req.id }, 'failed to reset alert');
       res.status(500).json({ error: 'Failed to reset alert' });
     }
   });
@@ -354,7 +357,7 @@ export function createAlertsRouter(prisma) {
 
       res.json(templates);
     } catch (error) {
-      console.error('Error fetching templates:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to fetch alert templates');
       res.status(500).json({ error: 'Failed to fetch templates' });
     }
   });

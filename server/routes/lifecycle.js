@@ -4,6 +4,9 @@ import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs/promises';
 import scanManager from '../services/scanManager.js';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('lifecycle');
 
 const execAsync = promisify(exec);
 
@@ -171,7 +174,7 @@ router.post('/scan', async (req, res) => {
     const queueStatus = scanManager.getQueueStatus();
 
     // Execute scan through the scan manager (with resource limiting and queueing)
-    console.log(`[Lifecycle] Executing ${agentConfig.name} scan for ${project || 'current directory'}`);
+    log.info({ agent: agentConfig.name, project: project || 'current directory' }, 'executing lifecycle scan');
 
     const result = await scanManager.executeScan(agentPath, command || '', projectPath, {
       agent: agentConfig.name

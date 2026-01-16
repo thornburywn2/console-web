@@ -12,6 +12,9 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import os from 'os';
 import { codePuppyManager } from './codePuppyManager.js';
+import { createLogger } from './logger.js';
+
+const log = createLogger('code-puppy-init');
 
 export class CodePuppyInitializer {
   constructor(prisma) {
@@ -50,7 +53,7 @@ export class CodePuppyInitializer {
         settings?.codePuppyModel
       );
     } catch (error) {
-      console.error('Error checking Code Puppy initialization:', error);
+      log.error({ error: error.message }, 'error checking Code Puppy initialization');
       return false;
     }
   }
@@ -70,7 +73,7 @@ export class CodePuppyInitializer {
             return { path, config };
           }
         } catch (error) {
-          console.error(`Failed to parse Claude config at ${path}:`, error.message);
+          log.error({ error: error.message, path }, 'failed to parse Claude config');
           continue;
         }
       }
@@ -93,7 +96,7 @@ export class CodePuppyInitializer {
     for (const dir of dirs) {
       if (!existsSync(dir)) {
         mkdirSync(dir, { recursive: true });
-        console.log(`Created directory: ${dir}`);
+        log.info({ dir }, 'created directory');
       }
     }
 
@@ -124,10 +127,10 @@ export class CodePuppyInitializer {
 
     try {
       writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2), 'utf-8');
-      console.log(`Created default config at: ${configPath}`);
+      log.info({ configPath }, 'created default config');
       return { success: true, message: 'Default config created', path: configPath, config: defaultConfig };
     } catch (error) {
-      console.error('Failed to create default config:', error);
+      log.error({ error: error.message, configPath }, 'failed to create default config');
       return { success: false, error: error.message };
     }
   }
@@ -139,7 +142,7 @@ export class CodePuppyInitializer {
     const claudeConfig = this.findClaudeMcpConfig();
 
     if (!claudeConfig) {
-      console.log('No Claude MCP configuration found - skipping MCP sync');
+      log.info('no Claude MCP configuration found - skipping MCP sync');
       return {
         success: false,
         message: 'Claude MCP configuration not found',
@@ -147,7 +150,7 @@ export class CodePuppyInitializer {
       };
     }
 
-    console.log(`Found Claude MCP config at: ${claudeConfig.path}`);
+    log.info({ configPath: claudeConfig.path }, 'found Claude MCP config');
 
     const results = { added: [], skipped: [], errors: [] };
 
@@ -179,10 +182,10 @@ export class CodePuppyInitializer {
 
         codePuppyManager.addMcpServer(puppyConfig);
         results.added.push(name);
-        console.log(`Synced MCP server: ${name}`);
+        log.info({ serverName: name }, 'synced MCP server');
       } catch (error) {
         results.errors.push({ name, error: error.message });
-        console.error(`Failed to sync MCP server ${name}:`, error);
+        log.error({ error: error.message, serverName: name }, 'failed to sync MCP server');
       }
     }
 
@@ -224,10 +227,10 @@ export class CodePuppyInitializer {
         }
       });
 
-      console.log('Updated UserSettings with Code Puppy preferences');
+      log.info('updated UserSettings with Code Puppy preferences');
       return { success: true, settings };
     } catch (error) {
-      console.error('Failed to update UserSettings:', error);
+      log.error({ error: error.message }, 'failed to update UserSettings');
       return { success: false, error: error.message };
     }
   }
@@ -236,7 +239,7 @@ export class CodePuppyInitializer {
    * Full initialization - run all setup steps
    */
   async initialize(options = {}) {
-    console.log('🐶 Starting Code Puppy initialization...');
+    log.info('starting Code Puppy initialization');
 
     const results = {
       directories: null,
@@ -248,22 +251,22 @@ export class CodePuppyInitializer {
 
     try {
       // Step 1: Create directories
-      console.log('Step 1: Creating directories...');
+      log.info({ step: 1 }, 'creating directories');
       results.directories = this.initializeDirectories();
 
       // Step 2: Create default config
-      console.log('Step 2: Creating default configuration...');
+      log.info({ step: 2 }, 'creating default configuration');
       results.config = this.createDefaultConfig();
 
       // Step 3: Sync MCP servers from Claude
-      console.log('Step 3: Syncing MCP servers from Claude Code...');
+      log.info({ step: 3 }, 'syncing MCP servers from Claude Code');
       results.mcpSync = this.syncMcpServers();
 
       // Step 4: Update UserSettings
-      console.log('Step 4: Updating user settings...');
+      log.info({ step: 4 }, 'updating user settings');
       results.userSettings = await this.updateUserSettings(options);
 
-      console.log('✅ Code Puppy initialization complete!');
+      log.info('Code Puppy initialization complete');
 
       return {
         success: true,
@@ -271,7 +274,7 @@ export class CodePuppyInitializer {
         results
       };
     } catch (error) {
-      console.error('❌ Code Puppy initialization failed:', error);
+      log.error({ error: error.message }, 'Code Puppy initialization failed');
       return {
         success: false,
         error: error.message,

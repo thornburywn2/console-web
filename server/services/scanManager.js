@@ -14,7 +14,9 @@ import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs/promises';
+import { createLogger } from './logger.js';
 
+const log = createLogger('scan-manager');
 const execAsync = promisify(exec);
 
 // Scan queue and state
@@ -68,10 +70,10 @@ export async function loadScanSettings(prisma) {
       settings = { ...DEFAULT_SETTINGS };
     }
 
-    console.log('[ScanManager] Loaded settings:', settings);
+    log.info({ settings }, 'loaded scan settings');
     return settings;
   } catch (error) {
-    console.error('[ScanManager] Error loading settings:', error);
+    log.error({ error: error.message }, 'error loading scan settings');
     settings = { ...DEFAULT_SETTINGS };
     return settings;
   }
@@ -153,7 +155,7 @@ export async function executeScan(agentScript, command, projectPath, options = {
   const s = getScanSettings();
   const scanId = `scan-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
-  console.log(`[ScanManager] Queueing scan ${scanId}: ${path.basename(agentScript)} ${command}`);
+  log.info({ scanId, agent: path.basename(agentScript), command }, 'queueing scan');
 
   // Create a promise that will be resolved when the scan completes
   return new Promise((resolve, reject) => {
@@ -170,7 +172,7 @@ export async function executeScan(agentScript, command, projectPath, options = {
 
     // Add to queue
     scanQueue.push(scanJob);
-    console.log(`[ScanManager] Queue length: ${scanQueue.length}, Active scans: ${activeScans}`);
+    log.debug({ queueLength: scanQueue.length, activeScans }, 'scan queue status');
 
     // Process queue
     processQueue();
@@ -188,7 +190,7 @@ async function processQueue() {
     const job = scanQueue.shift();
     activeScans++;
 
-    console.log(`[ScanManager] Starting scan ${job.id} (active: ${activeScans}/${s.scanConcurrency})`);
+    log.info({ scanId: job.id, activeScans, maxConcurrency: s.scanConcurrency }, 'starting scan');
 
     // Execute the scan
     runScan(job)
@@ -219,7 +221,7 @@ async function runScan(job) {
   const baseCmd = `bash "${agentScript}" ${command || ''} "${projectPath}"`;
   const fullCmd = buildResourceLimitedCommand(baseCmd, projectPath);
 
-  console.log(`[ScanManager] Executing: ${fullCmd.substring(0, 100)}...`);
+  log.debug({ command: fullCmd.substring(0, 100) }, 'executing scan command');
 
   try {
     const { stdout, stderr } = await execAsync(fullCmd, {
@@ -242,7 +244,7 @@ async function runScan(job) {
                        output.toLowerCase().includes('medium') ||
                        output.includes('⚠');
 
-    console.log(`[ScanManager] Scan ${job.id} completed in ${duration}ms`);
+    log.info({ scanId: job.id, durationMs: duration, hasErrors, hasWarnings }, 'scan completed');
 
     return {
       success: !hasErrors,
@@ -255,7 +257,7 @@ async function runScan(job) {
 
   } catch (error) {
     const duration = Date.now() - startTime;
-    console.error(`[ScanManager] Scan ${job.id} failed after ${duration}ms:`, error.message);
+    log.error({ error: error.message, scanId: job.id, durationMs: duration }, 'scan failed');
 
     // Check for timeout
     if (error.killed || error.signal === 'SIGTERM') {
@@ -301,7 +303,7 @@ export function cancelPendingScans() {
     job.reject(new Error('Scan cancelled'));
   });
   scanQueue = [];
-  console.log(`[ScanManager] Cancelled ${cancelled} pending scans`);
+  log.info({ cancelledCount: cancelled }, 'cancelled pending scans');
   return cancelled;
 }
 
@@ -366,7 +368,7 @@ export async function getResourceRecommendations() {
 
     return recommendations;
   } catch (error) {
-    console.error('[ScanManager] Error getting recommendations:', error);
+    log.error({ error: error.message }, 'error getting resource recommendations');
     return {
       error: error.message,
       recommended: { ...DEFAULT_SETTINGS }

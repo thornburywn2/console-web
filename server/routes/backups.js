@@ -7,6 +7,9 @@ import { Router } from 'express';
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('backups');
 
 export function createBackupsRouter(prisma) {
   const router = Router();
@@ -87,7 +90,7 @@ export function createBackupsRouter(prisma) {
 
       res.json({ backups, schedules });
     } catch (error) {
-      console.error('List backups error:', error);
+      log.error({ error: error.message, projectPath: req.params.projectPath, requestId: req.id }, 'failed to list backups');
       res.status(500).json({ error: error.message });
     }
   });
@@ -155,7 +158,7 @@ export function createBackupsRouter(prisma) {
         createdAt: new Date().toISOString(),
       });
     } catch (error) {
-      console.error('Create backup error:', error);
+      log.error({ error: error.message, projectPath: req.params.projectPath, strategy: req.body.strategy, requestId: req.id }, 'failed to create backup');
       res.status(500).json({ error: error.message });
     }
   });
@@ -206,7 +209,7 @@ export function createBackupsRouter(prisma) {
 
       res.json({ success: true, message: 'Backup restored successfully' });
     } catch (error) {
-      console.error('Restore backup error:', error);
+      log.error({ error: error.message, projectPath: req.params.projectPath, backupId: req.params.backupId, requestId: req.id }, 'failed to restore backup');
       res.status(500).json({ error: error.message });
     }
   });
@@ -222,7 +225,7 @@ export function createBackupsRouter(prisma) {
       await fs.unlink(backupFile);
       res.json({ success: true });
     } catch (error) {
-      console.error('Delete backup error:', error);
+      log.error({ error: error.message, projectPath: req.params.projectPath, backupId: req.params.backupId, requestId: req.id }, 'failed to delete backup');
       res.status(500).json({ error: error.message });
     }
   });
@@ -261,7 +264,7 @@ export function createBackupsRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error('Save schedule error:', error);
+      log.error({ error: error.message, projectPath: req.params.projectPath, requestId: req.id }, 'failed to save backup schedule');
       res.status(500).json({ error: error.message });
     }
   });

@@ -16,7 +16,9 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { watch } from 'chokidar';
 import { execSync } from 'child_process';
+import { createLogger } from './logger.js';
 
+const log = createLogger('agent-runner');
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MAX_CONCURRENT_AGENTS = 5;
 
@@ -35,7 +37,7 @@ export class AgentRunner extends EventEmitter {
    * Initialize agent runner and set up event listeners
    */
   async initialize() {
-    console.log('[AgentRunner] Initializing agent runner service...');
+    log.info('initializing agent runner service');
 
     // Load all enabled agents and set up their triggers
     const agents = await this.prisma.agent.findMany({
@@ -47,7 +49,7 @@ export class AgentRunner extends EventEmitter {
       await this.setupAgentTriggers(agent);
     }
 
-    console.log(`[AgentRunner] Initialized ${agents.length} agents`);
+    log.info({ agentCount: agents.length }, 'agent runner initialized');
   }
 
   /**
@@ -173,17 +175,17 @@ export class AgentRunner extends EventEmitter {
   async triggerAgent(agent, context = {}) {
     // Check concurrent limit
     if (this.runningAgents.size >= MAX_CONCURRENT_AGENTS) {
-      console.log(`[AgentRunner] Agent ${agent.name} skipped: max concurrent agents (${MAX_CONCURRENT_AGENTS}) reached`);
+      log.info({ agentName: agent.name, maxConcurrent: MAX_CONCURRENT_AGENTS }, 'agent skipped: max concurrent agents reached');
       return null;
     }
 
     // Check if agent is already running
     if (this.runningAgents.has(agent.id)) {
-      console.log(`[AgentRunner] Agent ${agent.name} already running`);
+      log.info({ agentName: agent.name }, 'agent already running');
       return null;
     }
 
-    console.log(`[AgentRunner] Triggering agent: ${agent.name}`);
+    log.info({ agentName: agent.name, agentId: agent.id }, 'triggering agent');
 
     // Create execution record
     const execution = await this.prisma.agentExecution.create({
@@ -244,7 +246,7 @@ export class AgentRunner extends EventEmitter {
         endedAt: new Date()
       });
 
-      console.error(`[AgentRunner] Agent ${agent.name} failed:`, error);
+      log.error({ error: error.message, agentName: agent.name, agentId: agent.id }, 'agent execution failed');
       return null;
     } finally {
       this.runningAgents.delete(agent.id);
@@ -318,7 +320,7 @@ export class AgentRunner extends EventEmitter {
         resolve(output);
       } catch (error) {
         // Log and continue (as per spec)
-        console.error(`[AgentRunner] Shell command failed: ${error.message}`);
+        log.error({ error: error.message, command: config.command }, 'shell command failed');
         resolve(`Error: ${error.message}\n${error.stderr || ''}`);
       }
     });
@@ -335,7 +337,7 @@ export class AgentRunner extends EventEmitter {
       const text = await response.text();
       return `${response.status} ${response.statusText}\n${text}`;
     } catch (error) {
-      console.error(`[AgentRunner] API call failed: ${error.message}`);
+      log.error({ error: error.message, url: config.url }, 'API call failed');
       return `Error: ${error.message}`;
     }
   }
@@ -455,7 +457,7 @@ export class AgentRunner extends EventEmitter {
       await this.stopAgent(agentId);
     }
 
-    console.log('[AgentRunner] Shutdown complete');
+    log.info('agent runner shutdown complete');
   }
 }
 

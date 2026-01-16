@@ -7,6 +7,22 @@ import { useState, useEffect, useCallback } from 'react';
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.4',
+    date: '2026-01-16',
+    type: 'patch',
+    title: 'Paste Fix & Structured Logging',
+    highlights: [
+      'Fixed double paste bug - content no longer duplicates when pasting',
+      'Implemented structured pino logging throughout server codebase',
+      'Replaced console.log/error/warn with JSON-formatted structured logs',
+    ],
+    features: [
+      { title: 'Paste Deduplication', description: 'Added input deduplication to prevent paste events from firing twice within 100ms window' },
+      { title: 'Structured Logging', description: 'Server now uses pino for JSON-formatted logs with context fields for better debugging' },
+      { title: 'Log Categories', description: 'Separate loggers for server, session, socket, docker, and git operations' },
+    ],
+  },
+  {
     version: '1.0.3',
     date: '2026-01-16',
     type: 'patch',

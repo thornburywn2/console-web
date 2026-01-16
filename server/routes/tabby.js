@@ -7,6 +7,9 @@
 
 import express from 'express';
 import { tabbyManager } from '../services/tabbyManager.js';
+import { createLogger } from '../services/logger.js';
+
+const log = createLogger('tabby');
 
 export function createTabbyRouter(prisma, io) {
   const router = express.Router();
@@ -33,7 +36,7 @@ export function createTabbyRouter(prisma, io) {
         image
       });
     } catch (error) {
-      console.error('Error getting Tabby status:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get Tabby status');
       res.status(500).json({ error: 'Failed to get Tabby status' });
     }
   });
@@ -47,7 +50,7 @@ export function createTabbyRouter(prisma, io) {
       const models = tabbyManager.getModels();
       res.json(models);
     } catch (error) {
-      console.error('Error getting models:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get Tabby models');
       res.status(500).json({ error: 'Failed to get models' });
     }
   });
@@ -103,13 +106,13 @@ export function createTabbyRouter(prisma, io) {
             }
           });
         } catch (dbError) {
-          console.error('Failed to store Tabby config:', dbError);
+          log.error({ error: dbError.message }, 'failed to store Tabby config');
         }
       }
 
       res.json(result);
     } catch (error) {
-      console.error('Error starting Tabby:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to start Tabby');
       res.status(500).json({ error: error.message || 'Failed to start Tabby' });
     }
   });
@@ -130,13 +133,13 @@ export function createTabbyRouter(prisma, io) {
             data: { status: 'stopped' }
           });
         } catch (dbError) {
-          console.error('Failed to update Tabby config:', dbError);
+          log.error({ error: dbError.message }, 'failed to update Tabby config');
         }
       }
 
       res.json(result);
     } catch (error) {
-      console.error('Error stopping Tabby:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to stop Tabby');
       res.status(500).json({ error: error.message || 'Failed to stop Tabby' });
     }
   });
@@ -150,7 +153,7 @@ export function createTabbyRouter(prisma, io) {
       const result = await tabbyManager.restart();
       res.json(result);
     } catch (error) {
-      console.error('Error restarting Tabby:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to restart Tabby');
       res.status(500).json({ error: error.message || 'Failed to restart Tabby' });
     }
   });
@@ -183,7 +186,7 @@ export function createTabbyRouter(prisma, io) {
 
       res.json(result);
     } catch (error) {
-      console.error('Error pulling Tabby image:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to pull Tabby image');
       res.status(500).json({ error: error.message || 'Failed to pull Tabby image' });
     }
   });
@@ -202,7 +205,7 @@ export function createTabbyRouter(prisma, io) {
       const logs = await tabbyManager.getLogs(parseInt(tail));
       res.json({ logs });
     } catch (error) {
-      console.error('Error getting Tabby logs:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get Tabby logs');
       res.status(500).json({ error: 'Failed to get logs' });
     }
   });
@@ -233,13 +236,13 @@ export function createTabbyRouter(prisma, io) {
             data: { model }
           });
         } catch (dbError) {
-          console.error('Failed to update Tabby model:', dbError);
+          log.error({ error: dbError.message, model: req.body.model }, 'failed to update Tabby model');
         }
       }
 
       res.json(result);
     } catch (error) {
-      console.error('Error updating model:', error);
+      log.error({ error: error.message, model: req.body.model, requestId: req.id }, 'failed to update Tabby model');
       res.status(500).json({ error: error.message || 'Failed to update model' });
     }
   });
@@ -258,7 +261,7 @@ export function createTabbyRouter(prisma, io) {
       const result = await tabbyManager.testCompletion(code);
       res.json(result);
     } catch (error) {
-      console.error('Error testing Tabby:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to test Tabby');
       res.status(500).json({ error: error.message || 'Failed to test completion' });
     }
   });
@@ -295,7 +298,7 @@ export function createTabbyRouter(prisma, io) {
 
       res.json(config);
     } catch (error) {
-      console.error('Error getting config:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to get Tabby config');
       res.status(500).json({ error: 'Failed to get config' });
     }
   });
@@ -337,7 +340,7 @@ export function createTabbyRouter(prisma, io) {
 
       res.json(config);
     } catch (error) {
-      console.error('Error updating config:', error);
+      log.error({ error: error.message, requestId: req.id }, 'failed to update Tabby config');
       res.status(500).json({ error: 'Failed to update config' });
     }
   });
@@ -378,7 +381,7 @@ export function createTabbyRouter(prisma, io) {
         }
       });
     } catch (error) {
-      console.error('Error generating IDE config:', error);
+      log.error({ error: error.message, ide: req.params.ide, requestId: req.id }, 'failed to generate IDE config');
       res.status(500).json({ error: 'Failed to generate IDE config' });
     }
   });
