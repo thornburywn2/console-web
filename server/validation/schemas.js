@@ -129,7 +129,7 @@ export const snippetUpdateSchema = snippetSchema.partial();
 // AGENT SCHEMAS
 // =============================================================================
 
-const agentTriggerTypes = ['manual', 'schedule', 'file_change', 'git_event', 'session_event', 'webhook'] as const;
+const agentTriggerTypes = ['manual', 'schedule', 'file_change', 'git_event', 'session_event', 'webhook'];
 
 export const agentSchema = z.object({
   name: z.string().min(1).max(100),
