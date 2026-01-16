@@ -10,6 +10,7 @@
  * - Automatic Prisma client regeneration
  * - Memory threshold monitoring
  * - Exponential backoff for recovery attempts
+ * - Alert integration (database-driven alerts)
  * - Detailed logging
  */
 
@@ -17,6 +18,9 @@ import { exec, execSync } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '@prisma/client';
+import pg from 'pg';
 
 const execAsync = promisify(exec);
 
@@ -54,7 +58,205 @@ let state = {
   currentBackoff: CONFIG.initialBackoffMs,
   isRecovering: false,
   startTime: Date.now(),
+  alertCooldowns: new Map(), // Track alert cooldowns by rule ID
 };
+
+// Initialize Prisma client for alert integration
+let prisma = null;
+
+async function initPrisma() {
+  try {
+    const pool = new pg.Pool({
+      connectionString: process.env.DATABASE_URL,
+    });
+    const adapter = new PrismaPg(pool);
+    prisma = new PrismaClient({ adapter });
+    await prisma.$connect();
+    log('info', 'Prisma client connected for alert integration');
+    return true;
+  } catch (error) {
+    log('warn', 'Failed to initialize Prisma client - alerts disabled', { error: error.message });
+    return false;
+  }
+}
+
+/**
+ * Check if alert is in cooldown period
+ */
+function isAlertInCooldown(ruleId, cooldownMins) {
+  const lastTriggered = state.alertCooldowns.get(ruleId);
+  if (!lastTriggered) return false;
+
+  const cooldownMs = cooldownMins * 60 * 1000;
+  return Date.now() - lastTriggered < cooldownMs;
+}
+
+/**
+ * Trigger an alert and send notifications
+ */
+async function triggerAlert(rule, currentValue, context = {}) {
+  if (!prisma) return;
+
+  // Check cooldown
+  if (isAlertInCooldown(rule.id, rule.cooldownMins)) {
+    log('debug', `Alert ${rule.name} in cooldown, skipping`);
+    return;
+  }
+
+  log('warn', `ALERT TRIGGERED: ${rule.name}`, {
+    type: rule.type,
+    condition: rule.condition,
+    threshold: rule.threshold,
+    currentValue,
+    ...context
+  });
+
+  try {
+    // Update alert in database
+    await prisma.alertRule.update({
+      where: { id: rule.id },
+      data: {
+        lastTriggered: new Date(),
+        triggerCount: { increment: 1 }
+      }
+    });
+
+    // Update local cooldown
+    state.alertCooldowns.set(rule.id, Date.now());
+
+    // Send webhook notification if configured
+    if (process.env.ALERT_WEBHOOK_URL) {
+      await sendWebhookAlert(rule, currentValue, context);
+    }
+
+  } catch (error) {
+    log('error', 'Failed to update alert in database', { error: error.message });
+  }
+}
+
+/**
+ * Send webhook notification for alert
+ */
+async function sendWebhookAlert(rule, currentValue, context) {
+  try {
+    await fetch(process.env.ALERT_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'alert',
+        timestamp: new Date().toISOString(),
+        rule: {
+          id: rule.id,
+          name: rule.name,
+          type: rule.type,
+          condition: rule.condition,
+          threshold: rule.threshold
+        },
+        currentValue,
+        context,
+        source: 'console-web-watcher'
+      })
+    });
+    log('info', 'Webhook alert sent successfully');
+  } catch (error) {
+    log('error', 'Failed to send webhook alert', { error: error.message });
+  }
+}
+
+/**
+ * Check memory alerts against configured rules
+ */
+async function checkMemoryAlerts(memoryMB) {
+  if (!prisma) return;
+
+  try {
+    const memoryRules = await prisma.alertRule.findMany({
+      where: { type: 'MEMORY', enabled: true }
+    });
+
+    for (const rule of memoryRules) {
+      const shouldTrigger = evaluateCondition(memoryMB, rule.condition, rule.threshold);
+      if (shouldTrigger) {
+        await triggerAlert(rule, memoryMB, { unit: 'MB', process: CONFIG.appName });
+      }
+    }
+  } catch (error) {
+    log('error', 'Failed to check memory alerts', { error: error.message });
+  }
+}
+
+/**
+ * Check service alerts (app health status)
+ */
+async function checkServiceAlerts(isHealthy, errorType = null) {
+  if (!prisma) return;
+
+  try {
+    const serviceRules = await prisma.alertRule.findMany({
+      where: { type: 'SERVICE', enabled: true }
+    });
+
+    for (const rule of serviceRules) {
+      // For service alerts, threshold of 0 means "trigger when unhealthy"
+      if (!isHealthy && rule.threshold === 0) {
+        await triggerAlert(rule, 0, {
+          service: CONFIG.appName,
+          status: 'unhealthy',
+          errorType
+        });
+      }
+    }
+  } catch (error) {
+    log('error', 'Failed to check service alerts', { error: error.message });
+  }
+}
+
+/**
+ * Create a critical alert for max recovery failures
+ */
+async function createCriticalAlert(errorType, attempts) {
+  log('error', 'CRITICAL: Maximum recovery attempts reached', {
+    attempts,
+    errorType,
+    action: 'Manual intervention required'
+  });
+
+  // Send webhook if configured
+  if (process.env.ALERT_WEBHOOK_URL) {
+    try {
+      await fetch(process.env.ALERT_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'critical_alert',
+          timestamp: new Date().toISOString(),
+          severity: 'critical',
+          message: `Console.web maximum recovery attempts (${attempts}) reached`,
+          errorType,
+          action: 'Manual intervention required',
+          source: 'console-web-watcher'
+        })
+      });
+    } catch (error) {
+      log('error', 'Failed to send critical webhook alert', { error: error.message });
+    }
+  }
+}
+
+/**
+ * Evaluate alert condition
+ */
+function evaluateCondition(value, condition, threshold) {
+  switch (condition) {
+    case 'gt': return value > threshold;
+    case 'gte': return value >= threshold;
+    case 'lt': return value < threshold;
+    case 'lte': return value <= threshold;
+    case 'eq': return value === threshold;
+    case 'neq': return value !== threshold;
+    default: return false;
+  }
+}
 
 /**
  * Logging utility
@@ -298,11 +500,7 @@ async function performRecovery(errorType) {
     }
 
     if (state.consecutiveFailures >= CONFIG.maxRestartAttempts) {
-      log('error', 'MAX RECOVERY ATTEMPTS REACHED - Manual intervention may be required', {
-        attempts: state.consecutiveFailures,
-        lastError: errorType,
-      });
-      // Could add notification here (email, webhook, etc.)
+      await createCriticalAlert(errorType, state.consecutiveFailures);
     }
 
   } catch (error) {
@@ -343,7 +541,9 @@ async function monitor() {
     return;
   }
 
-  // Check memory usage
+  // Check memory usage and alerts
+  await checkMemoryAlerts(pm2Status.memory);
+
   if (pm2Status.memory > CONFIG.maxMemoryMB) {
     log('warn', `Memory usage high: ${pm2Status.memory}MB (threshold: ${CONFIG.maxMemoryMB}MB)`);
     await performRecovery('memory');
@@ -356,6 +556,9 @@ async function monitor() {
 
   if (!health.healthy) {
     log('error', 'Health check failed', { error: health.error, pm2Status });
+
+    // Check service alerts
+    await checkServiceAlerts(false, health.error);
 
     // Process is running but not responding - might be stuck
     const errors = await checkErrorLogs();
@@ -411,6 +614,12 @@ async function main() {
   // Register signal handlers
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+  // Initialize Prisma for alert integration (non-blocking)
+  await initPrisma();
+  if (process.env.ALERT_WEBHOOK_URL) {
+    log('info', 'Alert webhook configured');
+  }
 
   // Initial check
   await monitor();

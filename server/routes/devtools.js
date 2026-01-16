@@ -8,8 +8,10 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
+import { createLogger } from '../services/logger.js';
 
 const execAsync = promisify(exec);
+const log = createLogger('devtools');
 
 // Port Management Router
 export function createPortsRouter() {
@@ -68,6 +70,7 @@ export function createPortsRouter() {
       );
       res.json({ ports });
     } catch (error) {
+      log.error({ error: error.message }, 'failed to get port status');
       res.status(500).json({ error: error.message });
     }
   });
@@ -138,9 +141,12 @@ export function createPortsRouter() {
   router.post('/kill/:pid', async (req, res) => {
     try {
       const pid = parseInt(req.params.pid);
+      log.warn({ pid }, 'killing process');
       await execAsync(`kill -9 ${pid}`);
+      log.info({ pid }, 'process killed successfully');
       res.json({ success: true, pid });
     } catch (error) {
+      log.error({ error: error.message, pid: req.params.pid }, 'failed to kill process');
       res.status(500).json({ error: error.message });
     }
   });
@@ -233,8 +239,10 @@ export function createEnvRouter() {
       const content = variables.map(v => `${v.key}=${v.value}`).join('\n') + '\n';
       await fs.writeFile(filePath, content);
 
+      log.info({ filePath, variableCount: variables.length }, 'env file saved');
       res.json({ success: true });
     } catch (error) {
+      log.error({ error: error.message, filePath: req.params.filename }, 'failed to save env file');
       res.status(500).json({ error: error.message });
     }
   });
@@ -402,8 +410,10 @@ export function createDbBrowserRouter(prisma) {
         data
       });
 
+      log.info({ table, id }, 'record updated');
       res.json({ success: true });
     } catch (error) {
+      log.error({ error: error.message, table }, 'failed to update record');
       res.status(500).json({ error: error.message });
     }
   });
@@ -421,8 +431,10 @@ export function createDbBrowserRouter(prisma) {
 
       await model.delete({ where: { id } });
 
+      log.info({ table, id }, 'record deleted');
       res.json({ success: true });
     } catch (error) {
+      log.error({ error: error.message, table }, 'failed to delete record');
       res.status(500).json({ error: error.message });
     }
   });
@@ -441,6 +453,8 @@ export function createDbBrowserRouter(prisma) {
       const result = await prisma.$queryRawUnsafe(query);
       const executionTime = Date.now() - startTime;
 
+      log.info({ executionTime, rowCount: result.length, query: query.substring(0, 200) }, 'raw query executed');
+
       const columns = result.length > 0
         ? Object.keys(result[0]).map(key => ({
             name: key,
@@ -454,6 +468,7 @@ export function createDbBrowserRouter(prisma) {
         executionTime
       });
     } catch (error) {
+      log.error({ error: error.message, query: query.substring(0, 200) }, 'raw query failed');
       res.status(400).json({ error: error.message });
     }
   });
@@ -464,10 +479,12 @@ export function createDbBrowserRouter(prisma) {
 // Proxy Router for API testing
 export function createProxyRouter() {
   const router = Router();
+  const proxyLog = createLogger('devtools:proxy');
 
   router.post('/', async (req, res) => {
     try {
       const { url, method = 'GET', headers = {}, body } = req.body;
+      proxyLog.debug({ url, method }, 'proxying request');
 
       const fetchOptions = {
         method,
@@ -492,6 +509,7 @@ export function createProxyRouter() {
         responseBody = await response.text();
       }
 
+      proxyLog.debug({ url, status: response.status }, 'proxy response received');
       res.json({
         status: response.status,
         statusText: response.statusText,
@@ -499,6 +517,7 @@ export function createProxyRouter() {
         body: responseBody
       });
     } catch (error) {
+      proxyLog.error({ error: error.message, url: req.body.url }, 'proxy request failed');
       res.status(500).json({
         status: 0,
         statusText: 'Error',

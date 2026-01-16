@@ -106,6 +106,15 @@ import { AgentRunner } from './services/agentRunner.js';
 import MCPManager from './services/mcpManager.js';
 import { createInitializer } from './services/codePuppyInitializer.js';
 
+// Import Prometheus metrics
+import {
+  metricsMiddleware,
+  metricsHandler,
+  prismaMetricsMiddleware,
+  recordWebSocketConnection,
+  recordTerminalSession,
+} from './services/prometheusMetrics.js';
+
 // ES modules don't have __dirname, compute it
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -113,7 +122,37 @@ const __dirname = dirname(__filename);
 // Initialize Prisma client for session persistence (Prisma 7 adapter pattern)
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient({
+  adapter,
+  log: [
+    { level: 'query', emit: 'event' },
+    { level: 'error', emit: 'event' },
+    { level: 'warn', emit: 'event' },
+  ],
+});
+
+// Prisma query logging and slow query detection
+const dbLog = createLogger('database');
+const SLOW_QUERY_THRESHOLD_MS = parseInt(process.env.SLOW_QUERY_THRESHOLD_MS || '100', 10);
+
+prisma.$on('query', (e) => {
+  const durationMs = e.duration;
+  if (durationMs > SLOW_QUERY_THRESHOLD_MS) {
+    dbLog.warn({
+      duration: durationMs,
+      query: e.query.substring(0, 500),
+      params: e.params?.substring(0, 200),
+    }, 'slow database query detected');
+  }
+});
+
+prisma.$on('error', (e) => {
+  dbLog.error({ message: e.message, target: e.target }, 'prisma error');
+});
+
+prisma.$on('warn', (e) => {
+  dbLog.warn({ message: e.message }, 'prisma warning');
+});
 
 const app = express();
 const server = createServer(app);
@@ -223,13 +262,18 @@ app.use(cookieParser());
 // Structured request logging - adds req.id and req.log to all requests
 app.use(requestLogger);
 
+// Prometheus metrics middleware - tracks HTTP request metrics
+app.use(metricsMiddleware);
+
 // =============================================================================
-// HEALTH CHECK (Unauthenticated - for watcher service)
+// HEALTH CHECK & METRICS (Unauthenticated - for monitoring)
 // =============================================================================
+
+// Prometheus metrics endpoint
+app.get('/metrics', metricsHandler);
 
 // Create component-specific loggers
 const httpLog = createLogger('http');
-const dbLog = createLogger('database');
 const socketLog = createLogger('socket');
 const sessionLog = createLogger('session');
 const startupLog = createLogger('startup');
