@@ -9,6 +9,10 @@ import 'xterm/css/xterm.css';
 const CLIPBOARD_DEBUG = false; // Set to true to debug clipboard issues
 const clipboardLog = (...args) => CLIPBOARD_DEBUG && console.log('[Clipboard]', ...args);
 
+// Debug logging for paste issues
+const PASTE_DEBUG = false; // Set to true to debug paste duplication
+const pasteLog = (...args) => PASTE_DEBUG && console.log('[Paste]', ...args);
+
 // Cache terminal buffers per project path (survives component re-renders)
 const terminalBufferCache = new Map();
 
@@ -281,8 +285,17 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     const terminalElement = terminalRef.current;
     terminalElement.addEventListener('mouseup', handleMouseUp);
 
-    // Also support Ctrl+Shift+C for explicit copy
+    // Track if we're handling a paste to prevent duplicates
+    let pasteHandledAt = 0;
+    let lastPasteSentAt = 0;  // Track when we actually sent paste to onInput
+
+    // Custom key handler for copy/paste
     term.attachCustomKeyEventHandler((event) => {
+      // Only handle keydown, not keyup
+      if (event.type !== 'keydown') {
+        return true;
+      }
+
       // Ctrl+Shift+C - Copy
       if (event.ctrlKey && event.shiftKey && event.key === 'C') {
         const selection = term.getSelection();
@@ -291,19 +304,80 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
         }
         return false; // Prevent default
       }
-      // Ctrl+Shift+V - Paste
+
+      // Ctrl+Shift+V - Paste (we handle it, block xterm's handling)
       if (event.ctrlKey && event.shiftKey && event.key === 'V') {
+        const now = Date.now();
+        pasteLog('Ctrl+Shift+V handler triggered (keydown)', { timeSinceLastSend: now - lastPasteSentAt });
+
+        // Debounce: skip if we just sent a paste (within 200ms)
+        if (now - lastPasteSentAt < 200) {
+          pasteLog('Ctrl+Shift+V SKIPPED (debounced, sent too recently)');
+          return false;
+        }
+
+        pasteHandledAt = now;
+        lastPasteSentAt = now;
         navigator.clipboard.readText().then(text => {
           if (text) {
+            pasteLog('Ctrl+Shift+V sending to onInput:', text.substring(0, 50));
             onInput(text);
           }
         }).catch(err => {
           console.warn('Failed to paste from clipboard:', err);
         });
-        return false; // Prevent default
+        return false; // Prevent xterm's default paste handling
       }
+
+      // Ctrl+V (regular paste) - also handle to prevent xterm double-fire
+      if (event.ctrlKey && !event.shiftKey && event.key === 'v') {
+        const now = Date.now();
+        pasteLog('Ctrl+V handler triggered (keydown)', { timeSinceLastSend: now - lastPasteSentAt });
+
+        // Debounce: skip if we just sent a paste (within 200ms)
+        if (now - lastPasteSentAt < 200) {
+          pasteLog('Ctrl+V SKIPPED (debounced, sent too recently)');
+          return false;
+        }
+
+        pasteHandledAt = now;
+        lastPasteSentAt = now;
+        navigator.clipboard.readText().then(text => {
+          if (text) {
+            pasteLog('Ctrl+V sending to onInput:', text.substring(0, 50));
+            onInput(text);
+          }
+        }).catch(err => {
+          console.warn('Failed to paste from clipboard:', err);
+        });
+        return false; // Prevent xterm's default paste handling
+      }
+
       return true; // Allow other keys
     });
+
+    // Intercept browser paste event to prevent xterm from also handling it
+    const handlePaste = (event) => {
+      const now = Date.now();
+
+      // If we already handled this paste via key handler, skip
+      if (now - lastPasteSentAt < 200) {
+        pasteLog('Browser paste event blocked (already handled, debounced)');
+        event.preventDefault();
+        return;
+      }
+
+      // Handle right-click paste or menu paste
+      const text = event.clipboardData?.getData('text/plain');
+      if (text) {
+        pasteLog('Browser paste event handling:', text.substring(0, 50));
+        pasteHandledAt = now;
+        lastPasteSentAt = now;
+        event.preventDefault();
+        onInput(text);
+      }
+    };
+    terminalElement.addEventListener('paste', handlePaste);
 
     // Initial fit - wait for renderer to be ready
     const attemptFit = (retries = 0) => {
@@ -328,24 +402,27 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     // Start initial fit attempt after a short delay
     setTimeout(() => attemptFit(), 100);
 
-    // Paste deduplication - track recent input to prevent double paste
-    let lastInputData = '';
-    let lastInputTime = 0;
-    const PASTE_DEDUP_WINDOW = 100; // ms - ignore duplicate content within this window
-
-    // Handle user input with paste deduplication
+    // Handle user input - skip if we just handled a paste via key handler
     term.onData((data) => {
       const now = Date.now();
+      const isPaste = data.length > 1;
+      const recentlyHandledPaste = (now - lastPasteSentAt) < 200;
 
-      // Check if this is likely a paste (multi-character input)
-      // and if it's a duplicate within the deduplication window
-      if (data.length > 1 && data === lastInputData && (now - lastInputTime) < PASTE_DEDUP_WINDOW) {
-        // Skip duplicate paste
+      pasteLog('onData fired:', {
+        dataLength: data.length,
+        dataPreview: data.substring(0, 50),
+        isPaste,
+        recentlyHandledPaste,
+        timeSinceLastPasteSent: now - lastPasteSentAt
+      });
+
+      // Skip if this is paste data and we already handled it via key handler
+      if (isPaste && recentlyHandledPaste) {
+        pasteLog('BLOCKED onData (already handled by paste handler)');
         return;
       }
 
-      lastInputData = data;
-      lastInputTime = now;
+      pasteLog('SENDING to onInput');
       onInput(data);
     });
 
@@ -355,6 +432,7 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     // Cleanup
     return () => {
       terminalElement.removeEventListener('mouseup', handleMouseUp);
+      terminalElement.removeEventListener('paste', handlePaste);
       if (selectionTimeout) {
         clearTimeout(selectionTimeout);
       }
