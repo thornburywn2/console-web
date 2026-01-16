@@ -213,7 +213,7 @@ export default function NetworkStats({ isOpen, onClose }) {
 
   const fetchStats = useCallback(async () => {
     try {
-      const response = await fetch('/api/admin/network');
+      const response = await fetch('/api/network');
       if (response.ok) {
         const data = await response.json();
         setInterfaces(data.interfaces || []);
@@ -362,7 +362,7 @@ export function NetworkWidget() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch('/api/admin/network');
+        const response = await fetch('/api/network');
         if (response.ok) {
           const data = await response.json();
           const totalRx = data.interfaces?.reduce((sum, i) => sum + (i.rxRate || 0), 0) || 0;

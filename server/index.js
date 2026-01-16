@@ -2791,6 +2791,61 @@ app.get('/api/docker/containers/:id/stats', async (req, res) => {
 });
 
 /**
+ * Get stats for all running containers (aggregated endpoint)
+ */
+app.get('/api/docker/containers/stats', async (req, res) => {
+  try {
+    const containers = await docker.listContainers({ all: false }); // Only running
+
+    const statsPromises = containers.map(async (containerInfo) => {
+      try {
+        const container = docker.getContainer(containerInfo.Id);
+        const stats = await container.stats({ stream: false });
+
+        // Calculate CPU percentage
+        const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage;
+        const systemDelta = stats.cpu_stats.system_cpu_usage - stats.precpu_stats.system_cpu_usage;
+        const cpuPercent = systemDelta > 0 ? (cpuDelta / systemDelta) * stats.cpu_stats.online_cpus * 100 : 0;
+
+        // Calculate memory
+        const memUsage = stats.memory_stats.usage || 0;
+        const memLimit = stats.memory_stats.limit || 1;
+        const memPercent = (memUsage / memLimit) * 100;
+
+        return {
+          id: containerInfo.Id.substring(0, 12),
+          name: containerInfo.Names[0]?.replace(/^\//, '') || 'unknown',
+          image: containerInfo.Image,
+          status: containerInfo.State,
+          cpu: parseFloat(cpuPercent.toFixed(2)),
+          memory: {
+            usage: memUsage,
+            limit: memLimit,
+            percent: parseFloat(memPercent.toFixed(2)),
+          },
+        };
+      } catch (err) {
+        return {
+          id: containerInfo.Id.substring(0, 12),
+          name: containerInfo.Names[0]?.replace(/^\//, '') || 'unknown',
+          image: containerInfo.Image,
+          status: containerInfo.State,
+          cpu: 0,
+          memory: { usage: 0, limit: 0, percent: 0 },
+          error: err.message,
+        };
+      }
+    });
+
+    const results = await Promise.all(statsPromises);
+    res.json({ containers: results });
+  } catch (error) {
+    console.error('Docker aggregated stats error:', error);
+    res.status(500).json({ error: 'Failed to get container stats', details: error.message });
+  }
+});
+
+/**
  * List images
  */
 app.get('/api/docker/images', async (req, res) => {

@@ -260,7 +260,7 @@ export default function ContainerMetrics({ isOpen, onClose }) {
 
   const fetchContainers = useCallback(async () => {
     try {
-      const response = await fetch('/api/admin/docker/containers/stats');
+      const response = await fetch('/api/docker/containers/stats');
       if (response.ok) {
         const data = await response.json();
         setContainers(data.containers || []);
@@ -415,7 +415,7 @@ export function ContainerMetricsWidget() {
   useEffect(() => {
     const fetchContainers = async () => {
       try {
-        const response = await fetch('/api/admin/docker/containers/stats');
+        const response = await fetch('/api/docker/containers/stats');
         if (response.ok) {
           const data = await response.json();
           setContainers(data.containers || []);
