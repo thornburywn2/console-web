@@ -7,27 +7,27 @@ import { useState, useEffect, useCallback } from 'react';
 
 const CHANGELOG_ENTRIES = [
   {
-    version: '1.1.0',
+    version: '1.0.3',
     date: '2026-01-16',
-    type: 'minor',
-    title: 'Project Categorization & Management',
+    type: 'patch',
+    title: 'Terminal Session Fixes & Project Management',
     highlights: [
-      'Project tagging system with color-coded tags visible in sidebar',
-      'Project priority levels (High/Medium/Low) for organization',
-      'Persistent project notes with pin and delete functionality',
-      'Clone project feature with settings, tags, and notes copying',
+      'Terminal buffer caching - scrollback preserved when switching sessions',
+      'Fixed terminal reconnection showing blank screen on session switch',
+      'Cloudflare widget now properly updates when selecting different projects',
+      'Project tagging, priority, notes, and clone functionality',
       'Skip permissions toggle per-project for Claude sessions',
       'Enhanced context menu with multiple views and settings',
     ],
     features: [
+      { title: 'Buffer Caching', description: 'Terminal scrollback is saved when switching projects and restored when returning' },
+      { title: 'Session Reconnect', description: 'Fixed blank terminal on session switch with proper SIGWINCH refresh' },
       { title: 'Project Tags', description: 'Color-coded tags (Active, Archived, Infrastructure, Prototype, Production, WIP) with up to 3 visible in sidebar' },
       { title: 'Project Priority', description: 'Set High/Medium/Low priority with color indicators in context menu header' },
       { title: 'Project Notes', description: 'Add persistent notes to projects with title, content, pin to top, and delete' },
       { title: 'Clone Project', description: 'Duplicate any project with option to copy tags, notes, and settings (git history removed)' },
       { title: 'Skip Permissions', description: 'Per-project toggle to start Claude with --dangerously-skip-permissions flag' },
-      { title: 'Project Info Popup', description: 'View git branch, file count, size, CLAUDE.md status, and more' },
-      { title: 'Session Management', description: 'Start/open terminal and kill session directly from context menu' },
-      { title: 'Info Bar', description: 'Project info bar between header and terminal showing tags and quick stats' },
+      { title: 'Cloudflare Widget', description: 'Fixed widget not updating when switching between projects' },
     ],
   },
   {

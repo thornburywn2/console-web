@@ -117,13 +117,13 @@ function CloudflarePublishPanel({ project, onRefresh }) {
     } finally {
       setLoading(false);
     }
-  }, [project?.name]);
+  }, [project?.path, project?.name]);
 
   // Reset and fetch when project changes
   useEffect(() => {
     resetState();
     fetchData();
-  }, [project?.name, resetState, fetchData]);
+  }, [project?.path, resetState, fetchData]);
 
   const handlePublish = async (e) => {
     e.preventDefault();

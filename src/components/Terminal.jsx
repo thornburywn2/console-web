@@ -2,17 +2,23 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { WebLinksAddon } from 'xterm-addon-web-links';
+import { SerializeAddon } from '@xterm/addon-serialize';
 import 'xterm/css/xterm.css';
 
 // Debug logging for clipboard (shpool passes OSC 52 through natively)
 const CLIPBOARD_DEBUG = false; // Set to true to debug clipboard issues
 const clipboardLog = (...args) => CLIPBOARD_DEBUG && console.log('[Clipboard]', ...args);
 
+// Cache terminal buffers per project path (survives component re-renders)
+const terminalBufferCache = new Map();
+
 function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
   const terminalRef = useRef(null);
   const xtermRef = useRef(null);
   const fitAddonRef = useRef(null);
+  const serializeAddonRef = useRef(null);
   const containerRef = useRef(null);
+  const prevProjectPathRef = useRef(null); // Track previous project to avoid unnecessary clears
   const [notificationPermission, setNotificationPermission] = useState('default');
   const [showCompletionToast, setShowCompletionToast] = useState(false);
   const [completionMessage, setCompletionMessage] = useState('');
@@ -116,6 +122,11 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     fitAddonRef.current = fitAddon;
+
+    // Add serialize addon for buffer caching
+    const serializeAddon = new SerializeAddon();
+    term.loadAddon(serializeAddon);
+    serializeAddonRef.current = serializeAddon;
 
     // Add web links addon for clickable URLs
     const webLinksAddon = new WebLinksAddon();
@@ -434,21 +445,49 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     };
   }, [socket, isTerminalReady]);
 
-  // Clear terminal and refit when project changes
+  // Save/restore terminal buffer when switching projects
   useEffect(() => {
     const term = xtermRef.current;
-    if (term) {
-      try {
-        // Only clear/reset if renderer is ready
-        if (isTerminalReady()) {
-          term.clear();
-          term.reset();
+    const serializeAddon = serializeAddonRef.current;
+    const prevPath = prevProjectPathRef.current;
+    const isDifferentProject = prevPath && prevPath !== projectPath;
+
+    if (term && isTerminalReady()) {
+      // Save current buffer before switching (if we have a previous project)
+      if (isDifferentProject && prevPath && serializeAddon) {
+        try {
+          const serialized = serializeAddon.serialize();
+          if (serialized && serialized.length > 0) {
+            terminalBufferCache.set(prevPath, serialized);
+            console.debug(`[Terminal] Saved buffer for ${prevPath} (${serialized.length} chars)`);
+          }
+        } catch (err) {
+          console.debug('Failed to save terminal buffer:', err.message);
         }
-      } catch (err) {
-        console.debug('Terminal clear error:', err.message);
       }
 
-      // Refit after clearing - check renderer is ready
+      // Clear terminal for the new project
+      if (isDifferentProject) {
+        try {
+          term.clear();
+          term.reset();
+        } catch (err) {
+          console.debug('Terminal clear error:', err.message);
+        }
+
+        // Restore cached buffer if available for the new project
+        const cachedBuffer = terminalBufferCache.get(projectPath);
+        if (cachedBuffer) {
+          try {
+            term.write(cachedBuffer);
+            console.debug(`[Terminal] Restored buffer for ${projectPath}`);
+          } catch (err) {
+            console.debug('Failed to restore terminal buffer:', err.message);
+          }
+        }
+      }
+
+      // Refit terminal
       const attemptFit = (retries = 0) => {
         const fitAddon = fitAddonRef.current;
         if (fitAddon && isTerminalReady()) {
@@ -467,6 +506,9 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
 
       setTimeout(() => attemptFit(), 50);
     }
+
+    // Update previous project reference
+    prevProjectPathRef.current = projectPath;
   }, [projectPath, onResize, isTerminalReady]);
 
   // Focus terminal and refresh screen when ready
@@ -482,18 +524,26 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
         // Force xterm.js to repaint all rows
         term.refresh(0, term.rows - 1);
 
-        // Trigger a resize to make applications redraw their screen
-        // This is especially important for shpool sessions where content
-        // may not be sent until the application knows the terminal size
+        // Trigger a resize immediately to send dimensions to server
+        // This is critical for shpool sessions to redraw content
         if (fitAddon) {
+          try {
+            fitAddon.fit();
+            onResize(term.cols, term.rows);
+          } catch (err) {
+            console.debug('Immediate fit error:', err.message);
+          }
+
+          // Follow-up resize after a short delay to ensure content is drawn
           setTimeout(() => {
             try {
               fitAddon.fit();
               onResize(term.cols, term.rows);
+              term.refresh(0, term.rows - 1);
             } catch (err) {
-              console.debug('Fit error on ready:', err.message);
+              console.debug('Follow-up fit error:', err.message);
             }
-          }, 100);
+          }, 150);
         }
       } catch (err) {
         console.debug('Terminal focus/refresh error:', err.message);

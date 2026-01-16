@@ -84,48 +84,53 @@ End of Day:
 
 ---
 
-## [1.1.0] - 2026-01-16
+## [1.0.3] - 2026-01-16
 
-### Project Categorization & Management
+### Terminal Session Fixes & Project Management
 
-This release adds comprehensive project organization features including tags, priority levels, notes, and a clone functionality.
+This release fixes terminal session switching issues and adds project organization features.
+
+### Bug Fixes
+
+#### Terminal Buffer Caching
+- **Scrollback preserved**: Terminal buffer is saved when switching projects and restored when returning
+- **SerializeAddon integration**: Uses xterm's serialize addon for reliable buffer caching
+- **Memory-efficient**: Buffers stored per-project in module-level cache
+
+#### Terminal Reconnection
+- **Fixed blank screen**: Sessions no longer show black screen when switching between active sessions
+- **SIGWINCH refresh**: Proper resize signal sent to trigger terminal redraw on reconnect
+- **Immediate dimensions**: Client sends terminal size immediately on connection
+
+#### Cloudflare Widget
+- **Fixed stale data**: Widget now properly updates when selecting different projects
+- **Path-based dependency**: Uses project path instead of name for reliable reactivity
 
 ### New Features
 
 #### Project Tags
 - **Color-coded tags**: 6 default tags (Active, Archived, Infrastructure, Prototype, Production, WIP)
-- **Sidebar visibility**: Up to 3 tag colors shown next to each project, with +N indicator for more
+- **Sidebar visibility**: Up to 3 tag colors shown next to each project
 - **Tag management**: Create custom tags with 10 color options
-- **Multi-tag support**: Assign multiple tags to any project
 
 #### Project Priority
 - **Priority levels**: None, High (red), Medium (orange), Low (green)
 - **Visual indicators**: Priority badge shown in context menu header
-- **Quick selection**: One-click priority buttons in context menu
 
 #### Project Notes
 - **Persistent notes**: Add notes with optional title and content to any project
 - **Pin to top**: Pin important notes for quick access
-- **Full CRUD**: Create, read, update, and delete notes
 
 #### Clone Project
 - **One-click cloning**: Duplicate any project to a new directory
 - **Copy settings**: Option to copy tags, notes, priority, and skip-permissions setting
-- **Fresh git**: Git history removed from cloned project for a clean start
 
 #### Session Settings
 - **Skip Permissions**: Per-project toggle to start Claude with `--dangerously-skip-permissions`
-- **Persistent setting**: Remembered in database for each project
 
 #### Enhanced Context Menu
 - **Wider layout**: Increased from 256px to 320px for better readability
 - **Multiple views**: Main menu, Project Info, Notes, and Clone views
-- **Settings section**: Skip permissions and priority directly accessible
-
-#### Project Info Bar
-- **New component**: Info bar between header and terminal
-- **Tag display**: Shows project tags with click-to-manage
-- **Quick stats**: Active session indicator and path display
 
 ### Database Changes
 - Added `ProjectNote` model for persistent notes

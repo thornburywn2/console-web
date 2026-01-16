@@ -3913,6 +3913,9 @@ io.on('connection', (socket) => {
       session = {
         ...ptySession,
         sockets: new Set([socket.id]),
+        // Default dimensions for reconnection refresh
+        cols: 120,
+        rows: 30,
         // Activity tracking for command completion detection
         lastOutputTime: null,
         activityStartTime: null,
@@ -3981,6 +3984,21 @@ io.on('connection', (socket) => {
     } else {
       // Add this socket to existing session
       session.sockets.add(socket.id);
+
+      // Trigger a resize to refresh terminal content (sends SIGWINCH)
+      // This causes shpool to redraw the screen for the reconnecting client
+      // Use stored dimensions or defaults
+      const cols = session.cols || 120;
+      const rows = session.rows || 30;
+      if (session.pty) {
+        setTimeout(() => {
+          try {
+            session.pty.resize(cols, rows);
+          } catch (err) {
+            console.error('Failed to trigger refresh resize:', err);
+          }
+        }, 50);
+      }
     }
 
     // Update socket-to-project mapping
@@ -3990,7 +4008,8 @@ io.on('connection', (socket) => {
     socket.emit('terminal-ready', {
       projectPath,
       sessionName: session.sessionName,
-      isNew: session.isNew
+      isNew: session.isNew,
+      isReconnect: !session.isNew && session.sockets.size > 0
     });
   });
 
@@ -4017,6 +4036,9 @@ io.on('connection', (socket) => {
       if (session && session.pty) {
         try {
           session.pty.resize(cols, rows);
+          // Store dimensions for reconnection refresh
+          session.cols = cols;
+          session.rows = rows;
         } catch (error) {
           console.error('Error resizing PTY:', error);
         }
