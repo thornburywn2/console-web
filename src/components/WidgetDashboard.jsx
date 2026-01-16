@@ -12,6 +12,7 @@ import SessionManager from './SessionManager';
 import GitHubProjectPanel from './GitHubProjectPanel';
 import CloudflarePublishPanel from './CloudflarePublishPanel';
 import { GitHubStatusDot } from './GitHubStatusBadge';
+import ProjectContextMenu from './ProjectContextMenu';
 
 const GAP = 8; // gap between widgets
 
@@ -338,11 +339,14 @@ function DockerWidget() {
 }
 
 // Projects widget - condensed list with favorites
-function ProjectsWidget({ projects = [], selectedProject, onSelectProject, onKillSession, fillHeight = false, projectsDir }) {
+function ProjectsWidget({ projects = [], selectedProject, onSelectProject, onKillSession, fillHeight = false, projectsDir, onRefresh }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [favorites, setFavorites] = useState(getFavorites);
   const [confirmKill, setConfirmKill] = useState(null);
   const listRef = useRef(null);
+
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState({ isOpen: false, position: { x: 0, y: 0 }, project: null });
 
   // Home project - always first in favorites
   const HOME_PROJECT = projectsDir ? {
@@ -416,6 +420,17 @@ function ProjectsWidget({ projects = [], selectedProject, onSelectProject, onKil
     }
   };
 
+  // Handle right-click context menu
+  const handleContextMenu = (e, project) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      isOpen: true,
+      position: { x: e.clientX, y: e.clientY },
+      project
+    });
+  };
+
   // Truncate name for condensed view
   const truncateName = (name, maxLen = 20) => {
     if (name.length <= maxLen) return name;
@@ -476,6 +491,7 @@ function ProjectsWidget({ projects = [], selectedProject, onSelectProject, onKil
       <div
         key={project.id || project.path}
         onClick={() => onSelectProject?.(project)}
+        onContextMenu={(e) => handleContextMenu(e, project)}
         className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-all group"
         style={{
           background: isSelected ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
@@ -496,6 +512,22 @@ function ProjectsWidget({ projects = [], selectedProject, onSelectProject, onKil
         >
           {truncateName(project.name)}
         </span>
+
+        {/* Tag indicators */}
+        {project.tags && project.tags.length > 0 && (
+          <div className="flex items-center gap-0.5 flex-shrink-0" title={project.tags.map(t => t.name).join(', ')}>
+            {project.tags.slice(0, 3).map(tag => (
+              <span
+                key={tag.id}
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: tag.color }}
+              />
+            ))}
+            {project.tags.length > 3 && (
+              <span className="text-[9px] text-muted">+{project.tags.length - 3}</span>
+            )}
+          </div>
+        )}
 
         {/* GitHub status */}
         {project.githubRepo && (
@@ -602,6 +634,19 @@ function ProjectsWidget({ projects = [], selectedProject, onSelectProject, onKil
         <span>{projects.length} projects</span>
         <span style={{ color: 'var(--accent-primary)' }}>{projects.filter(p => p.hasActiveSession).length} active</span>
       </div>
+
+      {/* Context Menu */}
+      <ProjectContextMenu
+        isOpen={contextMenu.isOpen}
+        position={contextMenu.position}
+        project={contextMenu.project}
+        onClose={() => setContextMenu({ isOpen: false, position: { x: 0, y: 0 }, project: null })}
+        onSelectProject={onSelectProject}
+        onKillSession={onKillSession}
+        onToggleFavorite={(path) => toggleFavorite(path, { stopPropagation: () => {} })}
+        isFavorite={contextMenu.project ? favorites.includes(contextMenu.project.path) : false}
+        onRefresh={onRefresh}
+      />
     </div>
   );
 }
@@ -1001,6 +1046,7 @@ export default function WidgetDashboard({
             onKillSession={onKillSession}
             fillHeight={fillHeight}
             projectsDir={projectsDir}
+            onRefresh={onRefresh}
           />
         );
 

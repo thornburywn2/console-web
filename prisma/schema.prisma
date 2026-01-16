@@ -29,6 +29,7 @@ model Project {
   agents        Agent[]
   mcpServers    MCPServer[]
   githubRepo    GitHubRepo?
+  tags          ProjectTagAssignment[]
 
   @@index([name])
   @@index([lastAccessed])
@@ -199,6 +200,32 @@ model SessionTagAssignment {
 
   @@unique([sessionId, tagId])
   @@index([sessionId])
+  @@index([tagId])
+}
+
+// Project tagging system
+model ProjectTag {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  color       String    // Hex color for tag
+  description String?
+  projects    ProjectTagAssignment[]
+  createdAt   DateTime  @default(now())
+
+  @@index([name])
+}
+
+// Many-to-many relationship between projects and tags
+model ProjectTagAssignment {
+  id          String    @id @default(cuid())
+  projectId   String
+  tagId       String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tag         ProjectTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  assignedAt  DateTime  @default(now())
+
+  @@unique([projectId, tagId])
+  @@index([projectId])
   @@index([tagId])
 }
 

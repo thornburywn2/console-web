@@ -73,7 +73,8 @@ import {
   createUsersFirewallRouter,
   createProjectTemplatesRouter,
   createDependenciesRouter,
-  createSystemRouter
+  createSystemRouter,
+  createProjectTagsRouter
 } from './routes/index.js';
 
 // Import services
@@ -272,6 +273,9 @@ app.use('/api', authentikAuth({
 // Session organization (folders, tags, notes)
 app.use('/api', createFoldersRouter(prisma));
 app.use('/api/notes', createNotesRouter(prisma));
+
+// Project tags (categorization)
+app.use('/api', createProjectTagsRouter(prisma));
 
 // Prompt library
 app.use('/api/prompts', createPromptsRouter(prisma));
@@ -1257,21 +1261,36 @@ async function getProjects() {
       .filter(Boolean)
       .sort((a, b) => a.name.localeCompare(b.name));
 
-    // Fetch skipPermissions from database for each project
+    // Fetch skipPermissions and tags from database for each project
     const projectPaths = projects.map(p => p.path);
     const dbProjects = await prisma.project.findMany({
       where: { path: { in: projectPaths } },
-      select: { path: true, skipPermissions: true }
+      select: {
+        path: true,
+        skipPermissions: true,
+        tags: {
+          include: {
+            tag: true
+          }
+        }
+      }
     });
 
     // Create a map for quick lookup
-    const dbProjectMap = new Map(dbProjects.map(p => [p.path, p.skipPermissions]));
+    const dbProjectMap = new Map(dbProjects.map(p => [p.path, {
+      skipPermissions: p.skipPermissions,
+      tags: p.tags.map(t => t.tag)
+    }]));
 
-    // Merge skipPermissions into projects
-    const projectsWithSettings = projects.map(p => ({
-      ...p,
-      skipPermissions: dbProjectMap.get(p.path) || false
-    }));
+    // Merge settings and tags into projects
+    const projectsWithSettings = projects.map(p => {
+      const dbData = dbProjectMap.get(p.path);
+      return {
+        ...p,
+        skipPermissions: dbData?.skipPermissions || false,
+        tags: dbData?.tags || []
+      };
+    });
 
     return projectsWithSettings;
   } catch (error) {
@@ -1284,6 +1303,70 @@ async function getProjects() {
 app.get('/api/projects', async (req, res) => {
   const projects = await getProjects();
   res.json(projects);
+});
+
+// Get project stats for info popup
+app.get('/api/admin/project-stats', async (req, res) => {
+  const { path: projectPath } = req.query;
+
+  if (!projectPath) {
+    return res.status(400).json({ error: 'Project path required' });
+  }
+
+  try {
+    const name = basename(projectPath);
+    const stats = { name, path: projectPath };
+
+    // Check for CLAUDE.md
+    stats.hasClaudeMd = existsSync(join(projectPath, 'CLAUDE.md'));
+
+    // Get git info
+    try {
+      const branch = execSync('git rev-parse --abbrev-ref HEAD', {
+        cwd: projectPath,
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe']
+      }).trim();
+
+      const lastCommit = execSync('git log -1 --oneline', {
+        cwd: projectPath,
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe']
+      }).trim();
+
+      stats.git = { branch, lastCommit };
+    } catch {
+      // Not a git repo or error
+    }
+
+    // Get file count (non-hidden, excluding node_modules)
+    try {
+      const countOutput = execSync(
+        'find . -type f -not -path "*/node_modules/*" -not -path "*/.git/*" -not -name ".*" | wc -l',
+        { cwd: projectPath, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+      ).trim();
+      stats.fileCount = parseInt(countOutput, 10) || 0;
+    } catch {
+      stats.fileCount = 0;
+    }
+
+    // Get directory size
+    try {
+      const sizeOutput = execSync('du -sh . 2>/dev/null | cut -f1', {
+        cwd: projectPath,
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe']
+      }).trim();
+      stats.size = sizeOutput;
+    } catch {
+      stats.size = 'Unknown';
+    }
+
+    res.json(stats);
+  } catch (error) {
+    console.error('Error getting project stats:', error);
+    res.status(500).json({ error: 'Failed to get project stats' });
+  }
 });
 
 // Create a new project directory

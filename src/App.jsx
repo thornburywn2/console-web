@@ -45,6 +45,7 @@ import { useAiderVoice } from './hooks/useAiderVoice';
 
 // Home Dashboard
 import HomeDashboard from './components/HomeDashboard';
+import ProjectInfoBar from './components/ProjectInfoBar';
 
 // About Modal
 import AboutModal from './components/AboutModal';
@@ -795,6 +796,11 @@ function App() {
             </button>
           </div>
         </header>
+
+        {/* Project Info Bar - shown when project selected */}
+        {selectedProject && !showHomeDashboard && !selectedProject.isHome && (
+          <ProjectInfoBar project={selectedProject} onRefresh={fetchProjects} />
+        )}
 
         {/* Terminal Area */}
         <div className="flex-1 min-h-0 relative">
