@@ -109,16 +109,9 @@ const CLAUDE_SETTINGS_LOCAL_FILE = join(CLAUDE_DIR, 'settings.local.json');
 // Docker client initialization
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
-// Ensure tmux socket directory exists (fixes "error creating /tmp/tmux-{uid}/default" after reboot)
-const TMUX_SOCKET_DIR = `/tmp/tmux-${process.getuid()}`;
-if (!existsSync(TMUX_SOCKET_DIR)) {
-  try {
-    mkdirSync(TMUX_SOCKET_DIR, { mode: 0o700 });
-    console.log(`Created tmux socket directory: ${TMUX_SOCKET_DIR}`);
-  } catch (err) {
-    console.error(`Failed to create tmux socket directory: ${err.message}`);
-  }
-}
+// Shpool handles session persistence with raw byte passthrough
+// No special directory setup needed - shpool auto-daemonizes
+// Sessions named with 'sp-' prefix for this app
 
 // Sovereign Stack service configuration
 const SOVEREIGN_SERVICES = {
@@ -704,13 +697,13 @@ async function updateUserSettings(data) {
 // =============================================================================
 
 /**
- * Validate and sanitize a tmux session name
+ * Validate and sanitize a shpool session name
  * Only allows alphanumeric, dash, and underscore
  */
 function validateSessionName(sessionName) {
   if (typeof sessionName !== 'string') return null;
-  // Session names must start with cp- and only contain safe characters
-  if (!/^cp-[a-zA-Z0-9_-]+$/.test(sessionName)) return null;
+  // Session names must start with sp- and only contain safe characters
+  if (!/^sp-[a-zA-Z0-9_-]+$/.test(sessionName)) return null;
   if (sessionName.length > 100) return null;
   return sessionName;
 }
@@ -748,24 +741,23 @@ function validateUnitName(unit) {
 }
 
 // =============================================================================
-// TMUX SESSION MANAGEMENT
+// SHPOOL SESSION MANAGEMENT
 // =============================================================================
 
 /**
- * Generate a safe tmux session name from project path
+ * Generate a safe shpool session name from project path
  */
 function getSessionName(projectPath) {
   const name = basename(projectPath);
-  // tmux session names can't contain periods or colons - replace with underscore
-  // Also remove any other potentially dangerous characters
+  // Replace any non-alphanumeric characters with underscore
   const safeName = name.replace(/[^a-zA-Z0-9_-]/g, '_');
-  return `cp-${safeName}`;
+  return `sp-${safeName}`;
 }
 
 /**
- * Check if a tmux session exists
+ * Check if a shpool session exists
  */
-function tmuxSessionExists(sessionName) {
+function shpoolSessionExists(sessionName) {
   // Validate session name to prevent command injection
   const validName = validateSessionName(sessionName);
   if (!validName) {
@@ -774,30 +766,34 @@ function tmuxSessionExists(sessionName) {
   }
   try {
     // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
-    // validName is validated by validateSessionName() - only allows ^cp-[a-zA-Z0-9_-]+$
-    execSync(`tmux has-session -t "${validName}" 2>/dev/null`);
-    return true;
+    // validName is validated by validateSessionName() - only allows ^sp-[a-zA-Z0-9_-]+$
+    const output = execSync('shpool list 2>/dev/null', { encoding: 'utf-8' });
+    return output.includes(validName);
   } catch {
     return false;
   }
 }
 
 /**
- * List all tmux sessions managed by this app
+ * List all shpool sessions managed by this app
  */
-function listTmuxSessions() {
+function listShpoolSessions() {
   try {
-    const output = execSync('tmux list-sessions -F "#{session_name}" 2>/dev/null', {
-      encoding: 'utf-8'
-    });
-    return output.split('\n').filter(s => s.startsWith('cp-'));
+    const output = execSync('shpool list 2>/dev/null', { encoding: 'utf-8' });
+    // Parse shpool list output: NAME\tSTARTED_AT\tSTATUS
+    const lines = output.trim().split('\n').slice(1); // Skip header
+    return lines
+      .map(line => line.split('\t')[0])
+      .filter(name => name && name.startsWith('sp-'));
   } catch {
     return [];
   }
 }
 
 /**
- * Create or attach to a tmux session with node-pty
+ * Create or attach to a shpool session with node-pty
+ * Shpool provides session persistence with raw byte passthrough - no terminal
+ * multiplexing overhead, native scrollback/clipboard work automatically
  * @param {string} projectPath - Path to the project directory
  * @param {Socket} socket - Socket.IO socket instance
  * @param {Object} options - Additional options
@@ -816,19 +812,13 @@ function createPtySession(projectPath, socket, options = {}) {
     hybridMode = 'code-puppy-with-claude-tools'
   } = options;
   const sessionName = getSessionName(projectPath);
-  const sessionExists = tmuxSessionExists(sessionName);
+  const sessionExists = shpoolSessionExists(sessionName);
 
-  // Path to Console.web tmux config (enables mouse scrolling, 50k history, etc.)
-  const tmuxConfigPath = join(__dirname, 'tmux.conf');
+  // Shpool attach creates session if it doesn't exist, attaches if it does
+  // No config file needed - shpool passes raw bytes through to xterm.js
+  const shpoolArgs = ['attach', sessionName];
 
-  // Build tmux command
-  // -A: attach if exists, create if not
-  // -s: session name
-  // -f: use our custom config file
-  const tmuxArgs = ['-f', tmuxConfigPath, 'new-session', '-A', '-s', sessionName];
-
-  // If session doesn't exist, we'll need to cd and run claude after tmux starts
-  const ptyProcess = spawn('tmux', tmuxArgs, {
+  const ptyProcess = spawn('shpool', shpoolArgs, {
     name: 'xterm-256color',
     cols: 120,
     rows: 30,
@@ -838,27 +828,13 @@ function createPtySession(projectPath, socket, options = {}) {
       TERM: 'xterm-256color',
       COLORTERM: 'truecolor',
       LANG: 'en_US.UTF-8',
-      LC_ALL: 'en_US.UTF-8',
-      // Ensure tmux uses 256 colors
-      TMUX_TMPDIR: '/tmp'
+      LC_ALL: 'en_US.UTF-8'
     }
   });
 
-  // For existing sessions, ensure mouse mode is enabled (config only applies to new sessions)
-  if (sessionExists) {
-    setTimeout(() => {
-      // Use tmux command mode to source config silently (no echo to terminal)
-      try {
-        execSync(`tmux source-file "${tmuxConfigPath}"`, { stdio: 'ignore' });
-      } catch {
-        // Ignore errors - config may already be applied
-      }
-    }, 100);
-  }
-
   // If this is a new session (not attaching to existing), initialize it
   if (!sessionExists) {
-    // Small delay to let tmux fully start
+    // Small delay to let shpool fully start
     setTimeout(() => {
       // Clear screen and cd to project directory
       ptyProcess.write(`cd "${projectPath}" && clear\r`);
@@ -1268,7 +1244,7 @@ async function getProjects() {
               id: name,
               name: name,
               path: fullPath,
-              hasActiveSession: tmuxSessionExists(sessionName),
+              hasActiveSession: shpoolSessionExists(sessionName),
               sessionName,
               lastModified: lastModified ? lastModified.toISOString() : null
             };
@@ -1615,7 +1591,7 @@ app.get('/api/projects/:projectName/settings', async (req, res) => {
 });
 
 app.get('/api/sessions', (req, res) => {
-  const activeSessions = listTmuxSessions();
+  const activeSessions = listShpoolSessions();
   res.json(activeSessions);
 });
 
@@ -1625,6 +1601,15 @@ app.get('/api/health', (req, res) => {
     projectsDir: PROJECTS_DIR,
     activeSessions: sessions.size
   });
+});
+
+// Test endpoint to send OSC 52 directly
+app.get('/api/test-osc52', (req, res) => {
+  const text = req.query.text || 'ClipboardTest';
+  const b64 = Buffer.from(text).toString('base64');
+  const osc52 = `\x1b]52;c;${b64}\x07`;
+  io.emit('terminal-output', osc52);
+  res.json({ sent: true, text });
 });
 
 // =============================================================================
@@ -1946,22 +1931,17 @@ app.post('/api/projects/:projectName/restart', async (req, res) => {
     // Find the session for this project - use safe name
     const sessionName = `project-${safeProjectName}`;
 
-    // Check if session exists
-    const { stdout: listOutput } = await execAsync(`tmux list-sessions -F "#{session_name}" 2>/dev/null || echo ""`);
-    const sessionList = listOutput.trim().split('\n').filter(Boolean);
-    const hasSession = sessionList.includes(sessionName);
-
-    if (hasSession) {
-      // Kill existing session
-      try {
-        await execAsync(`tmux kill-session -t "${sessionName}" 2>/dev/null`);
+    // Check if shpool session exists and kill it
+    try {
+      const { stdout: listOutput } = await execAsync('shpool list 2>/dev/null || echo ""');
+      if (listOutput.includes(sessionName)) {
+        await execAsync(`shpool kill "${sessionName}" 2>/dev/null`);
         console.log(`[Restart] Killed existing session: ${sessionName}`);
-      } catch (e) {
-        // Session might already be dead
+        // Small delay to ensure session is fully killed
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
-
-      // Small delay to ensure session is fully killed
-      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch {
+      // Session might not exist
     }
 
     // Look for common start scripts
@@ -1988,10 +1968,12 @@ app.post('/api/projects/:projectName/restart', async (req, res) => {
       } catch {}
     }
 
-    // If we found a start command, create a new session and run it
+    // If we found a start command, run it in the background
+    // Note: This uses nohup for background processes since shpool is for interactive sessions
     if (startCmd) {
-      await execAsync(`tmux new-session -d -s "${sessionName}" -c "${projectPath}" "${startCmd}"`);
-      console.log(`[Restart] Started new session with: ${startCmd}`);
+      const logFile = join(projectPath, '.console-web-restart.log');
+      await execAsync(`cd "${projectPath}" && nohup ${startCmd} > "${logFile}" 2>&1 &`);
+      console.log(`[Restart] Started background process with: ${startCmd}`);
 
       res.json({
         success: true,
@@ -2172,8 +2154,8 @@ app.get('/api/admin/system', (req, res) => {
       // Ignore disk usage errors
     }
 
-    // Active tmux sessions
-    const tmuxSessions = listTmuxSessions();
+    // Active shpool sessions
+    const shpoolSessions = listShpoolSessions();
 
     // Process info
     const processInfo = {
@@ -2241,7 +2223,7 @@ app.get('/api/admin/system', (req, res) => {
       claude: claudeStats,
       sessions: {
         active: sessions.size,
-        tmux: tmuxSessions,
+        shpool: shpoolSessions,
         connected: socketProjects.size
       }
     });
@@ -3302,7 +3284,7 @@ app.get('/api/admin/projects-extended', async (req, res) => {
 app.get('/api/dashboard', async (req, res) => {
   try {
     const projects = await getProjects();
-    const tmuxSessions = listTmuxSessions();
+    const shpoolSessions = listShpoolSessions();
 
     // Helper to execute git commands (using execFileSync to avoid shell interpretation of % chars)
     const execGitSafe = (args, cwd) => {
@@ -3479,7 +3461,7 @@ app.get('/api/dashboard', async (req, res) => {
       aiUsage,
       recentCommands: recentCommands.slice(0, 10),
       securityAlerts,
-      tmuxSessions
+      shpoolSessions
     });
   } catch (error) {
     console.error('Dashboard API error:', error);
@@ -3699,12 +3681,9 @@ io.on('connection', (socket) => {
       const existingSession = sessions.get(existingProject);
       if (existingSession) {
         existingSession.sockets.delete(socket.id);
-        // Don't kill the PTY - it's backed by tmux and should persist
-        if (existingSession.sockets.size === 0) {
-          // Detach from tmux instead of killing
-          existingSession.pty.write('\x02d'); // Ctrl+B, d to detach (tmux default)
-          // Actually, let's just leave it running - tmux handles persistence
-        }
+        // Don't kill the PTY - it's backed by shpool and should persist
+        // When no sockets are connected, the PTY wrapper can be cleaned up
+        // but the shpool session continues running in the background
       }
     }
 
@@ -3846,6 +3825,10 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Note: Right-click context menu is now handled in the frontend (Terminal.jsx)
+  // since shpool doesn't have tmux's display-menu feature. The browser's native
+  // context menu or a custom React menu can be used instead.
+
   // Handle terminal resize
   socket.on('terminal-resize', ({ cols, rows }) => {
     const projectPath = socketProjects.get(socket.id);
@@ -3861,18 +3844,11 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle manual reconnection to existing tmux session
+  // Handle manual reconnection to existing shpool session
   socket.on('reconnect-session', async (projectPath) => {
     console.log(`Socket ${socket.id} requesting reconnection to: ${projectPath}`);
     const sessionName = getSessionName(projectPath);
-
-    if (!tmuxSessionExists(sessionName)) {
-      socket.emit('session-error', {
-        message: 'Session no longer exists',
-        projectPath
-      });
-      return;
-    }
+    const sessionExists = shpoolSessionExists(sessionName);
 
     // Clean up any existing session for this socket
     const existingProject = socketProjects.get(socket.id);
@@ -3887,8 +3863,10 @@ io.on('connection', (socket) => {
     let session = sessions.get(projectPath);
 
     if (!session) {
-      // Create new PTY session that attaches to existing tmux
-      console.log(`Reattaching to existing tmux session: ${sessionName}`);
+      // Create new PTY session (attaches to existing shpool or creates new one)
+      console.log(sessionExists
+        ? `Reattaching to existing shpool session: ${sessionName}`
+        : `Creating new shpool session: ${sessionName}`);
       const ptySession = createPtySession(projectPath, socket, { skipPermissions: false });
 
       session = {
@@ -3971,7 +3949,7 @@ io.on('connection', (socket) => {
       if (session) {
         session.sockets.delete(socket.id);
 
-        // If no more sockets are connected, clean up the PTY but keep tmux running
+        // If no more sockets are connected, clean up the PTY but keep shpool running
         if (session.sockets.size === 0) {
           console.log(`No more clients for ${projectPath}, cleaning up PTY session`);
 
@@ -3980,7 +3958,7 @@ io.on('connection', (socket) => {
             clearTimeout(session.idleTimer);
           }
 
-          // Kill the PTY process (detaches from tmux, but tmux session keeps running)
+          // Kill the PTY process (shpool session keeps running in background)
           try {
             session.pty.kill();
           } catch (err) {
@@ -4014,11 +3992,11 @@ io.on('connection', (socket) => {
     // Validate session name before using in shell command
     const validSessionName = validateSessionName(sessionName);
     if (validSessionName) {
-      // Also kill the tmux session
+      // Also kill the shpool session
       try {
         // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
-        // validSessionName validated by validateSessionName() - only allows ^cp-[a-zA-Z0-9_-]+$
-        execSync(`tmux kill-session -t "${validSessionName}" 2>/dev/null`);
+        // validSessionName validated by validateSessionName() - only allows ^sp-[a-zA-Z0-9_-]+$
+        execSync(`shpool kill "${validSessionName}" 2>/dev/null`);
       } catch {
         // Session might already be dead
       }
@@ -4067,10 +4045,10 @@ process.on('SIGTERM', async () => {
   // Stop MCP manager
   await mcpManager.shutdown();
 
-  // Don't kill tmux sessions - they should persist
+  // Don't kill shpool sessions - they should persist
   sessions.forEach((session, projectPath) => {
     console.log(`Detaching from ${projectPath}`);
-    // Just kill the PTY wrapper, tmux continues
+    // Just kill the PTY wrapper, shpool continues in background
     session.pty.kill();
   });
 

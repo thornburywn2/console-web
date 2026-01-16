@@ -4,6 +4,10 @@ import { FitAddon } from 'xterm-addon-fit';
 import { WebLinksAddon } from 'xterm-addon-web-links';
 import 'xterm/css/xterm.css';
 
+// Debug logging for clipboard (shpool passes OSC 52 through natively)
+const CLIPBOARD_DEBUG = false; // Set to true to debug clipboard issues
+const clipboardLog = (...args) => CLIPBOARD_DEBUG && console.log('[Clipboard]', ...args);
+
 function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
   const terminalRef = useRef(null);
   const xtermRef = useRef(null);
@@ -12,6 +16,9 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
   const [notificationPermission, setNotificationPermission] = useState('default');
   const [showCompletionToast, setShowCompletionToast] = useState(false);
   const [completionMessage, setCompletionMessage] = useState('');
+  const [contextMenu, setContextMenu] = useState(null); // { x, y } for browser context menu
+  const [lastCopiedText, setLastCopiedText] = useState(''); // Store last copied text for context menu
+  const [showCopyToast, setShowCopyToast] = useState(false); // Show "Copied!" feedback
 
   // Request notification permission on mount
   useEffect(() => {
@@ -104,6 +111,7 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
       scrollback: 10000,
       convertEol: true,
       scrollOnUserInput: true,
+      rightClickSelectsWord: false, // Don't intercept right-click
     });
 
     // Add fit addon for auto-resizing
@@ -118,44 +126,65 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     // Open terminal in the container
     term.open(terminalRef.current);
 
-    // Register OSC 52 handler for clipboard integration with tmux
-    // OSC 52 format: ESC ] 52 ; c ; <base64-data> BEL
-    // This allows tmux to copy to the browser clipboard
-    term.parser.registerOscHandler(52, (data) => {
+    // Register OSC 52 handler for clipboard integration
+    // OSC 52 format: ESC ] 52 ; <selection> ; <base64-data> BEL/ST
+    // Shpool passes these through natively (no special config needed)
+    const osc52Handler = term.parser.registerOscHandler(52, (data) => {
+      clipboardLog('OSC 52 received, raw data length:', data.length);
+
       // Parse OSC 52 data: "c;<base64-encoded-text>" or ";<base64-encoded-text>"
-      const parts = data.split(';');
-      if (parts.length >= 2) {
-        const base64Data = parts[parts.length - 1];
-        try {
-          // Decode base64 to get the actual text
-          const text = atob(base64Data);
-          if (text && text.length > 0) {
-            navigator.clipboard.writeText(text)
-              .then(() => {
-                console.log('OSC 52: Copied to clipboard:', text.substring(0, 50) + (text.length > 50 ? '...' : ''));
-              })
-              .catch(err => {
-                console.warn('OSC 52: Clipboard write failed:', err);
-                // Fallback for non-secure contexts
-                try {
-                  const textArea = document.createElement('textarea');
-                  textArea.value = text;
-                  textArea.style.position = 'fixed';
-                  textArea.style.left = '-9999px';
-                  textArea.style.top = '-9999px';
-                  document.body.appendChild(textArea);
-                  textArea.select();
-                  document.execCommand('copy');
-                  document.body.removeChild(textArea);
-                  console.log('OSC 52: Copied via fallback');
-                } catch (fallbackErr) {
-                  console.error('OSC 52: Fallback copy failed:', fallbackErr);
-                }
-              });
-          }
-        } catch (e) {
-          console.warn('OSC 52: Failed to decode base64:', e);
+      const semicolonIdx = data.indexOf(';');
+      if (semicolonIdx === -1) {
+        clipboardLog('OSC 52: No semicolon found in data');
+        return true;
+      }
+
+      const selection = data.substring(0, semicolonIdx);
+      const base64Data = data.substring(semicolonIdx + 1);
+
+      clipboardLog('OSC 52: selection=', selection, 'base64 length=', base64Data.length);
+
+      // Handle clipboard query (application asking for clipboard content)
+      if (base64Data === '?') {
+        clipboardLog('OSC 52: Query request, ignoring');
+        return true;
+      }
+
+      // Skip empty data
+      if (!base64Data || base64Data.length === 0) {
+        clipboardLog('OSC 52: Empty base64 data');
+        return true;
+      }
+
+      try {
+        // Decode base64 to get the actual text
+        const text = atob(base64Data);
+        clipboardLog('OSC 52: Decoded text length:', text.length, 'preview:', text.substring(0, 100));
+
+        if (text && text.length > 0) {
+          navigator.clipboard.writeText(text)
+            .then(() => {
+              clipboardLog('OSC 52: SUCCESS - Copied to clipboard');
+            })
+            .catch(err => {
+              clipboardLog('OSC 52: Clipboard API failed:', err.name, err.message);
+              // Fallback for non-secure contexts
+              try {
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                textArea.style.cssText = 'position:fixed;left:-9999px;top:-9999px;';
+                document.body.appendChild(textArea);
+                textArea.select();
+                const success = document.execCommand('copy');
+                document.body.removeChild(textArea);
+                clipboardLog('OSC 52: Fallback execCommand result:', success);
+              } catch (fallbackErr) {
+                clipboardLog('OSC 52: Fallback also failed:', fallbackErr);
+              }
+            });
         }
+      } catch (e) {
+        clipboardLog('OSC 52: Base64 decode failed:', e.message, 'data preview:', base64Data.substring(0, 50));
       }
       return true; // Mark as handled
     });
@@ -191,17 +220,24 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     // Track the last valid selection to copy on mouseup
     let lastSelection = '';
     let selectionTimeout = null;
+    let copyToastTimeout = null;
 
     // Use onSelectionChange to track selection as it happens
     const selectionDisposable = term.onSelectionChange(() => {
       const selection = term.getSelection();
+      clipboardLog('Selection changed:', selection ? `"${selection.substring(0, 50)}..." (${selection.length} chars)` : 'none');
       if (selection && selection.length > 0) {
         lastSelection = selection;
+        setLastCopiedText(selection); // Store for context menu
       }
     });
 
-    // Copy on mouseup using the tracked selection
+    // Copy on mouseup using the tracked selection (auto-copy like native terminal)
     const handleMouseUp = (e) => {
+      clipboardLog('MouseUp event, button:', e.button);
+      // Skip if right-click (handled by context menu)
+      if (e.button === 2) return;
+
       // Clear any pending timeout
       if (selectionTimeout) {
         clearTimeout(selectionTimeout);
@@ -215,16 +251,90 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
           ? currentSelection
           : lastSelection;
 
+        clipboardLog('MouseUp processing, currentSelection:', currentSelection?.length || 0, 'lastSelection:', lastSelection?.length || 0);
+
         if (textToCopy && textToCopy.length > 0) {
+          clipboardLog('Copying text:', textToCopy.substring(0, 50));
           copyTextToClipboard(textToCopy);
+          setLastCopiedText(textToCopy); // Store for context menu
+
+          // Show copy toast feedback
+          setShowCopyToast(true);
+          if (copyToastTimeout) clearTimeout(copyToastTimeout);
+          copyToastTimeout = setTimeout(() => setShowCopyToast(false), 1500);
+
           // Clear lastSelection after successful copy
           lastSelection = '';
+        } else {
+          clipboardLog('No text to copy');
         }
       }, 50);
     };
 
     const terminalElement = terminalRef.current;
     terminalElement.addEventListener('mouseup', handleMouseUp);
+
+    // Prevent browser context menu - we show our own custom menu
+    // Hold Shift+Right-click to get browser context menu if needed
+    const handleContextMenu = (e) => {
+      if (!e.shiftKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    };
+    terminalElement.addEventListener('contextmenu', handleContextMenu);
+
+    // Helper to calculate terminal cell position from mouse event
+    const getCellPosition = (e) => {
+      const rect = terminalElement.getBoundingClientRect();
+      const cellWidth = rect.width / term.cols;
+      const cellHeight = rect.height / term.rows;
+      const x = Math.floor((e.clientX - rect.left) / cellWidth) + 1;
+      const y = Math.floor((e.clientY - rect.top) / cellHeight) + 1;
+      return { x: Math.max(1, Math.min(x, term.cols)), y: Math.max(1, Math.min(y, term.rows)) };
+    };
+
+    // Helper to build SGR mouse escape sequence
+    // Format: ESC [ < Cb ; Cx ; Cy M (press) or m (release)
+    const buildMouseSequence = (button, x, y, pressed, modifiers = 0) => {
+      const cb = button + modifiers;
+      return `\x1b[<${cb};${x};${y}${pressed ? 'M' : 'm'}`;
+    };
+
+    // Handle right-click by showing browser-based context menu
+    let lastRightClick = 0;
+    const handleMouseDown = (e) => {
+      // Only handle right-click (button 2)
+      if (e.button === 2) {
+        // Debounce - ignore rapid duplicate events
+        const now = Date.now();
+        if (now - lastRightClick < 300) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        lastRightClick = now;
+
+        // Prevent browser context menu and xterm.js handling
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+
+        // Show browser-based context menu at click position
+        setContextMenu({ x: e.clientX, y: e.clientY });
+        clipboardLog('Right-click at:', { x: e.clientX, y: e.clientY }, 'showing context menu');
+      }
+    };
+
+    // Close context menu on any click
+    const handleClick = () => {
+      setContextMenu(null);
+    };
+
+    // Use capture phase to get the event before xterm.js
+    terminalElement.addEventListener('mousedown', handleMouseDown, true);
+    document.addEventListener('click', handleClick);
 
     // Also support Ctrl+Shift+C for explicit copy
     term.attachCustomKeyEventHandler((event) => {
@@ -284,10 +394,17 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     // Cleanup
     return () => {
       terminalElement.removeEventListener('mouseup', handleMouseUp);
+      terminalElement.removeEventListener('mousedown', handleMouseDown, true);
+      document.removeEventListener('click', handleClick);
+      terminalElement.removeEventListener('contextmenu', handleContextMenu);
       if (selectionTimeout) {
         clearTimeout(selectionTimeout);
       }
+      if (copyToastTimeout) {
+        clearTimeout(copyToastTimeout);
+      }
       selectionDisposable.dispose();
+      osc52Handler.dispose();
       term.dispose();
       xtermRef.current = null;
       fitAddonRef.current = null;
@@ -351,6 +468,12 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     const handleOutput = (data) => {
       const term = xtermRef.current;
       if (!term) return;
+
+      // Debug: Check for OSC 52 in incoming data
+      if (typeof data === 'string' && data.includes('\x1b]52')) {
+        clipboardLog('OSC 52 sequence DETECTED in incoming terminal data!');
+        clipboardLog('Data around OSC 52:', data.substring(data.indexOf('\x1b]52'), Math.min(data.indexOf('\x1b]52') + 200, data.length)));
+      }
 
       try {
         // Only write if renderer is ready to prevent viewport dimension errors
@@ -456,6 +579,95 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
               {completionMessage}
             </span>
           </div>
+        </div>
+      )}
+
+      {/* Copy toast feedback */}
+      {showCopyToast && (
+        <div
+          className="absolute bottom-3 right-3 z-20 px-3 py-1.5 rounded-lg"
+          style={{
+            background: 'rgba(59, 130, 246, 0.9)',
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          <span className="text-sm font-mono text-white">📋 Copied!</span>
+        </div>
+      )}
+
+      {/* Right-click context menu */}
+      {contextMenu && (
+        <div
+          className="fixed z-50 py-1 min-w-[160px] rounded-lg shadow-xl"
+          style={{
+            left: contextMenu.x,
+            top: contextMenu.y,
+            background: 'rgba(20, 20, 20, 0.95)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-white/10 flex items-center gap-2"
+            onClick={() => {
+              navigator.clipboard.readText().then(text => {
+                if (text) onInput(text);
+              });
+              setContextMenu(null);
+            }}
+          >
+            <span>📋</span> Paste
+          </button>
+          <button
+            className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-white/10 flex items-center gap-2"
+            onClick={() => {
+              const selection = xtermRef.current?.getSelection() || lastCopiedText;
+              if (selection) {
+                navigator.clipboard.writeText(selection);
+                setShowCopyToast(true);
+                setTimeout(() => setShowCopyToast(false), 1500);
+              }
+              setContextMenu(null);
+            }}
+          >
+            <span>📄</span> Copy {lastCopiedText ? `(${lastCopiedText.length} chars)` : ''}
+          </button>
+          <div className="border-t border-white/10 my-1" />
+          <button
+            className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-white/10 flex items-center gap-2"
+            onClick={() => {
+              onInput('\x1b[A'); // Send up arrow for scroll mode
+              setContextMenu(null);
+            }}
+          >
+            <span>📜</span> Scroll Mode (↑)
+          </button>
+          <button
+            className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-white/10 flex items-center gap-2"
+            onClick={() => {
+              onInput('clear\n');
+              setContextMenu(null);
+            }}
+          >
+            <span>🧹</span> Clear Screen
+          </button>
+          <div className="border-t border-white/10 my-1" />
+          <button
+            className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-white/10 flex items-center gap-2"
+            onClick={() => {
+              onInput('\x03'); // Ctrl+C
+              setContextMenu(null);
+            }}
+          >
+            <span>🛑</span> Cancel (Ctrl+C)
+          </button>
+          <button
+            className="w-full px-4 py-2 text-left text-sm text-gray-400 hover:bg-white/10 flex items-center gap-2"
+            onClick={() => setContextMenu(null)}
+          >
+            <span>✕</span> Close
+          </button>
         </div>
       )}
 

@@ -26,6 +26,7 @@
     "@octokit/rest": "^22.0.1",
     "@prisma/adapter-pg": "^7.2.0",
     "@prisma/client": "^7.2.0",
+    "@xterm/addon-clipboard": "^0.2.0",
     "chart.js": "^4.5.1",
     "chokidar": "^5.0.0",
     "cookie-parser": "^1.4.6",

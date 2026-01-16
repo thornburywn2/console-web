@@ -1,0 +1,17 @@
+# Console.web shpool configuration
+# Lightweight session persistence without terminal multiplexing overhead
+
+# The shell to spawn for new sessions
+# Uses default shell if not specified
+# shell = "/bin/bash"
+
+# Session idle timeout (optional)
+# Sessions are never killed by idle timeout when commented out
+# session_timeout_secs = 86400
+
+# Enable autodaemon mode (shpool starts daemon automatically)
+# This is enabled by default
+# nodaemonize = false
+
+# Keybinding to detach (default: Ctrl-Space Ctrl-q)
+# Not relevant for web-based usage since we handle disconnect differently
