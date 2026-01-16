@@ -7,43 +7,21 @@ import { useState, useEffect, useCallback } from 'react';
 
 const CHANGELOG_ENTRIES = [
   {
-    version: '1.2.0',
-    date: '2026-01-15',
-    type: 'minor',
-    title: 'Clipboard & Voice Command Improvements',
+    version: '1.0.1',
+    date: '2026-01-16',
+    type: 'patch',
+    title: 'Shpool Migration & Terminal Simplification',
     highlights: [
-      'Fixed tmux clipboard integration with OSC 52 support',
-      'Implemented sidebar toggle via voice command',
-      'Voice command suggestions now execute when clicked',
-      'Improved selection tracking for terminal copy',
+      'Migrated from tmux to shpool for lighter session persistence',
+      'Removed custom right-click menu - browser default now works',
+      'Native OSC 52 clipboard support (no special config needed)',
+      'Simplified terminal codebase by removing 147 lines',
     ],
     features: [
-      { title: 'OSC 52 Clipboard', description: 'tmux selections now copy directly to browser clipboard via OSC 52 escape sequences' },
-      { title: 'Sidebar Toggle', description: 'Voice command "toggle sidebar" now hides/shows both sidebars for focus mode' },
-      { title: 'Voice Suggestions', description: 'Clicking voice command suggestions now executes them instead of doing nothing' },
-      { title: 'Selection Tracking', description: 'Terminal tracks selection via onSelectionChange for more reliable copying' },
-    ],
-  },
-  {
-    version: '1.1.0',
-    date: '2026-01-15',
-    type: 'minor',
-    title: 'One-Click Updates & UX Improvements',
-    highlights: [
-      'One-click system updates directly from the Settings UI',
-      'Real-time update progress streaming via WebSocket',
-      'Beautiful 5-step first-time setup wizard with feature selection',
-      'Terminal highlight-to-copy clipboard support',
-      'Improved theming for About modal and Admin Dashboard on light themes',
-      'Extended Cloudflare port detection for more CLAUDE.md formats',
-    ],
-    features: [
-      { title: 'Self-Update Feature', description: 'Update Console.web from Settings → SYSTEM with real-time progress streaming' },
-      { title: 'Setup Wizard', description: '5-step onboarding: Welcome, Features, Layout, Theme, Complete with widget presets' },
-      { title: 'Highlight-to-Copy', description: 'Select text in terminal to automatically copy to clipboard' },
-      { title: 'Keyboard Shortcuts', description: 'Ctrl+Shift+C to copy, Ctrl+Shift+V to paste in terminal' },
-      { title: 'Theme Fixes', description: 'About modal and Admin Dashboard now properly themed on all color schemes' },
-      { title: 'Port Detection', description: 'Cloudflare now detects ports from list items, tables, and bold labels in CLAUDE.md' },
+      { title: 'Shpool Sessions', description: 'Replaced tmux with shpool for cleaner session persistence with raw byte passthrough' },
+      { title: 'Session Naming', description: 'Changed session prefix from cp-* to sp-* for shpool sessions' },
+      { title: 'Native Right-Click', description: 'Removed custom context menu - browser default now works natively' },
+      { title: 'Auto-Reconnect', description: 'Sessions auto-create if none exists during reconnect' },
     ],
   },
   {
@@ -53,88 +31,47 @@ const CHANGELOG_ENTRIES = [
     title: 'Console.web v1.0 - Complete Management Interface',
     highlights: [
       'Complete web-based management interface for Claude Code projects',
-      'Browser-based terminals with tmux persistence - sessions survive disconnects',
+      'Browser-based terminals with session persistence - sessions survive disconnects',
       'Real-time system monitoring with 2-second CPU refresh across all cores',
       'Full infrastructure management: Docker, systemd, firewall, users, SSH',
       'AI automation with 13+ agents, MCP servers, and voice commands',
       'Comprehensive developer tools: API tester, database browser, Git workflow',
-      'Project templates, compliance checker, and one-click deployment',
+      'One-click system updates and first-time setup wizard',
       'GitHub integration with clone, push, and sync status',
       'Cloudflare Tunnels for one-click public deployment',
       'Widget-based customizable sidebars with drag-and-drop',
     ],
     features: [
       // Terminal & Sessions
-      { title: 'Terminal Sessions', description: 'xterm.js terminals with tmux persistence, auto-reconnect, folders, tags, notes, templates, and team handoffs' },
-      { title: 'Session Management', description: 'Organize sessions with folders, tags, and search. Create session templates for common workflows' },
+      { title: 'Terminal Sessions', description: 'xterm.js terminals with session persistence, auto-reconnect, folders, tags, notes, templates, and team handoffs' },
+      { title: 'Clipboard Support', description: 'Highlight-to-copy, Ctrl+Shift+C/V shortcuts, and OSC 52 integration' },
       { title: 'Session Sharing', description: 'Share sessions via links, add comments, activity feed, and team handoffs' },
 
       // Project Management
       { title: 'Project Browser', description: 'Browse projects with favorites, completion metrics, search, and CLAUDE.md editor' },
       { title: 'Project Templates', description: '6 template types: Full-Stack, Frontend, Desktop (Tauri), CLI, Infrastructure, Mobile (Flutter)' },
-      { title: 'Project Creation Wizard', description: '5-step wizard with template selection, GitHub repo creation, and Cloudflare publishing' },
       { title: 'Compliance Checker', description: 'Weighted scoring for CI/CD, security, hooks, TypeScript strict, ESLint, Prettier, CLAUDE.md' },
-      { title: 'Checkpoints & Rollback', description: 'Save project state with git info, restore with one click, pin important checkpoints' },
 
-      // System Monitoring
-      { title: 'System Monitoring', description: 'Real-time CPU/memory/disk stats with 2-second refresh and delta-based CPU calculation' },
-      { title: 'Process Manager', description: 'htop-style process list sorted by CPU/memory with ability to kill processes' },
-      { title: 'System Logs', description: 'journalctl viewer with filtering by service unit, priority level, and text search' },
-      { title: 'Network Diagnostics', description: 'View interfaces, ping hosts, DNS lookup, and monitor active connections' },
-
-      // Infrastructure Control
+      // System & Infrastructure
+      { title: 'System Monitoring', description: 'Real-time CPU/memory/disk stats with delta-based CPU calculation' },
       { title: 'Docker Management', description: 'Full container lifecycle: start, stop, restart, logs, images, volumes' },
-      { title: 'Systemd Services', description: 'View and control systemd services directly from the dashboard' },
       { title: 'UFW Firewall', description: 'Enable/disable firewall, manage rules, quick actions for SSH/HTTP/HTTPS' },
-      { title: 'Package Management', description: 'apt package lifecycle with search, install, update, and remove capabilities' },
-      { title: 'Task Scheduler', description: 'Manage cron jobs and systemd timers with add/remove/toggle controls' },
-
-      // Security
-      { title: 'Authentik SSO', description: 'Full Authentik integration for user authentication and group management' },
-      { title: 'User Management', description: 'Manage Authentik SSO users and Linux server users/groups' },
-      { title: 'Security Dashboard', description: 'Monitor SSH sessions, failed logins, fail2ban status, and open ports' },
-      { title: 'Security Scanning', description: 'Integration with Semgrep, Gitleaks, Trivy for vulnerability scanning' },
-      { title: 'Push Sanitization', description: 'Git hooks that scan for secrets, PII, and sensitive data before push' },
-
-      // Developer Tools
-      { title: 'API Tester', description: 'Test API endpoints with custom headers, body, and authentication' },
-      { title: 'Database Browser', description: 'Browse and query database tables directly from the dashboard' },
-      { title: 'File Explorer', description: 'Navigate and view project files without leaving the interface' },
-      { title: 'Dependencies Dashboard', description: 'View npm packages with versions, update types, and vulnerability scanning' },
-      { title: 'Git Workflow', description: 'Commit, push, pull, branches, and diff viewer with visual status indicators' },
+      { title: 'Security Dashboard', description: 'Monitor SSH sessions, failed logins, fail2ban status, and security scanning' },
 
       // AI & Automation
       { title: 'Agent Marketplace', description: '13+ pre-built agents: ESLint, Prettier, Security Scanner, Test Runner, and more' },
-      { title: 'Custom Agent Builder', description: 'Create custom automation agents with configurable triggers and actions' },
       { title: 'MCP Server Catalog', description: '22+ MCP servers across 6 categories with one-click installation' },
-      { title: 'Voice-to-Code', description: 'Browser-native speech recognition for voice commands in terminals' },
-      { title: 'Aider Integration', description: 'Full Aider AI coding assistant with multi-LLM support and voice commands' },
-      { title: 'AI Personas', description: 'Create and switch between different AI personas for varied interaction styles' },
-      { title: 'Memory Banks', description: 'Layered context persistence with session, project, and global scopes' },
+      { title: 'Voice Commands', description: 'Browser-native speech recognition for voice commands in terminals' },
 
-      // Content Libraries
-      { title: 'Prompt Library', description: 'Reusable prompts with variable substitution and categorization' },
-      { title: 'Command Snippets', description: 'Save and quickly access frequently used command sequences' },
-      { title: 'Theme System', description: '11 glassmorphism themes with full CSS variable customization' },
-      { title: 'Keyboard Shortcuts', description: 'Customizable keyboard shortcuts for all major actions' },
-
-      // GitHub Integration
-      { title: 'GitHub Authentication', description: 'Personal Access Token configuration with secure storage' },
-      { title: 'Clone & Push', description: 'Clone repos from GitHub or push local projects to new repositories' },
-      { title: 'Sync Status', description: 'Visual indicators showing ahead/behind/synced status per project' },
-      { title: 'GitHub Actions', description: 'View workflow run status and CI/CD pipeline results' },
-
-      // Cloudflare Integration
-      { title: 'One-Click Publish', description: 'Publish any project to a public subdomain via Cloudflare Tunnels' },
-      { title: 'Route Management', description: 'Automatic DNS record creation, route status monitoring, port-based project mapping' },
-      { title: 'WebSocket Support', description: 'Toggle WebSocket support for routes requiring wss://' },
-      { title: 'Vite Integration', description: 'Automatically adds hostname to vite.config.js allowedHosts on publish' },
+      // Integrations
+      { title: 'Self-Update', description: 'One-click updates from Settings with real-time progress streaming' },
+      { title: 'GitHub Integration', description: 'Clone repos, push changes, view sync status and workflow results' },
+      { title: 'Cloudflare Tunnels', description: 'One-click publish with automatic DNS and route management' },
 
       // UI/UX
+      { title: 'Setup Wizard', description: '5-step onboarding with feature selection, widget presets, and theme preview' },
+      { title: 'Theme System', description: '11 glassmorphism themes with full CSS variable customization' },
       { title: 'Widget Dashboard', description: 'Drag-and-drop customizable widgets with vertical height snapping' },
-      { title: 'Admin Dashboard', description: 'Consolidated 9-tab interface: Overview, Infrastructure, History, MCP, Projects, Development, Agents, Security, Settings' },
-      { title: 'Project Favorites', description: 'Star projects to pin them at the top of the sidebar' },
-      { title: 'Sidebar Scroll Fix', description: 'Proper scroll behavior in sidebars without terminal interference' },
     ],
   },
 ];

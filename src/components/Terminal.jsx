@@ -16,8 +16,6 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
   const [notificationPermission, setNotificationPermission] = useState('default');
   const [showCompletionToast, setShowCompletionToast] = useState(false);
   const [completionMessage, setCompletionMessage] = useState('');
-  const [contextMenu, setContextMenu] = useState(null); // { x, y } for browser context menu
-  const [lastCopiedText, setLastCopiedText] = useState(''); // Store last copied text for context menu
   const [showCopyToast, setShowCopyToast] = useState(false); // Show "Copied!" feedback
 
   // Request notification permission on mount
@@ -111,7 +109,7 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
       scrollback: 10000,
       convertEol: true,
       scrollOnUserInput: true,
-      rightClickSelectsWord: false, // Don't intercept right-click
+      rightClickSelectsWord: false, // Allow browser's default right-click menu
     });
 
     // Add fit addon for auto-resizing
@@ -228,14 +226,13 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
       clipboardLog('Selection changed:', selection ? `"${selection.substring(0, 50)}..." (${selection.length} chars)` : 'none');
       if (selection && selection.length > 0) {
         lastSelection = selection;
-        setLastCopiedText(selection); // Store for context menu
       }
     });
 
     // Copy on mouseup using the tracked selection (auto-copy like native terminal)
     const handleMouseUp = (e) => {
       clipboardLog('MouseUp event, button:', e.button);
-      // Skip if right-click (handled by context menu)
+      // Skip if right-click (let browser handle it)
       if (e.button === 2) return;
 
       // Clear any pending timeout
@@ -256,7 +253,6 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
         if (textToCopy && textToCopy.length > 0) {
           clipboardLog('Copying text:', textToCopy.substring(0, 50));
           copyTextToClipboard(textToCopy);
-          setLastCopiedText(textToCopy); // Store for context menu
 
           // Show copy toast feedback
           setShowCopyToast(true);
@@ -273,68 +269,6 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
 
     const terminalElement = terminalRef.current;
     terminalElement.addEventListener('mouseup', handleMouseUp);
-
-    // Prevent browser context menu - we show our own custom menu
-    // Hold Shift+Right-click to get browser context menu if needed
-    const handleContextMenu = (e) => {
-      if (!e.shiftKey) {
-        e.preventDefault();
-        e.stopPropagation();
-        return false;
-      }
-    };
-    terminalElement.addEventListener('contextmenu', handleContextMenu);
-
-    // Helper to calculate terminal cell position from mouse event
-    const getCellPosition = (e) => {
-      const rect = terminalElement.getBoundingClientRect();
-      const cellWidth = rect.width / term.cols;
-      const cellHeight = rect.height / term.rows;
-      const x = Math.floor((e.clientX - rect.left) / cellWidth) + 1;
-      const y = Math.floor((e.clientY - rect.top) / cellHeight) + 1;
-      return { x: Math.max(1, Math.min(x, term.cols)), y: Math.max(1, Math.min(y, term.rows)) };
-    };
-
-    // Helper to build SGR mouse escape sequence
-    // Format: ESC [ < Cb ; Cx ; Cy M (press) or m (release)
-    const buildMouseSequence = (button, x, y, pressed, modifiers = 0) => {
-      const cb = button + modifiers;
-      return `\x1b[<${cb};${x};${y}${pressed ? 'M' : 'm'}`;
-    };
-
-    // Handle right-click by showing browser-based context menu
-    let lastRightClick = 0;
-    const handleMouseDown = (e) => {
-      // Only handle right-click (button 2)
-      if (e.button === 2) {
-        // Debounce - ignore rapid duplicate events
-        const now = Date.now();
-        if (now - lastRightClick < 300) {
-          e.preventDefault();
-          e.stopPropagation();
-          return;
-        }
-        lastRightClick = now;
-
-        // Prevent browser context menu and xterm.js handling
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-
-        // Show browser-based context menu at click position
-        setContextMenu({ x: e.clientX, y: e.clientY });
-        clipboardLog('Right-click at:', { x: e.clientX, y: e.clientY }, 'showing context menu');
-      }
-    };
-
-    // Close context menu on any click
-    const handleClick = () => {
-      setContextMenu(null);
-    };
-
-    // Use capture phase to get the event before xterm.js
-    terminalElement.addEventListener('mousedown', handleMouseDown, true);
-    document.addEventListener('click', handleClick);
 
     // Also support Ctrl+Shift+C for explicit copy
     term.attachCustomKeyEventHandler((event) => {
@@ -394,9 +328,6 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     // Cleanup
     return () => {
       terminalElement.removeEventListener('mouseup', handleMouseUp);
-      terminalElement.removeEventListener('mousedown', handleMouseDown, true);
-      document.removeEventListener('click', handleClick);
-      terminalElement.removeEventListener('contextmenu', handleContextMenu);
       if (selectionTimeout) {
         clearTimeout(selectionTimeout);
       }
@@ -592,82 +523,6 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
           }}
         >
           <span className="text-sm font-mono text-white">📋 Copied!</span>
-        </div>
-      )}
-
-      {/* Right-click context menu */}
-      {contextMenu && (
-        <div
-          className="fixed z-50 py-1 min-w-[160px] rounded-lg shadow-xl"
-          style={{
-            left: contextMenu.x,
-            top: contextMenu.y,
-            background: 'rgba(20, 20, 20, 0.95)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-white/10 flex items-center gap-2"
-            onClick={() => {
-              navigator.clipboard.readText().then(text => {
-                if (text) onInput(text);
-              });
-              setContextMenu(null);
-            }}
-          >
-            <span>📋</span> Paste
-          </button>
-          <button
-            className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-white/10 flex items-center gap-2"
-            onClick={() => {
-              const selection = xtermRef.current?.getSelection() || lastCopiedText;
-              if (selection) {
-                navigator.clipboard.writeText(selection);
-                setShowCopyToast(true);
-                setTimeout(() => setShowCopyToast(false), 1500);
-              }
-              setContextMenu(null);
-            }}
-          >
-            <span>📄</span> Copy {lastCopiedText ? `(${lastCopiedText.length} chars)` : ''}
-          </button>
-          <div className="border-t border-white/10 my-1" />
-          <button
-            className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-white/10 flex items-center gap-2"
-            onClick={() => {
-              onInput('\x1b[A'); // Send up arrow for scroll mode
-              setContextMenu(null);
-            }}
-          >
-            <span>📜</span> Scroll Mode (↑)
-          </button>
-          <button
-            className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-white/10 flex items-center gap-2"
-            onClick={() => {
-              onInput('clear\n');
-              setContextMenu(null);
-            }}
-          >
-            <span>🧹</span> Clear Screen
-          </button>
-          <div className="border-t border-white/10 my-1" />
-          <button
-            className="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-white/10 flex items-center gap-2"
-            onClick={() => {
-              onInput('\x03'); // Ctrl+C
-              setContextMenu(null);
-            }}
-          >
-            <span>🛑</span> Cancel (Ctrl+C)
-          </button>
-          <button
-            className="w-full px-4 py-2 text-left text-sm text-gray-400 hover:bg-white/10 flex items-center gap-2"
-            onClick={() => setContextMenu(null)}
-          >
-            <span>✕</span> Close
-          </button>
         </div>
       )}
 
