@@ -138,8 +138,15 @@ function App() {
 
   // Track selected project for reconnection (ref to avoid stale closures)
   const selectedProjectRef = useRef(null);
+  const reconnectAttemptsRef = useRef({}); // Track retry attempts per project path
+  const MAX_RECONNECT_ATTEMPTS = 3;
+
   useEffect(() => {
     selectedProjectRef.current = selectedProject;
+    // Reset retry counter when project changes
+    if (selectedProject?.path) {
+      reconnectAttemptsRef.current[selectedProject.path] = 0;
+    }
   }, [selectedProject]);
 
   // Initialize socket connection
@@ -224,6 +231,10 @@ function App() {
     newSocket.on('terminal-ready', ({ projectPath, sessionName, isNew, reconnected }) => {
       console.log('Terminal ready:', { projectPath, sessionName, isNew, reconnected });
       setTerminalReady(true);
+      // Reset reconnect counter on successful connection
+      if (projectPath) {
+        reconnectAttemptsRef.current[projectPath] = 0;
+      }
       if (reconnected) {
         setError(null); // Clear any connection errors on successful reconnect
       }
@@ -233,14 +244,25 @@ function App() {
       console.log('Terminal exited:', { exitCode, projectPath });
       const currentProject = selectedProjectRef.current;
 
-      // If this is our current project, try to reconnect (tmux session may still exist)
+      // If this is our current project, try to reconnect (shpool session may still exist)
       if (currentProject?.path === projectPath) {
-        console.log('Attempting to reconnect to tmux session after PTY exit...');
-        setTerminalReady(false);
-        // Small delay to let server clean up, then try reconnecting
-        setTimeout(() => {
-          newSocket.emit('reconnect-session', projectPath);
-        }, 500);
+        const attempts = (reconnectAttemptsRef.current[projectPath] || 0) + 1;
+        reconnectAttemptsRef.current[projectPath] = attempts;
+
+        if (attempts <= MAX_RECONNECT_ATTEMPTS) {
+          console.log(`Attempting to reconnect to shpool session (attempt ${attempts}/${MAX_RECONNECT_ATTEMPTS})...`);
+          setTerminalReady(false);
+          // Exponential backoff: 500ms, 1000ms, 2000ms
+          const delay = 500 * Math.pow(2, attempts - 1);
+          setTimeout(() => {
+            newSocket.emit('reconnect-session', projectPath);
+          }, delay);
+        } else {
+          console.warn(`Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached for ${projectPath}. Stopping.`);
+          setError(`Session disconnected. Click the project to reconnect.`);
+          // Reset counter so user can manually retry
+          reconnectAttemptsRef.current[projectPath] = 0;
+        }
       }
 
       // Refresh project list to update active session status

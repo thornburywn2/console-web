@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import UserProfileSection from './UserProfileSection';
 import { GitHubStatusDot } from './GitHubStatusBadge';
 
@@ -87,6 +87,65 @@ function Sidebar({
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [lastAccessed, setLastAccessedState] = useState(getLastAccessed);
   const [favorites, setFavorites] = useState(getFavorites);
+
+  // Refs for scroll handling (prevent terminal from capturing wheel events)
+  const asideRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+  const isHoveringRef = useRef(false);
+
+  // Track mouse enter/leave on the sidebar
+  useEffect(() => {
+    const aside = asideRef.current;
+    if (!aside) return;
+
+    const handleMouseEnter = () => {
+      isHoveringRef.current = true;
+    };
+
+    const handleMouseLeave = () => {
+      isHoveringRef.current = false;
+    };
+
+    aside.addEventListener('mouseenter', handleMouseEnter);
+    aside.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      aside.removeEventListener('mouseenter', handleMouseEnter);
+      aside.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, []);
+
+  // Handle wheel events at document level to intercept before xterm gets them
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleDocumentWheel = (e) => {
+      // Only handle if mouse is over the sidebar
+      if (!isHoveringRef.current) return;
+
+      // Stop the event completely
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      // Manually scroll the container
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const maxScroll = scrollHeight - clientHeight;
+
+      if (maxScroll > 0) {
+        const newScrollTop = Math.max(0, Math.min(maxScroll, scrollTop + e.deltaY));
+        container.scrollTop = newScrollTop;
+      }
+    };
+
+    // Add to document with capture phase - this runs BEFORE any other handlers
+    document.addEventListener('wheel', handleDocumentWheel, { passive: false, capture: true });
+
+    return () => {
+      document.removeEventListener('wheel', handleDocumentWheel, { capture: true });
+    };
+  }, []);
 
   // Destructure session management props with defaults
   const {
@@ -198,6 +257,7 @@ function Sidebar({
 
   return (
     <aside
+      ref={asideRef}
       className="w-72 flex-shrink-0 glass-sidebar overflow-hidden flex flex-col relative z-20"
     >
       {/* Header */}
@@ -330,7 +390,11 @@ function Sidebar({
 
 
       {/* Project List */}
-      <div className="flex-1 overflow-y-auto py-2">
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto py-2"
+        style={{ overscrollBehavior: 'contain' }}
+      >
         {isLoading && projects.length === 0 ? (
           <div className="flex items-center justify-center py-8">
             <svg className="w-6 h-6 animate-spin" style={{ color: 'var(--accent-primary)' }} fill="none" viewBox="0 0 24 24">
