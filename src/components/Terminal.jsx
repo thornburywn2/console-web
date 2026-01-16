@@ -469,16 +469,37 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     }
   }, [projectPath, onResize, isTerminalReady]);
 
-  // Focus terminal when ready
+  // Focus terminal and refresh screen when ready
   useEffect(() => {
     if (isReady && xtermRef.current && isTerminalReady()) {
+      const term = xtermRef.current;
+      const fitAddon = fitAddonRef.current;
+
       try {
-        xtermRef.current.focus();
+        // Focus the terminal
+        term.focus();
+
+        // Force xterm.js to repaint all rows
+        term.refresh(0, term.rows - 1);
+
+        // Trigger a resize to make applications redraw their screen
+        // This is especially important for shpool sessions where content
+        // may not be sent until the application knows the terminal size
+        if (fitAddon) {
+          setTimeout(() => {
+            try {
+              fitAddon.fit();
+              onResize(term.cols, term.rows);
+            } catch (err) {
+              console.debug('Fit error on ready:', err.message);
+            }
+          }, 100);
+        }
       } catch (err) {
-        console.debug('Terminal focus error:', err.message);
+        console.debug('Terminal focus/refresh error:', err.message);
       }
     }
-  }, [isReady, isTerminalReady]);
+  }, [isReady, isTerminalReady, onResize]);
 
   return (
     <div ref={containerRef} className="terminal-container h-full relative m-3">
