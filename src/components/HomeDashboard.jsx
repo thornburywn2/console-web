@@ -280,7 +280,7 @@ function HomeDashboard({ onSelectProject, projects = [] }) {
     return { running, total: data.containers.length };
   }, [data.containers]);
 
-  const activeSessions = data.dashboard?.tmuxSessions || data.system?.sessions?.tmux || [];
+  const activeSessions = data.dashboard?.shpoolSessions || [];
   const gitStatuses = data.dashboard?.gitStatuses || [];
   const recentCommits = data.dashboard?.recentCommits || [];
   const activePorts = data.dashboard?.activePorts || [];
@@ -373,9 +373,9 @@ function HomeDashboard({ onSelectProject, projects = [] }) {
           <div className={`space-y-1 overflow-y-auto ${maxH}`}>
             {activeSessions.slice(0, 10).map((session, i) => (
               <div key={i} className="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-white/5" style={{ background: 'var(--bg-glass)' }}
-                onClick={() => { const p = data.projectsExtended.find(pr => pr.name === session.replace('cp-', '')); if (p) onSelectProject?.(p); }}>
+                onClick={() => { const p = data.projectsExtended.find(pr => pr.name === session.replace('sp-', '')); if (p) onSelectProject?.(p); }}>
                 <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--status-success)' }} />
-                <span className="text-xs font-mono truncate" style={{ color: 'var(--text-primary)' }}>{session.replace('cp-', '')}</span>
+                <span className="text-xs font-mono truncate" style={{ color: 'var(--text-primary)' }}>{session.replace('sp-', '')}</span>
               </div>
             ))}
           </div>
