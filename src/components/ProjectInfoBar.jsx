@@ -22,8 +22,8 @@ export default function ProjectInfoBar({ project, onRefresh }) {
   const [isLoading, setIsLoading] = useState(false);
   const tagMenuRef = useRef(null);
 
-  // Encode project path for URL
-  const encodedPath = project?.path ? btoa(project.path) : null;
+  // Encode project path for URL (URL-encode the base64 to handle = padding)
+  const encodedPath = project?.path ? encodeURIComponent(btoa(project.path)) : null;
 
   // Fetch project tags
   const fetchTags = useCallback(async () => {

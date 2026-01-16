@@ -67,8 +67,8 @@ export default function ProjectContextMenu({
   const [copySettings, setCopySettings] = useState(true);
   const [cloning, setCloning] = useState(false);
 
-  // Encode project path for URL
-  const encodedPath = project?.path ? btoa(project.path) : null;
+  // Encode project path for URL (URL-encode the base64 to handle = padding)
+  const encodedPath = project?.path ? encodeURIComponent(btoa(project.path)) : null;
 
   // Fetch all tags and project's current tags
   const fetchTags = useCallback(async () => {
