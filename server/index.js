@@ -483,16 +483,6 @@ app.use('/api/db', createDbBrowserRouter(prisma));
 app.use('/api/proxy', createProxyRouter());
 
 // =============================================================================
-// ERROR HANDLERS (Must be after all routes)
-// =============================================================================
-
-// 404 handler for unmatched routes
-app.use(notFoundHandler);
-
-// Global error handler (catches all unhandled errors)
-app.use(globalErrorHandler);
-
-// =============================================================================
 // SERVICES INITIALIZATION
 // =============================================================================
 
@@ -4016,7 +4006,13 @@ if (process.env.NODE_ENV === 'production') {
   });
 
   log.info('serving static files from dist/ (production mode)');
+} else {
+  // Development mode - register 404 handler since no static serving
+  app.use(notFoundHandler);
 }
+
+// Global error handler (catches all unhandled errors - must be last)
+app.use(globalErrorHandler);
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
