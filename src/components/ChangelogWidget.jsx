@@ -7,6 +7,27 @@ import { useState, useEffect, useCallback } from 'react';
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.5',
+    date: '2026-01-16',
+    type: 'minor',
+    title: 'Production Hardening & Observability',
+    highlights: [
+      'Added comprehensive security hardening with rate limiting and helmet headers',
+      'Prometheus metrics export at /metrics endpoint for Grafana integration',
+      'Backend testing infrastructure with 111 passing tests',
+      'Zod validation schemas for all API endpoints',
+    ],
+    features: [
+      { title: 'Security Headers', description: 'helmet middleware adds CSP, HSTS, X-Frame-Options, and other security headers' },
+      { title: 'Rate Limiting', description: 'General (1000/15min), strict (10/min), and auth (10/15min) rate limiters protect all endpoints' },
+      { title: 'Prometheus Metrics', description: 'HTTP duration histograms, request counters, WebSocket gauges, DB query metrics at /metrics' },
+      { title: 'Slow Query Logging', description: 'Prisma queries exceeding 100ms are automatically logged with query details' },
+      { title: 'Input Validation', description: '25+ Zod schemas validate all API input with detailed error messages' },
+      { title: 'Backend Tests', description: '111 tests covering validation schemas, middleware, and metrics service' },
+      { title: 'Watcher Alerts', description: 'PM2 watcher now integrates with AlertRule database for memory and service alerts' },
+    ],
+  },
+  {
     version: '1.0.4',
     date: '2026-01-16',
     type: 'patch',
