@@ -9,78 +9,178 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## About Console.web
 
+**Console.web** is a comprehensive web-based management interface for development infrastructure. It brings together terminal access, system monitoring, container management, AI automation, and DevOps tooling into a single, unified dashboard.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              Console.web v1.0.9                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│  │  Terminal   │  │   Admin     │  │  Projects   │  │  Sidebars   │        │
+│  │  (xterm.js) │  │  Dashboard  │  │   Browser   │  │  (Widgets)  │        │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘        │
+│         └─────────────────┴─────────────────┴─────────────────┘              │
+│                                    │                                         │
+│  ┌─────────────────────────────────┴─────────────────────────────────┐      │
+│  │                       Socket.IO + Express API                      │      │
+│  ├───────────┬───────────┬───────────┬───────────┬───────────────────┤      │
+│  │  Sessions │  Docker   │    Git    │   Admin   │  41+ Route Files  │      │
+│  └───────────┴───────────┴───────────┴───────────┴───────────────────┘      │
+│                                    │                                         │
+│  ┌─────────────────────────────────┴─────────────────────────────────┐      │
+│  │                        Observability Stack                         │      │
+│  ├───────────┬───────────┬───────────┬───────────┬───────────────────┤      │
+│  │  Jaeger   │   Loki    │ Promtail  │ Prometheus│     Grafana       │      │
+│  │ (Tracing) │  (Logs)   │(Collector)│ (Metrics) │   (Dashboards)    │      │
+│  └───────────┴───────────┴───────────┴───────────┴───────────────────┘      │
+│                                    │                                         │
+│  ┌─────────────────────────────────┴─────────────────────────────────┐      │
+│  │                         Infrastructure                             │      │
+│  ├───────────┬───────────┬───────────┬───────────┬───────────────────┤      │
+│  │ PostgreSQL│  Shpool   │   Docker  │  Systemd  │     Cloudflare    │      │
+│  │  (Prisma) │(Sessions) │ (Dockerode│ (Services)│     (Tunnels)     │      │
+│  └───────────┴───────────┴───────────┴───────────┴───────────────────┘      │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
 ### Who Is This For?
 
-Console.web is built for **developers, DevOps engineers, and teams** who want a unified web-based interface to manage their development infrastructure. It's particularly valuable for:
-
-- **Solo developers** managing multiple projects on a local or remote dev server
-- **Small teams** who need shared access to project terminals and infrastructure
-- **DevOps engineers** monitoring containers, services, and system health
-- **AI-assisted development workflows** using Claude Code, Aider, or similar tools
-- **Self-hosted infrastructure enthusiasts** running their own Sovereign Stack
-
-### What Problems Does It Solve?
-
-1. **Terminal Fragmentation**: Stop juggling multiple SSH sessions. Access all your project terminals from one browser tab with automatic session persistence.
-
-2. **Context Switching**: No more switching between terminal, Docker Desktop, system monitor, and code editor. Everything is in one place.
-
-3. **Session Loss**: Never lose your terminal session again. Shpool persistence means your work survives disconnects, browser crashes, and server restarts.
-
-4. **Infrastructure Visibility**: See all your containers, services, ports, and resources at a glance without memorizing CLI commands.
-
-5. **AI Workflow Integration**: Built specifically for AI-assisted development with Claude Code integration, MCP server management, and custom automation agents.
-
-### What Can You Do With It?
-
-**Daily Developer Workflow:**
-```
-Morning:
-- Open Console.web dashboard
-- Check overnight security scans and system health
-- Review git status across all projects
-- Reconnect to yesterday's terminal session (still running!)
-
-During Development:
-- Switch between project terminals instantly
-- Run builds and tests with full output visibility
-- Commit and push changes through the Git workflow panel
-- Monitor Docker containers and restart services as needed
-
-End of Day:
-- Leave terminals running (they'll persist overnight)
-- Check resource usage and clean up if needed
-- Review activity feed to see what the team worked on
-```
-
-**DevOps Tasks Made Easy:**
-- View all systemd services and their status
-- Start/stop/restart Docker containers
-- Check firewall rules and add new ports
-- Monitor CPU, memory, disk across the system
-- View logs from any service with filtering
-- Manage SSH keys and server users
-
-**AI-Assisted Development:**
-- Run Claude Code sessions in persistent terminals
-- Configure MCP servers for enhanced AI capabilities
-- Create custom automation agents for repetitive tasks
-- Track AI token usage and costs
-
-### Key Capabilities
-
-| Category | Features |
+| Audience | Use Case |
 |----------|----------|
-| **Terminals** | Browser-based xterm.js, shpool persistence, multi-session, auto-reconnect |
-| **Projects** | Browse, favorite, search, completion tracking, CLAUDE.md editor |
-| **Containers** | Docker management - containers, images, volumes, networks |
-| **Services** | Systemd service monitoring, start/stop/restart |
-| **Security** | UFW firewall, Fail2ban, SSH monitoring, security scanning |
-| **Git** | Status, commit, push, pull, branches, diff viewer |
-| **AI** | 13+ pre-built agents, MCP servers, personas, voice commands |
-| **Monitoring** | Real-time CPU/memory/disk, processes, network, logs |
-| **Collaboration** | Session sharing, comments, activity feed, handoffs |
-| **Publishing** | Cloudflare Tunnel integration, automatic DNS mapping |
+| **Solo Developers** | Manage multiple projects with persistent terminals, Git workflow, and system monitoring from anywhere |
+| **Small Teams** | Share terminal sessions, leave comments, hand off work, and track activity across projects |
+| **DevOps Engineers** | Monitor containers, services, firewall, and security from a single pane of glass |
+| **AI-First Developers** | Run Claude Code sessions, configure MCP servers, and automate with custom agents |
+| **Self-Hosters** | Full Sovereign Stack integration with Authentik SSO and Cloudflare Tunnels |
+
+### Core Capabilities
+
+#### Terminal & Sessions
+- **Browser-based terminals** via xterm.js with full ANSI color and mouse support
+- **Shpool persistence** - sessions survive disconnects, browser crashes, and server restarts
+- **Multi-session management** with folders, tags, notes, templates, and search
+- **Clipboard integration** - highlight-to-copy, Ctrl+Shift+C/V, OSC 52 support
+- **Session sharing** with comments, activity feed, and team handoffs
+
+#### Project Management
+- **Project browser** with favorites, completion metrics, and search
+- **CLAUDE.md editor** with syntax highlighting and validation
+- **Compliance scoring** for CI/CD, security, TypeScript, ESLint, Prettier
+- **6 project templates**: Full-Stack, Frontend, Desktop, CLI, Infrastructure, Mobile
+
+#### System Administration
+- **Real-time monitoring** - CPU, memory, disk with 2-second refresh
+- **Docker management** - containers, images, volumes, networks, logs
+- **Systemd services** - status, start, stop, restart, logs
+- **UFW firewall** - rules, quick actions, port sync from projects
+- **Security dashboard** - SSH sessions, failed logins, Fail2ban, scanning
+
+#### Observability (v1.0.9)
+- **Distributed tracing** - OpenTelemetry with Jaeger for request correlation
+- **Log aggregation** - Loki + Promtail for centralized log querying
+- **Prometheus metrics** - HTTP duration, request counts, WebSocket gauges
+- **Grafana dashboards** - 9 pre-built panels for key metrics
+- **AlertManager rules** - 9 production alerts for errors, latency, availability
+
+#### AI & Automation
+- **13+ pre-built agents** - ESLint, Prettier, Security Scanner, Test Runner, and more
+- **22+ MCP servers** across 6 categories with one-click installation
+- **Custom agent builder** with triggers, conditions, and actions
+- **Voice commands** - browser-native speech recognition
+- **AI token tracking** with cost estimates
+
+#### Integrations
+- **Authentik SSO** - Enterprise authentication via proxy headers
+- **GitHub** - Clone, push, sync status, workflow results
+- **Cloudflare Tunnels** - One-click public deployment with DNS
+- **Sentry** - Error tracking with request correlation
+
+### Production Features
+
+| Feature | Description |
+|---------|-------------|
+| **Input Validation** | Zod schemas on all 41+ routes via `validateBody()` middleware |
+| **Error Sanitization** | `sendSafeError()` returns reference IDs, logs full errors internally |
+| **Rate Limiting** | General (1000/15min), strict (10/min), auth (10/15min) limiters |
+| **Security Headers** | Helmet with CSP, HSTS, X-Frame-Options, XSS protection |
+| **Graceful Shutdown** | Connection draining on SIGTERM with 30s timeout |
+| **Path Traversal Protection** | Centralized validation preventing CWE-23 attacks |
+
+### Quick Start
+
+```bash
+# Clone and install
+git clone https://github.com/your-org/console-web
+cd console-web && npm install
+
+# Configure
+cp .env.example .env
+# Edit .env with your DATABASE_URL and settings
+
+# Start development
+npm run dev
+
+# Start observability stack (optional)
+cd monitoring && docker compose up -d
+
+# Production
+npm run build && npm start
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | 5275 | API server port |
+| `DATABASE_URL` | - | PostgreSQL connection string |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | - | Jaeger/OTLP collector (enables tracing) |
+| `LOG_FILE` | - | JSON log file path (enables file logging) |
+| `SENTRY_DSN` | - | Sentry error tracking (enables Sentry) |
+| `AUTH_ENABLED` | true | Enable Authentik SSO |
+
+### Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| **Frontend** | React 18, Vite, Tailwind CSS, xterm.js |
+| **Backend** | Node.js, Express, Socket.IO, Prisma 7 |
+| **Database** | PostgreSQL |
+| **Sessions** | Shpool (session persistence) |
+| **Containers** | Dockerode |
+| **Observability** | OpenTelemetry, Jaeger, Loki, Prometheus, Grafana |
+| **Security** | Helmet, express-rate-limit, Zod, Sentry |
+
+---
+
+## [1.0.9] - 2026-01-17
+
+### Full Observability Stack
+
+Complete production observability infrastructure with distributed tracing, centralized logging, and alerting.
+
+#### Distributed Tracing (OpenTelemetry)
+- **Auto-instrumentation**: HTTP requests, Express routes, PostgreSQL queries automatically traced
+- **Jaeger integration**: Traces exported to Jaeger (OTLP HTTP on port 4318)
+- **Trace context propagation**: X-Trace-Id header in responses for request correlation
+- **Service identification**: Traces tagged with service name, version, and environment
+
+#### Log Aggregation (Loki + Promtail)
+- **Structured JSON logging**: Pino logs with component, level, requestId, and timing
+- **Promtail collection**: Automatic log collection from app and PM2 logs
+- **Loki storage**: Centralized log querying with label-based filtering
+- **30-day retention**: Automatic log compaction and retention management
+
+#### Monitoring Infrastructure
+- **Grafana Dashboard**: 9 pre-built panels for request rate, latency, errors, WebSocket connections, memory
+- **AlertManager Rules**: 9 production alerts for high error rate, slow queries, service down, memory warnings
+- **Docker Stack**: One-command deployment of Jaeger, Loki, Promtail via `docker compose up -d`
+
+#### Configuration
+- **Environment variables**: `OTEL_EXPORTER_OTLP_ENDPOINT`, `LOG_FILE`, `LOKI_URL`
+- **Graceful degradation**: Tracing and logging disabled gracefully when not configured
+- **Documentation**: Updated monitoring README with setup instructions
 
 ---
 

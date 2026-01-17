@@ -1,0 +1,82 @@
+# Console.web Observability Stack
+#
+# Includes:
+# - Jaeger: Distributed tracing (OTLP compatible)
+# - Loki: Log aggregation (Grafana native)
+# - Promtail: Log collector (replaces Fluentd for Loki)
+#
+# Usage:
+#   docker-compose up -d
+#
+# Ports:
+#   - 16686: Jaeger UI
+#   - 4318: OTLP HTTP receiver (for OpenTelemetry)
+#   - 3100: Loki API
+#
+# Note: Prometheus and Grafana are assumed to be in sovereign-stack
+
+services:
+  # Jaeger All-in-One for distributed tracing
+  jaeger:
+    image: jaegertracing/all-in-one:1.54
+    container_name: console-web-jaeger
+    restart: unless-stopped
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "4317:4317"     # OTLP gRPC receiver
+      - "4318:4318"     # OTLP HTTP receiver
+    volumes:
+      - jaeger-data:/badger
+    networks:
+      - console-web-monitoring
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:16686"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Loki for log aggregation
+  loki:
+    image: grafana/loki:2.9.4
+    container_name: console-web-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - console-web-monitoring
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3100/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Promtail for log collection
+  promtail:
+    image: grafana/promtail:2.9.4
+    container_name: console-web-promtail
+    restart: unless-stopped
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /home/thornburywn/Projects/console-web/logs:/logs:ro
+      - /home/thornburywn/.pm2/logs:/pm2-logs:ro
+      - promtail-positions:/positions
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - console-web-monitoring
+    depends_on:
+      - loki
+
+volumes:
+  jaeger-data:
+  loki-data:
+  promtail-positions:
+
+networks:
+  console-web-monitoring:
+    driver: bridge

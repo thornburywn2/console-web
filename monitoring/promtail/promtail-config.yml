@@ -1,0 +1,89 @@
+# Promtail Configuration for Console.web
+# Collects logs from application and PM2
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /positions/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+    batchwait: 1s
+    batchsize: 1048576
+    timeout: 10s
+
+scrape_configs:
+  # Console.web Application Logs (JSON format from pino)
+  - job_name: console-web-app
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: console-web
+          service: console-web
+          __path__: /logs/*.log
+    pipeline_stages:
+      # Parse JSON logs
+      - json:
+          expressions:
+            level: level
+            time: time
+            component: component
+            msg: msg
+            requestId: requestId
+            method: method
+            path: path
+            statusCode: statusCode
+            duration: duration
+      # Map pino levels to labels
+      - template:
+          source: level
+          template: '{{ if eq .Value "10" }}trace{{ else if eq .Value "20" }}debug{{ else if eq .Value "30" }}info{{ else if eq .Value "40" }}warn{{ else if eq .Value "50" }}error{{ else if eq .Value "60" }}fatal{{ else }}unknown{{ end }}'
+      - labels:
+          level:
+          component:
+      # Extract timestamp
+      - timestamp:
+          source: time
+          format: RFC3339Nano
+      # Use msg as log line
+      - output:
+          source: msg
+
+  # PM2 Logs (stdout/stderr)
+  - job_name: console-web-pm2
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: console-web-pm2
+          service: console-web
+          __path__: /pm2-logs/console-web-out.log
+    pipeline_stages:
+      # Try to parse as JSON (pino logs via PM2)
+      - json:
+          expressions:
+            level: level
+            component: component
+            msg: msg
+      - template:
+          source: level
+          template: '{{ if eq .Value "10" }}trace{{ else if eq .Value "20" }}debug{{ else if eq .Value "30" }}info{{ else if eq .Value "40" }}warn{{ else if eq .Value "50" }}error{{ else if eq .Value "60" }}fatal{{ else }}info{{ end }}'
+      - labels:
+          level:
+          component:
+          stream: stdout
+
+  # PM2 Error Logs
+  - job_name: console-web-pm2-err
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: console-web-pm2
+          service: console-web
+          stream: stderr
+          level: error
+          __path__: /pm2-logs/console-web-error.log

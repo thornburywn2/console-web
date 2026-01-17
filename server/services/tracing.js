@@ -47,7 +47,7 @@ export async function initTracing() {
     const { NodeSDK } = await import('@opentelemetry/sdk-node');
     const { getNodeAutoInstrumentations } = await import('@opentelemetry/auto-instrumentations-node');
     const { OTLPTraceExporter } = await import('@opentelemetry/exporter-trace-otlp-http');
-    const { Resource } = await import('@opentelemetry/resources');
+    const { resourceFromAttributes } = await import('@opentelemetry/resources');
     const { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } = await import('@opentelemetry/semantic-conventions');
 
     // Create trace exporter
@@ -60,10 +60,10 @@ export async function initTracing() {
 
     // Create SDK with auto-instrumentations
     sdk = new NodeSDK({
-      resource: new Resource({
+      resource: resourceFromAttributes({
         [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || 'console-web',
         [ATTR_SERVICE_VERSION]: process.env.npm_package_version || 'unknown',
-        environment: process.env.NODE_ENV || 'development',
+        'deployment.environment': process.env.NODE_ENV || 'development',
       }),
       traceExporter,
       instrumentations: [

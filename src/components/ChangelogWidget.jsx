@@ -7,6 +7,26 @@ import { useState, useEffect, useCallback } from 'react';
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.9',
+    date: '2026-01-17',
+    type: 'major',
+    title: 'Full Observability Stack',
+    highlights: [
+      'OpenTelemetry distributed tracing with Jaeger integration',
+      'Loki log aggregation with Promtail collectors',
+      'Grafana dashboard and AlertManager rules for Prometheus',
+      'Complete production observability infrastructure',
+    ],
+    features: [
+      { title: 'Distributed Tracing', description: 'OpenTelemetry auto-instrumentation for HTTP, Express, PostgreSQL with Jaeger export' },
+      { title: 'Log Aggregation', description: 'Structured JSON logs collected by Promtail and shipped to Loki for centralized querying' },
+      { title: 'Grafana Dashboard', description: '9 pre-built panels: request rate, p95 latency, error rate, WebSocket connections, memory usage' },
+      { title: 'AlertManager Rules', description: '9 production alerts: high error rate, slow queries, service down, memory warnings' },
+      { title: 'Docker Stack', description: 'One-command deployment of Jaeger, Loki, and Promtail via docker compose' },
+      { title: 'Trace Context', description: 'X-Trace-Id header in responses for request correlation across services' },
+    ],
+  },
+  {
     version: '1.0.8',
     date: '2026-01-17',
     type: 'major',
