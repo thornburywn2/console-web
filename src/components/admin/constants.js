@@ -28,11 +28,10 @@ export const SETTINGS_TABS = {
   AUTH: 'auth',
 };
 
-// Automation sub-tabs (combines agents, MCP, and scheduled tasks)
+// Automation sub-tabs (agents and MCP servers with marketplace interface)
 export const AUTOMATION_TABS = {
   AGENTS: 'agents',
   MCP: 'mcp',
-  SCHEDULED: 'scheduled',
 };
 
 // Server sub-tabs (reorganized from INFRA_TABS)
@@ -45,6 +44,7 @@ export const SERVER_TABS = {
   LOGS: 'logs',             // System logs
   PROCESSES: 'processes',   // Process management
   NETWORK: 'network',       // Network diagnostics
+  SCHEDULED: 'scheduled',   // Cron jobs and systemd timers
   AUTHENTIK: 'authentik',   // Authentik SSO management
   USERS: 'users',           // Server user management
 };
@@ -74,7 +74,7 @@ export const LEGACY_TAB_MAP = {
 export const LEGACY_SUBTAB_MAP = {
   // Old INFRA_TABS -> new tabs/sub-tabs
   'settings': { tab: TABS.SETTINGS, subTab: SETTINGS_TABS.GENERAL },
-  'scheduled': { tab: TABS.AUTOMATION, subTab: AUTOMATION_TABS.SCHEDULED },
+  'scheduled': { tab: TABS.SERVER, subTab: SERVER_TABS.SCHEDULED },
   'security': { tab: TABS.SECURITY, subTab: SECURITY_TABS.FAIL2BAN },
   'scans': { tab: TABS.SECURITY, subTab: SECURITY_TABS.SCANS },
 };

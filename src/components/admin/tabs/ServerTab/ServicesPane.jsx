@@ -56,7 +56,8 @@ export function ServicesPane() {
 
   useEffect(() => {
     fetchServerData();
-    const interval = setInterval(fetchServerData, 5000);
+    // Use 15-second interval to avoid rate limiting
+    const interval = setInterval(fetchServerData, 15000);
     return () => clearInterval(interval);
   }, [fetchServerData]);
 

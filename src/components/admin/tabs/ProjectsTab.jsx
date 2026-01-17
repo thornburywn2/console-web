@@ -24,7 +24,7 @@ export function ProjectsTab({
       const res = await fetch('/api/admin/projects-extended');
       if (res.ok) {
         const data = await res.json();
-        setProjects(data.projects || []);
+        setProjects(data || []);
       }
     } catch (err) {
       console.error('Error fetching projects:', err);

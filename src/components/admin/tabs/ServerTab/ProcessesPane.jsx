@@ -50,7 +50,8 @@ export function ProcessesPane() {
 
   useEffect(() => {
     fetchProcesses(processSort);
-    const interval = setInterval(() => fetchProcesses(processSort), 30000);
+    // Use 10-second interval for more responsive process monitoring
+    const interval = setInterval(() => fetchProcesses(processSort), 10000);
     return () => clearInterval(interval);
   }, [fetchProcesses, processSort]);
 

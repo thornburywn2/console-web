@@ -15,6 +15,7 @@ import PackagesPane from './PackagesPane';
 import LogsPane from './LogsPane';
 import ProcessesPane from './ProcessesPane';
 import NetworkPane from './NetworkPane';
+import ScheduledPane from '../AutomationTab/ScheduledPane';
 import AuthentikPane from './AuthentikPane';
 import UsersPane from './UsersPane';
 
@@ -35,12 +36,13 @@ export function ServerTab() {
     { key: SERVER_TABS.LOGS, label: 'LOGS', color: 'blue' },
     { key: SERVER_TABS.PROCESSES, label: 'PROCESSES', color: 'cyan' },
     { key: SERVER_TABS.NETWORK, label: 'NETWORK', color: 'green' },
+    { key: SERVER_TABS.SCHEDULED, label: 'SCHEDULED', color: 'purple' },
     { key: SERVER_TABS.AUTHENTIK, label: 'AUTHENTIK', color: 'warning' },
     { key: SERVER_TABS.USERS, label: 'USERS', color: 'cyan' },
   ];
 
-  // Dividers to group related sub-tabs: [OVERVIEW] | [SERVICES DOCKER STACK] | [PACKAGES LOGS PROCESSES] | [NETWORK] | [AUTHENTIK USERS]
-  const dividers = [1, 4, 7, 8];
+  // Dividers to group related sub-tabs: [OVERVIEW] | [SERVICES DOCKER STACK] | [PACKAGES LOGS PROCESSES] | [NETWORK SCHEDULED] | [AUTHENTIK USERS]
+  const dividers = [1, 4, 7, 9];
 
   return (
     <TabContainer>
@@ -61,6 +63,7 @@ export function ServerTab() {
       {activeSubTab === SERVER_TABS.LOGS && <LogsPane />}
       {activeSubTab === SERVER_TABS.PROCESSES && <ProcessesPane />}
       {activeSubTab === SERVER_TABS.NETWORK && <NetworkPane />}
+      {activeSubTab === SERVER_TABS.SCHEDULED && <ScheduledPane />}
       {activeSubTab === SERVER_TABS.AUTHENTIK && <AuthentikPane />}
       {activeSubTab === SERVER_TABS.USERS && <UsersPane />}
     </TabContainer>

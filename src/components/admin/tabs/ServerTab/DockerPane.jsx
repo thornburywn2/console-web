@@ -66,7 +66,8 @@ export function DockerPane() {
 
   useEffect(() => {
     fetchDockerData();
-    const interval = setInterval(fetchDockerData, 10000);
+    // Use 30-second interval to avoid rate limiting (5 concurrent API calls)
+    const interval = setInterval(fetchDockerData, 30000);
     return () => clearInterval(interval);
   }, [fetchDockerData]);
 
