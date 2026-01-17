@@ -4,6 +4,24 @@
 
 export const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.15',
+    date: '2026-01-17',
+    type: 'major',
+    title: 'Phase 4 Observability Complete',
+    highlights: [
+      'Database connection pool metrics for Prometheus',
+      'Socket.IO error tracking with Sentry breadcrumbs',
+      'X-Request-ID propagation through frontend API layer',
+      '5 new Prometheus alert rules for pool exhaustion and Socket.IO',
+    ],
+    features: [
+      { title: 'Pool Metrics', description: 'New consoleweb_db_pool_size, db_pool_idle, db_pool_waiting, and db_pool_exhausted metrics with 5-second collection interval' },
+      { title: 'Socket.IO Sentry', description: 'Error handlers, breadcrumbs for connect/disconnect/select-project, and server-level connection_error tracking' },
+      { title: 'API Request Tracing', description: 'X-Request-ID headers in all API requests, breadcrumbs for HTTP calls, and Sentry capture for 5xx errors with request IDs' },
+      { title: 'Alert Rules', description: 'Critical P95 >2s latency, database pool exhaustion, pool near-exhaustion warning, Socket.IO disconnect rate, and connection churn alerts' },
+    ],
+  },
+  {
     version: '1.0.14',
     date: '2026-01-17',
     type: 'major',

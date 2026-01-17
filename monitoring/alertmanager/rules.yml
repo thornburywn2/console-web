@@ -122,3 +122,67 @@ groups:
           summary: "Many terminal sessions active"
           description: "{{ $value }} terminal sessions are currently active"
           runbook: "This is informational - check if sessions are being properly cleaned up"
+
+      # Critical Response Time (Phase 4.4.2)
+      - alert: ConsoleWebCriticalResponseTime
+        expr: |
+          histogram_quantile(0.95, sum(rate(consoleweb_http_request_duration_seconds_bucket[5m])) by (le)) > 2
+        for: 5m
+        labels:
+          severity: critical
+          service: console-web
+        annotations:
+          summary: "Critical p95 response time"
+          description: "P95 response time is {{ $value | printf \"%.2f\" }}s (threshold: 2s)"
+          runbook: "Immediate action required - check for system resource exhaustion, database issues, or deadlocks"
+
+      # Database Pool Exhaustion (Phase 4.4.3)
+      - alert: ConsoleWebDatabasePoolExhausted
+        expr: consoleweb_db_pool_waiting > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: console-web
+        annotations:
+          summary: "Database connection pool exhausted"
+          description: "{{ $value }} clients waiting for database connections (pool_size: {{ printf \"consoleweb_db_pool_size\" | query | first | value }}, idle: {{ printf \"consoleweb_db_pool_idle\" | query | first | value }})"
+          runbook: "Check for connection leaks, long-running transactions, or increase pool size"
+
+      # Database Pool Near Exhaustion
+      - alert: ConsoleWebDatabasePoolNearExhaustion
+        expr: |
+          (consoleweb_db_pool_size - consoleweb_db_pool_idle) / consoleweb_db_pool_size > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: console-web
+        annotations:
+          summary: "Database pool usage > 80%"
+          description: "Pool utilization at {{ $value | printf \"%.0f\" }}%"
+          runbook: "Monitor closely - may need to increase pool size or optimize queries"
+
+      # Socket.IO Disconnect Rate (Phase 4.4.4)
+      - alert: ConsoleWebHighSocketDisconnectRate
+        expr: |
+          sum(rate(consoleweb_websocket_connections[5m])) < -0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: console-web
+        annotations:
+          summary: "High Socket.IO disconnect rate"
+          description: "Connections dropping at {{ $value | printf \"%.2f\" }}/s"
+          runbook: "Check network stability, server resources, and client-side connection handling"
+
+      # Socket.IO Connection Churn (connects/disconnects happening frequently)
+      - alert: ConsoleWebSocketConnectionChurn
+        expr: |
+          abs(sum(deriv(consoleweb_websocket_connections[5m]))) > 1
+        for: 10m
+        labels:
+          severity: warning
+          service: console-web
+        annotations:
+          summary: "High Socket.IO connection churn"
+          description: "Connections are being established and dropped frequently"
+          runbook: "Investigate client reconnection behavior and network stability"

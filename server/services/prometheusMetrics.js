@@ -148,6 +148,38 @@ export const rateLimitHits = new promClient.Counter({
   labelNames: ['limiter_type', 'path'],
 });
 
+/**
+ * Database Connection Pool Size Gauge
+ */
+export const dbPoolSize = new promClient.Gauge({
+  name: 'consoleweb_db_pool_size',
+  help: 'Total number of clients in the database connection pool',
+});
+
+/**
+ * Database Connection Pool Waiting Gauge
+ */
+export const dbPoolWaiting = new promClient.Gauge({
+  name: 'consoleweb_db_pool_waiting',
+  help: 'Number of clients waiting for a database connection',
+});
+
+/**
+ * Database Connection Pool Idle Gauge
+ */
+export const dbPoolIdle = new promClient.Gauge({
+  name: 'consoleweb_db_pool_idle',
+  help: 'Number of idle clients in the database connection pool',
+});
+
+/**
+ * Database Pool Exhaustion Counter
+ */
+export const dbPoolExhausted = new promClient.Counter({
+  name: 'consoleweb_db_pool_exhausted_total',
+  help: 'Total number of times the database pool was exhausted (waiting > 0)',
+});
+
 // =============================================================================
 // MIDDLEWARE
 // =============================================================================
@@ -307,6 +339,55 @@ export function recordGitOperation(operation, success) {
  */
 export function recordRateLimitHit(limiterType, path) {
   rateLimitHits.inc({ limiter_type: limiterType, path: normalizeRoute(path) });
+}
+
+/**
+ * Update database connection pool metrics
+ * @param {import('pg').Pool} pool - pg Pool instance
+ */
+export function updatePoolMetrics(pool) {
+  if (!pool) return;
+
+  const total = pool.totalCount || 0;
+  const idle = pool.idleCount || 0;
+  const waiting = pool.waitingCount || 0;
+
+  dbPoolSize.set(total);
+  dbPoolIdle.set(idle);
+  dbPoolWaiting.set(waiting);
+
+  // Log and count pool exhaustion events
+  if (waiting > 0) {
+    dbPoolExhausted.inc();
+    log.warn(
+      { total, idle, waiting },
+      'Database pool exhaustion detected - clients waiting for connection'
+    );
+  }
+}
+
+/**
+ * Start periodic pool metrics collection
+ * @param {import('pg').Pool} pool - pg Pool instance
+ * @param {number} intervalMs - Collection interval in milliseconds (default: 5000)
+ * @returns {NodeJS.Timeout} - Interval ID for cleanup
+ */
+export function startPoolMetricsCollection(pool, intervalMs = 5000) {
+  if (!pool) {
+    log.warn('Cannot start pool metrics collection: pool is null');
+    return null;
+  }
+
+  // Initial collection
+  updatePoolMetrics(pool);
+
+  // Periodic collection
+  const intervalId = setInterval(() => {
+    updatePoolMetrics(pool);
+  }, intervalMs);
+
+  log.info({ intervalMs }, 'Started database pool metrics collection');
+  return intervalId;
 }
 
 // =============================================================================

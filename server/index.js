@@ -124,6 +124,7 @@ import {
   prismaMetricsMiddleware,
   recordWebSocketConnection,
   recordTerminalSession,
+  startPoolMetricsCollection,
 } from './services/prometheusMetrics.js';
 
 // Import Sentry for error tracking
@@ -132,6 +133,8 @@ import {
   sentryRequestHandler,
   sentryTracingHandler,
   sentryErrorHandler,
+  captureException,
+  addBreadcrumb,
   flush as flushSentry,
 } from './services/sentry.js';
 
@@ -260,6 +263,9 @@ prisma.$on('warn', (e) => {
 
 // Note: Prisma 7 with PrismaPg adapter doesn't support $use() middleware
 // Query metrics are captured via $on('query') events above instead
+
+// Start database connection pool metrics collection
+startPoolMetricsCollection(pool, 5000); // Update every 5 seconds
 
 const app = express();
 const server = createServer(app);
@@ -4225,14 +4231,48 @@ app.use(sentryErrorHandler());
 // Global error handler (catches all unhandled errors - must be last)
 app.use(globalErrorHandler);
 
+// Socket.IO server-level error handling
+io.engine.on('connection_error', (err) => {
+  log.error({ error: err.message, code: err.code, context: err.context }, 'Socket.IO connection error');
+  captureException(err, {
+    tags: { component: 'socket.io', event: 'connection_error', code: err.code },
+    extra: { context: err.context },
+  });
+});
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   const sockLog = createSocketLogger(socket.id);
   sockLog.info('client connected');
 
+  // Add Sentry breadcrumb for connection
+  addBreadcrumb({
+    category: 'socket',
+    message: 'Client connected',
+    level: 'info',
+    data: { socketId: socket.id },
+  });
+
+  // Handle socket errors
+  socket.on('error', (error) => {
+    sockLog.error({ error: error.message }, 'socket error');
+    captureException(error, {
+      tags: { component: 'socket.io', event: 'error' },
+      extra: { socketId: socket.id, projectPath: socketProjects.get(socket.id) },
+    });
+  });
+
   // Handle project selection
   socket.on('select-project', async (projectPath) => {
     sockLog.info({ projectPath }, 'selecting project');
+
+    // Add Sentry breadcrumb for project selection
+    addBreadcrumb({
+      category: 'socket',
+      message: 'Project selected',
+      level: 'info',
+      data: { socketId: socket.id, projectPath },
+    });
 
     // Clean up any existing session for this socket
     const existingProject = socketProjects.get(socket.id);
@@ -4420,6 +4460,10 @@ io.on('connection', (socket) => {
           session.rows = rows;
         } catch (error) {
           sessionLog.error({ error: error.message }, 'failed to resize PTY');
+          captureException(error, {
+            tags: { component: 'socket.io', event: 'terminal-resize' },
+            extra: { socketId: socket.id, projectPath, cols, rows },
+          });
         }
       }
     }
@@ -4428,6 +4472,15 @@ io.on('connection', (socket) => {
   // Handle manual reconnection to existing shpool session
   socket.on('reconnect-session', async (projectPath) => {
     sockLog.info({ projectPath }, 'requesting reconnection');
+
+    // Add Sentry breadcrumb for reconnection request
+    addBreadcrumb({
+      category: 'socket',
+      message: 'Reconnection requested',
+      level: 'info',
+      data: { socketId: socket.id, projectPath },
+    });
+
     const sessionName = getSessionName(projectPath);
     const sessionExists = shpoolSessionExists(sessionName);
 
@@ -4524,6 +4577,14 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     sockLog.info('client disconnected');
 
+    // Add Sentry breadcrumb for disconnection
+    addBreadcrumb({
+      category: 'socket',
+      message: 'Client disconnected',
+      level: 'info',
+      data: { socketId: socket.id, projectPath: socketProjects.get(socket.id) },
+    });
+
     const projectPath = socketProjects.get(socket.id);
     if (projectPath) {
       const session = sessions.get(projectPath);
@@ -4544,6 +4605,10 @@ io.on('connection', (socket) => {
             session.pty.kill();
           } catch (err) {
             sockLog.error({ error: err.message, projectPath }, 'failed to kill PTY');
+            captureException(err, {
+              tags: { component: 'socket.io', event: 'disconnect', operation: 'pty-kill' },
+              extra: { socketId: socket.id, projectPath },
+            });
           }
 
           // Remove from sessions map so reconnect creates fresh PTY
@@ -4551,7 +4616,13 @@ io.on('connection', (socket) => {
 
           // Mark session as disconnected in database
           markSessionDisconnected(projectPath, session.sessionName)
-            .catch(err => sockLog.error({ error: err.message, projectPath }, 'failed to mark session disconnected'));
+            .catch(err => {
+              sockLog.error({ error: err.message, projectPath }, 'failed to mark session disconnected');
+              captureException(err, {
+                tags: { component: 'socket.io', event: 'disconnect', operation: 'mark-disconnected' },
+                extra: { socketId: socket.id, projectPath, sessionName: session.sessionName },
+              });
+            });
         }
       }
     }

@@ -3,7 +3,16 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// Mock Sentry before importing api
+vi.mock('../sentry.js', () => ({
+  captureException: vi.fn(),
+  addBreadcrumb: vi.fn(),
+  isSentryEnabled: vi.fn(() => false),
+}));
+
 import api, { ApiError, cancelRequest, cancelAllRequests, projectsApi, systemApi } from './api';
+import { captureException, addBreadcrumb } from '../sentry.js';
 
 // Mock fetch globally
 const mockFetch = vi.fn();

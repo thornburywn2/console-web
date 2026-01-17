@@ -3,7 +3,7 @@
 **Created:** 2026-01-17
 **Last Updated:** 2026-01-17
 **Status:** IN PROGRESS
-**Current Phase:** Phase 4 - Observability (NEXT)
+**Current Phase:** Phase 5 - Full Hardening (NEXT)
 
 ---
 
@@ -15,7 +15,7 @@
 | Phase 1: Error Handling | ✅ Complete | 4/4 | Week 1-2 |
 | Phase 2: Integration Hardening | ✅ Complete | 4/4 | Week 3-4 |
 | Phase 3: Testing Foundation | ✅ Complete | 4/4 | Week 5-8 |
-| Phase 4: Observability | ⏳ Pending | 0/4 | Week 9-10 |
+| Phase 4: Observability | ✅ Complete | 4/4 | Week 9-10 |
 | Phase 5: Full Hardening | ⏳ Pending | 0/4 | Week 11-16 |
 
 ---
@@ -188,28 +188,28 @@ Routes updated (24 files, 300+ catch blocks):
 
 ## Phase 4: Observability (Week 9-10)
 
-### 4.1 Add Connection Pool Metrics
-- [ ] **4.1.1** Add pool_size gauge to Prometheus
-- [ ] **4.1.2** Add pool_waiting gauge to Prometheus
-- [ ] **4.1.3** Add pool_idle gauge to Prometheus
-- [ ] **4.1.4** Log pool exhaustion events
+### 4.1 Add Connection Pool Metrics ✅
+- [x] **4.1.1** Add pool_size gauge to Prometheus ✅ (consoleweb_db_pool_size)
+- [x] **4.1.2** Add pool_waiting gauge to Prometheus ✅ (consoleweb_db_pool_waiting)
+- [x] **4.1.3** Add pool_idle gauge to Prometheus ✅ (consoleweb_db_pool_idle)
+- [x] **4.1.4** Log pool exhaustion events ✅ (consoleweb_db_pool_exhausted_total + warning logs)
 
-### 4.2 Capture Socket.IO Errors in Sentry
-- [ ] **4.2.1** Add Sentry.captureException to socket error handlers
-- [ ] **4.2.2** Add Sentry breadcrumbs for socket events
-- [ ] **4.2.3** Add socket connection status to Sentry context
+### 4.2 Capture Socket.IO Errors in Sentry ✅
+- [x] **4.2.1** Add Sentry.captureException to socket error handlers ✅
+- [x] **4.2.2** Add Sentry breadcrumbs for socket events ✅ (connect, disconnect, select-project, reconnect-session)
+- [x] **4.2.3** Add socket connection status to Sentry context ✅ (socketId, projectPath in all captures)
 
-### 4.3 Propagate X-Request-ID Through Frontend
-- [ ] **4.3.1** Generate request ID in useApiQuery hook
-- [ ] **4.3.2** Include X-Request-ID header in all requests
-- [ ] **4.3.3** Store request ID for error reporting
-- [ ] **4.3.4** Include request ID in Sentry events
+### 4.3 Propagate X-Request-ID Through Frontend ✅
+- [x] **4.3.1** Generate request ID in useApiQuery hook ✅ (already implemented in api.js)
+- [x] **4.3.2** Include X-Request-ID header in all requests ✅ (already implemented)
+- [x] **4.3.3** Store request ID for error reporting ✅ (ApiError class stores requestId)
+- [x] **4.3.4** Include request ID in Sentry events ✅ (captureException with requestId tag and extra)
 
-### 4.4 Create Alert Rules
-- [ ] **4.4.1** Create alert for error rate > 5% over 5 min
-- [ ] **4.4.2** Create alert for P95 latency > 2 seconds
-- [ ] **4.4.3** Create alert for database pool exhaustion
-- [ ] **4.4.4** Create alert for Socket.IO disconnect rate
+### 4.4 Create Alert Rules ✅
+- [x] **4.4.1** Create alert for error rate > 5% over 5 min ✅ (ConsoleWebHighErrorRate - already existed)
+- [x] **4.4.2** Create alert for P95 latency > 2 seconds ✅ (ConsoleWebCriticalResponseTime)
+- [x] **4.4.3** Create alert for database pool exhaustion ✅ (ConsoleWebDatabasePoolExhausted, ConsoleWebDatabasePoolNearExhaustion)
+- [x] **4.4.4** Create alert for Socket.IO disconnect rate ✅ (ConsoleWebHighSocketDisconnectRate, ConsoleWebSocketConnectionChurn)
 
 ---
 

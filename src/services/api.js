@@ -7,7 +7,10 @@
  * - Response type validation
  * - Request cancellation support
  * - Authentication header injection
+ * - Sentry error tracking with request IDs
  */
+
+import { captureException, addBreadcrumb, isSentryEnabled } from '../sentry.js';
 
 // Request ID generator for tracing
 let requestId = 0;
@@ -138,6 +141,14 @@ async function fetchWithRetry(url, options, config) {
   const controller = new AbortController();
   activeRequests.set(reqId, controller);
 
+  // Add breadcrumb for request start
+  addBreadcrumb({
+    category: 'http',
+    message: `${options.method || 'GET'} ${url}`,
+    level: 'info',
+    data: { requestId: reqId, method: options.method || 'GET', url },
+  });
+
   const mergedOptions = {
     ...options,
     signal: controller.signal,
@@ -176,12 +187,32 @@ async function fetchWithRetry(url, options, config) {
           errorData = { error: text || response.statusText };
         }
 
-        throw new ApiError(
+        const apiError = new ApiError(
           errorData.error || errorData.message || `HTTP ${response.status}`,
           response.status,
           errorData.details || null,
           reqId
         );
+
+        // Capture server errors (5xx) to Sentry with request ID
+        if (response.status >= 500) {
+          captureException(apiError, {
+            tags: {
+              component: 'api',
+              requestId: reqId,
+              statusCode: String(response.status),
+            },
+            extra: {
+              url,
+              method: options.method || 'GET',
+              requestId: reqId,
+              responseStatus: response.status,
+              errorDetails: errorData,
+            },
+          });
+        }
+
+        throw apiError;
       }
 
       // Handle different response types
@@ -227,8 +258,34 @@ async function fetchWithRetry(url, options, config) {
       // Retry with exponential backoff
       if (attempt < maxAttempts) {
         await sleep(config.retryDelay * Math.pow(2, attempt - 1));
+
+        // Add breadcrumb for retry attempt
+        addBreadcrumb({
+          category: 'http',
+          message: `Retry attempt ${attempt} for ${url}`,
+          level: 'warning',
+          data: { requestId: reqId, attempt, maxAttempts },
+        });
       }
     }
+  }
+
+  // Capture final error if all retries failed and it's a server error
+  if (lastError && lastError.status >= 500) {
+    captureException(lastError, {
+      tags: {
+        component: 'api',
+        requestId: reqId,
+        statusCode: String(lastError.status),
+        retriesFailed: 'true',
+      },
+      extra: {
+        url,
+        method: options.method || 'GET',
+        requestId: reqId,
+        attempts: maxAttempts,
+      },
+    });
   }
 
   throw lastError;

@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                             Console.web v1.0.14                              │
+│                             Console.web v1.0.15                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
 │  │  Terminal   │  │   Admin     │  │  Projects   │  │  Sidebars   │        │
@@ -151,6 +151,44 @@ npm run build && npm start
 | **Containers** | Dockerode |
 | **Observability** | OpenTelemetry, Jaeger, Loki, Prometheus, Grafana |
 | **Security** | Helmet, express-rate-limit, Zod, Sentry |
+
+---
+
+## [1.0.15] - 2026-01-17
+
+### Phase 4 Observability Complete
+
+Full observability implementation with Prometheus metrics, Sentry error tracking, request tracing, and alerting rules. This release completes Phase 4 of the stability roadmap, providing comprehensive monitoring and alerting capabilities.
+
+#### Connection Pool Metrics (Phase 4.1)
+- **New Prometheus Metrics**:
+  - `consoleweb_db_pool_size`: Total clients in database pool
+  - `consoleweb_db_pool_idle`: Idle clients in pool
+  - `consoleweb_db_pool_waiting`: Clients waiting for connections
+  - `consoleweb_db_pool_exhausted_total`: Count of pool exhaustion events
+- **Collection Service**: `startPoolMetricsCollection()` with 5-second interval
+- **Warning Logs**: Automatic logging when pool exhaustion detected
+
+#### Socket.IO Sentry Integration (Phase 4.2)
+- **Error Handlers**: `socket.on('error')` with Sentry captureException
+- **Server Errors**: `io.engine.on('connection_error')` for connection failures
+- **Breadcrumbs**: Track connect, disconnect, select-project, reconnect-session
+- **Context Propagation**: socketId and projectPath included in all error captures
+- **PTY Error Tracking**: Capture exceptions for resize failures and session cleanup
+
+#### X-Request-ID Frontend Integration (Phase 4.3)
+- **Request Tracing**: Unique request IDs generated for all API calls
+- **Sentry Integration**: Request IDs included in error captures and breadcrumbs
+- **HTTP Breadcrumbs**: All API requests logged with method, URL, and request ID
+- **Retry Tracking**: Breadcrumbs added for retry attempts
+- **5xx Error Capture**: Server errors automatically sent to Sentry with full context
+
+#### Alert Rules (Phase 4.4)
+- **Critical P95 Latency**: Alert when P95 response time exceeds 2 seconds
+- **Pool Exhaustion**: Critical alert when clients waiting for connections
+- **Pool Near-Exhaustion**: Warning when pool utilization exceeds 80%
+- **Socket.IO Disconnect Rate**: Warning for rapid connection drops
+- **Socket.IO Connection Churn**: Warning for frequent connect/disconnect cycles
 
 ---
 
