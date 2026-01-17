@@ -244,8 +244,8 @@ prisma.$on('warn', (e) => {
   dbLog.warn({ message: e.message }, 'prisma warning');
 });
 
-// Wire up Prisma metrics middleware for query tracking
-prisma.$use(prismaMetricsMiddleware);
+// Note: Prisma 7 with PrismaPg adapter doesn't support $use() middleware
+// Query metrics are captured via $on('query') events above instead
 
 const app = express();
 const server = createServer(app);
