@@ -136,8 +136,29 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     const webLinksAddon = new WebLinksAddon();
     term.loadAddon(webLinksAddon);
 
-    // Open terminal in the container
-    term.open(terminalRef.current);
+    // Open terminal in the container using double-rAF to ensure browser layout is complete
+    // xterm.js Viewport has an internal setTimeout that races with renderer initialization
+    // Double requestAnimationFrame ensures we're past the current frame's layout/paint
+    let terminalOpened = false;
+    let openRAF1, openRAF2;
+
+    const doOpen = () => {
+      const container = terminalRef.current;
+      if (!container || terminalOpened) return;
+
+      const rect = container.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        term.open(container);
+        terminalOpened = true;
+      }
+    };
+
+    // Double rAF: first rAF schedules after current frame, second ensures after next paint
+    openRAF1 = requestAnimationFrame(() => {
+      openRAF2 = requestAnimationFrame(() => {
+        doOpen();
+      });
+    });
 
     // Register OSC 52 handler for clipboard integration
     // OSC 52 format: ESC ] 52 ; <selection> ; <base64-data> BEL/ST
@@ -431,6 +452,8 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
 
     // Cleanup
     return () => {
+      if (openRAF1) cancelAnimationFrame(openRAF1);
+      if (openRAF2) cancelAnimationFrame(openRAF2);
       terminalElement.removeEventListener('mouseup', handleMouseUp);
       terminalElement.removeEventListener('paste', handlePaste);
       if (selectionTimeout) {
@@ -607,9 +630,26 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
 
   // Focus terminal and refresh screen when ready
   useEffect(() => {
-    if (isReady && xtermRef.current && isTerminalReady()) {
+    if (!isReady || !xtermRef.current) return;
+
+    // Delay to allow xterm's internal initialization to complete
+    const initTimeout = setTimeout(() => {
+      if (!isTerminalReady()) {
+        // Retry after a bit more time if still not ready
+        setTimeout(() => {
+          if (isTerminalReady()) {
+            performTerminalSetup();
+          }
+        }, 100);
+        return;
+      }
+      performTerminalSetup();
+    }, 50);
+
+    function performTerminalSetup() {
       const term = xtermRef.current;
       const fitAddon = fitAddonRef.current;
+      if (!term || !fitAddon) return;
 
       try {
         // Focus the terminal
@@ -618,31 +658,32 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
         // Force xterm.js to repaint all rows
         term.refresh(0, term.rows - 1);
 
-        // Trigger a resize immediately to send dimensions to server
+        // Trigger a resize to send dimensions to server
         // This is critical for shpool sessions to redraw content
-        if (fitAddon) {
+        try {
+          fitAddon.fit();
+          onResize(term.cols, term.rows);
+        } catch (err) {
+          console.debug('Immediate fit error:', err.message);
+        }
+
+        // Follow-up resize after a short delay to ensure content is drawn
+        setTimeout(() => {
+          if (!isTerminalReady()) return;
           try {
             fitAddon.fit();
             onResize(term.cols, term.rows);
+            term.refresh(0, term.rows - 1);
           } catch (err) {
-            console.debug('Immediate fit error:', err.message);
+            console.debug('Follow-up fit error:', err.message);
           }
-
-          // Follow-up resize after a short delay to ensure content is drawn
-          setTimeout(() => {
-            try {
-              fitAddon.fit();
-              onResize(term.cols, term.rows);
-              term.refresh(0, term.rows - 1);
-            } catch (err) {
-              console.debug('Follow-up fit error:', err.message);
-            }
-          }, 150);
-        }
+        }, 150);
       } catch (err) {
         console.debug('Terminal focus/refresh error:', err.message);
       }
     }
+
+    return () => clearTimeout(initTimeout);
   }, [isReady, isTerminalReady, onResize]);
 
   return (

@@ -831,7 +831,9 @@ function App() {
 
         {/* Project Info Bar - shown when project selected */}
         {selectedProject && !showHomeDashboard && !selectedProject.isHome && (
-          <ProjectInfoBar project={selectedProject} onRefresh={fetchProjects} />
+          <Suspense fallback={<LoadingFallback />}>
+            <ProjectInfoBar project={selectedProject} onRefresh={fetchProjects} />
+          </Suspense>
         )}
 
         {/* Terminal Area */}
@@ -889,14 +891,16 @@ function App() {
 
       {/* Admin Dashboard Modal */}
       {showAdmin && (
-        <AdminDashboard
-          onClose={() => {
-            setShowAdmin(false);
-            setAdminInitialTab(null);
-          }}
-          initialTab={adminInitialTab}
-          currentProject={selectedProject}
-        />
+        <Suspense fallback={<LoadingFallback />}>
+          <AdminDashboard
+            onClose={() => {
+              setShowAdmin(false);
+              setAdminInitialTab(null);
+            }}
+            initialTab={adminInitialTab}
+            currentProject={selectedProject}
+          />
+        </Suspense>
       )}
 
 
@@ -909,18 +913,22 @@ function App() {
       />
 
       {/* Keyboard Shortcuts Modal */}
-      <KeyboardShortcutsModal
-        isOpen={showShortcutsModal}
-        onClose={() => setShowShortcutsModal(false)}
-      />
+      <Suspense fallback={null}>
+        <KeyboardShortcutsModal
+          isOpen={showShortcutsModal}
+          onClose={() => setShowShortcutsModal(false)}
+        />
+      </Suspense>
 
       {/* Theme Picker Modal */}
-      <ThemePicker
-        isOpen={showThemePicker}
-        onClose={() => setShowThemePicker(false)}
-        currentTheme={theme}
-        onSelectTheme={setTheme}
-      />
+      <Suspense fallback={null}>
+        <ThemePicker
+          isOpen={showThemePicker}
+          onClose={() => setShowThemePicker(false)}
+          currentTheme={theme}
+          onSelectTheme={setTheme}
+        />
+      </Suspense>
 
       {/* Bulk Action Bar for multi-select */}
       <BulkActionBar
@@ -962,20 +970,24 @@ function App() {
       />
 
       {/* About Modal */}
-      <AboutModal
-        isOpen={showAbout}
-        onClose={() => setShowAbout(false)}
-      />
+      <Suspense fallback={null}>
+        <AboutModal
+          isOpen={showAbout}
+          onClose={() => setShowAbout(false)}
+        />
+      </Suspense>
 
       {/* Phase 11: Additional Modals */}
 
       {/* Session Template Modal */}
-      <SessionTemplateModal
-        isOpen={showTemplateModal}
-        onClose={() => setShowTemplateModal(false)}
-        onSelectTemplate={handleSelectTemplate}
-        customTemplates={customTemplates}
-      />
+      <Suspense fallback={null}>
+        <SessionTemplateModal
+          isOpen={showTemplateModal}
+          onClose={() => setShowTemplateModal(false)}
+          onSelectTemplate={handleSelectTemplate}
+          customTemplates={customTemplates}
+        />
+      </Suspense>
 
       {/* Session Notes Panel */}
       {showNotesPanel && (
@@ -992,116 +1004,138 @@ function App() {
             </button>
           </div>
           <div className="p-4 overflow-y-auto h-[calc(100%-60px)]">
-            <SessionNoteEditor
-              sessionId={selectedProject?.id}
-              notes={sessionNotes}
-              onSave={handleSaveNote}
-              onDelete={handleDeleteNote}
-            />
+            <Suspense fallback={<LoadingFallback />}>
+              <SessionNoteEditor
+                sessionId={selectedProject?.id}
+                notes={sessionNotes}
+                onSave={handleSaveNote}
+                onDelete={handleDeleteNote}
+              />
+            </Suspense>
           </div>
         </div>
       )}
 
       {/* Share Modal */}
-      <ShareModal
-        isOpen={showShareModal}
-        onClose={() => setShowShareModal(false)}
-        session={selectedProject}
-      />
+      <Suspense fallback={null}>
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          session={selectedProject}
+        />
+      </Suspense>
 
       {/* Handoff Modal */}
-      <HandoffModal
-        isOpen={showHandoffModal}
-        onClose={() => setShowHandoffModal(false)}
-        session={selectedProject}
-        onHandoff={(handoff) => {
-          console.log('Session handed off:', handoff);
-          setShowHandoffModal(false);
-        }}
-      />
+      <Suspense fallback={null}>
+        <HandoffModal
+          isOpen={showHandoffModal}
+          onClose={() => setShowHandoffModal(false)}
+          session={selectedProject}
+          onHandoff={(handoff) => {
+            console.log('Session handed off:', handoff);
+            setShowHandoffModal(false);
+          }}
+        />
+      </Suspense>
 
       {/* Export Modal */}
-      <ExportModal
-        isOpen={showExportModal}
-        onClose={() => setShowExportModal(false)}
-        session={selectedProject}
-      />
+      <Suspense fallback={null}>
+        <ExportModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          session={selectedProject}
+        />
+      </Suspense>
 
       {/* Import Wizard */}
-      <ImportWizard
-        isOpen={showImportWizard}
-        onClose={() => setShowImportWizard(false)}
-        onImportComplete={fetchProjects}
-      />
+      <Suspense fallback={null}>
+        <ImportWizard
+          isOpen={showImportWizard}
+          onClose={() => setShowImportWizard(false)}
+          onImportComplete={fetchProjects}
+        />
+      </Suspense>
 
       {/* Prompt Library */}
-      <PromptLibrary
-        isOpen={showPromptLibrary}
-        onClose={() => setShowPromptLibrary(false)}
-        onSelectPrompt={(prompt) => {
-          if (socket && isConnected && selectedProject) {
-            socket.emit('terminal-input', prompt.content);
-          }
-          setShowPromptLibrary(false);
-        }}
-      />
+      <Suspense fallback={null}>
+        <PromptLibrary
+          isOpen={showPromptLibrary}
+          onClose={() => setShowPromptLibrary(false)}
+          onSelectPrompt={(prompt) => {
+            if (socket && isConnected && selectedProject) {
+              socket.emit('terminal-input', prompt.content);
+            }
+            setShowPromptLibrary(false);
+          }}
+        />
+      </Suspense>
 
       {/* Snippet Palette */}
-      <SnippetPalette
-        isOpen={showSnippetPalette}
-        onClose={() => setShowSnippetPalette(false)}
-        onSelectSnippet={(snippet) => {
-          if (socket && isConnected && selectedProject) {
-            socket.emit('terminal-input', snippet.command);
-          }
-          setShowSnippetPalette(false);
-        }}
-      />
+      <Suspense fallback={null}>
+        <SnippetPalette
+          isOpen={showSnippetPalette}
+          onClose={() => setShowSnippetPalette(false)}
+          onSelectSnippet={(snippet) => {
+            if (socket && isConnected && selectedProject) {
+              socket.emit('terminal-input', snippet.command);
+            }
+            setShowSnippetPalette(false);
+          }}
+        />
+      </Suspense>
 
       {/* Create Project Modal */}
       {showCreateProject && (
-        <CreateProjectModal
-          onClose={() => setShowCreateProject(false)}
-          onCreated={(newProject) => {
-            // Refresh projects list and select the new project
-            fetchProjects().then(() => {
-              // After fetching, select the new project
-              handleSelectProject(newProject);
-            });
-          }}
-        />
+        <Suspense fallback={<LoadingFallback />}>
+          <CreateProjectModal
+            onClose={() => setShowCreateProject(false)}
+            onCreated={(newProject) => {
+              // Refresh projects list and select the new project
+              fetchProjects().then(() => {
+                // After fetching, select the new project
+                handleSelectProject(newProject);
+              });
+            }}
+          />
+        </Suspense>
       )}
 
       {/* Checkpoint Panel */}
-      <CheckpointPanel
-        projectId={selectedProject?.name}
-        projectPath={selectedProject?.path}
-        sessionId={null}
-        isOpen={showCheckpointPanel}
-        onClose={() => setShowCheckpointPanel(false)}
-      />
+      <Suspense fallback={null}>
+        <CheckpointPanel
+          projectId={selectedProject?.name}
+          projectPath={selectedProject?.path}
+          sessionId={null}
+          isOpen={showCheckpointPanel}
+          onClose={() => setShowCheckpointPanel(false)}
+        />
+      </Suspense>
 
       {/* Phase 13: GitHub Integration Modals */}
       {/* GitHub Settings Modal */}
-      <GitHubSettingsModal
-        isOpen={showGitHubSettings}
-        onClose={() => setShowGitHubSettings(false)}
-      />
+      <Suspense fallback={null}>
+        <GitHubSettingsModal
+          isOpen={showGitHubSettings}
+          onClose={() => setShowGitHubSettings(false)}
+        />
+      </Suspense>
 
       {/* GitHub Repository List Modal */}
-      <GitHubRepoList
-        isOpen={showGitHubRepos}
-        onClose={() => setShowGitHubRepos(false)}
-        onClone={(project) => {
-          // Refresh projects list and select the cloned project
-          fetchProjects().then(() => {
-            if (project) {
-              handleSelectProject(project);
-            }
-          });
-        }}
-        onRefresh={fetchProjects}
-      />
+      <Suspense fallback={null}>
+        <GitHubRepoList
+          isOpen={showGitHubRepos}
+          onClose={() => setShowGitHubRepos(false)}
+          onClone={(project) => {
+            // Refresh projects list and select the cloned project
+            fetchProjects().then(() => {
+              if (project) {
+                handleSelectProject(project);
+              }
+            });
+          }}
+          onRefresh={fetchProjects}
+        />
+      </Suspense>
 
       {/* Setup Wizard */}
       {setupWizard.showSetup && (
@@ -1117,16 +1151,18 @@ function App() {
       {/* P1: Aider Session Panel (Floating) */}
       {showAiderPanel && codingMode === 'aider' && selectedProject && (
         <div className="fixed bottom-20 right-4 z-40 w-[500px] h-[400px]">
-          <AiderSessionPanel
-            projectPath={selectedProject.path}
-            socket={socket}
-            onModeChange={(mode) => {
-              setCodingMode(mode);
-              if (mode === 'claude') {
-                setShowAiderPanel(false);
-              }
-            }}
-          />
+          <Suspense fallback={<LoadingFallback />}>
+            <AiderSessionPanel
+              projectPath={selectedProject.path}
+              socket={socket}
+              onModeChange={(mode) => {
+                setCodingMode(mode);
+                if (mode === 'claude') {
+                  setShowAiderPanel(false);
+                }
+              }}
+            />
+          </Suspense>
         </div>
       )}
 
@@ -1149,18 +1185,20 @@ function App() {
               }}
             />
           </div>
-          <VoiceCommandPanel
-            sessionId={selectedProject?.id}
-            socket={socket}
-            isConnected={isConnected}
-            onCommand={handleVoiceCommand}
-            onNavigate={handleVoiceNavigate}
-            collapsed={voicePanelCollapsed}
-            onToggleCollapse={() => setVoicePanelCollapsed(prev => !prev)}
-            codingMode={codingMode}
-            aiderVoice={aiderVoice}
-            projectPath={selectedProject?.path}
-          />
+          <Suspense fallback={<LoadingFallback />}>
+            <VoiceCommandPanel
+              sessionId={selectedProject?.id}
+              socket={socket}
+              isConnected={isConnected}
+              onCommand={handleVoiceCommand}
+              onNavigate={handleVoiceNavigate}
+              collapsed={voicePanelCollapsed}
+              onToggleCollapse={() => setVoicePanelCollapsed(prev => !prev)}
+              codingMode={codingMode}
+              aiderVoice={aiderVoice}
+              projectPath={selectedProject?.path}
+            />
+          </Suspense>
         </div>
       )}
     </div>

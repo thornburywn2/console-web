@@ -482,8 +482,14 @@ app.get('/api/watcher/health', async (req, res) => {
 // AUTHENTICATION
 // =============================================================================
 
-// Auth routes (login, logout, callback, me) with strict rate limiting
-app.use('/auth', authRateLimiter, createAuthRouter());
+// Auth routes with appropriate rate limiting
+// /auth/me is a passive status check - use general API rate limit (1000/15min)
+// /auth/login, /auth/logout, /auth/callback are auth operations - use strict auth limit (10/15min)
+app.use('/auth/me', apiRateLimiter);
+app.use('/auth/login', authRateLimiter);
+app.use('/auth/logout', authRateLimiter);
+app.use('/auth/callback', authRateLimiter);
+app.use('/auth', createAuthRouter());
 
 // System routes (version, update) - registered BEFORE auth middleware
 // These are management endpoints that should work regardless of auth status

@@ -6,7 +6,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 7777,
-    allowedHosts: ['manager.example.com', 'manage.example.com', 'localhost'],
+    allowedHosts: ['manager.example.com', 'manage.example.com', 'manage.wbtlabs.com', 'localhost'],
     proxy: {
       '/api': {
         target: 'http://localhost:5275',
