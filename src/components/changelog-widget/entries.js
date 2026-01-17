@@ -4,6 +4,26 @@
 
 export const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.14',
+    date: '2026-01-17',
+    type: 'major',
+    title: 'Phase 3 Testing Foundation Complete',
+    highlights: [
+      'Storybook 10.1 with 4 component stories for visual testing',
+      'Playwright E2E tests: 36 tests across terminal, projects, server, security',
+      'Unit test coverage: hooks 32.93%, services 90.1%',
+      'New tests: useTheme, useKeyboardShortcuts, api.js service',
+    ],
+    features: [
+      { title: 'Storybook Setup', description: 'Storybook 10.1.11 with Tailwind CSS, dark theme preset, and component stories for TabButton, SubTabBar, TabContainer, ErrorBoundary' },
+      { title: 'E2E Test Suite', description: '36 Playwright tests covering terminal sessions, project management, Docker controls, and security features across Chromium and Firefox' },
+      { title: 'useTheme Tests', description: '17 tests covering theme persistence, cycling, validation, and DOM application' },
+      { title: 'useKeyboardShortcuts Tests', description: '27 tests covering shortcut parsing, handler execution, input element handling, and modifier keys' },
+      { title: 'API Service Tests', description: '33 tests for ApiError class, HTTP methods, request cancellation, and domain-specific APIs' },
+      { title: 'Coverage Targets Met', description: 'src/hooks achieved 32.93% coverage (target: 30%), src/services achieved 90.1% coverage' },
+    ],
+  },
+  {
     version: '1.0.13',
     date: '2026-01-17',
     type: 'major',

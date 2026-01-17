@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                             Console.web v1.0.13                              │
+│                             Console.web v1.0.14                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
 │  │  Terminal   │  │   Admin     │  │  Projects   │  │  Sidebars   │        │
@@ -151,6 +151,48 @@ npm run build && npm start
 | **Containers** | Dockerode |
 | **Observability** | OpenTelemetry, Jaeger, Loki, Prometheus, Grafana |
 | **Security** | Helmet, express-rate-limit, Zod, Sentry |
+
+---
+
+## [1.0.14] - 2026-01-17
+
+### Phase 3 Testing Foundation Complete
+
+Comprehensive testing infrastructure with Storybook, Playwright E2E tests, and expanded unit test coverage. This release completes Phase 3 of the stability roadmap, establishing a solid testing foundation for ongoing development.
+
+#### Storybook Setup (Phase 3.3)
+- **Storybook 10.1.11**: Installed and configured for React/Vite with Tailwind CSS support
+- **Component Stories**: 4 shared admin components with 25+ story variations
+  - TabButton (5 stories): Default, Active, Inactive, WithoutIcon, Interactive
+  - SubTabBar (8 stories): Colors, badges, dividers, refresh, server example
+  - TabContainer (4 stories): Default, custom class, nested
+  - ErrorBoundary (8 stories): Various error states, fallback UI
+- **Configuration**: .storybook/main.js, preview.js with dark theme preset
+
+#### E2E Test Suite (Phase 3.1-3.2)
+- **Playwright Tests**: 36 tests (18 tests × 2 browsers: Chromium, Firefox)
+- **Test Coverage**:
+  - terminal.spec.js (4 tests): Terminal display, resize, ready indicator, session reconnect
+  - projects.spec.js (6 tests): Project list, details, sorting, create button, CLAUDE.md editor
+  - server.spec.js (8 tests): Overview, Docker, Services, Stack, container actions
+  - security.spec.js (8 tests): Scans, Firewall, Fail2Ban, scan results, firewall rules
+- **Auth Fixtures**: e2e/fixtures/auth.js with AUTH_ENABLED support
+
+#### Unit Test Coverage (Phase 3.4)
+- **New Test Files**:
+  - useTheme.test.js: 17 tests (97.59% coverage)
+  - useKeyboardShortcuts.test.js: 27 tests (~95% coverage)
+  - api.test.js: 33 tests (90.1% coverage)
+- **Coverage Achieved**:
+  - src/hooks: **32.93%** ✅ (target: 30%)
+  - src/services: **90.1%** ✅
+- **Total Unit Tests**: 113 tests (useApiQuery 16 + useAuth 20 + useTheme 17 + useKeyboardShortcuts 27 + api.js 33)
+
+#### Phase 3 Summary
+- **E2E Tests**: 36 tests across 4 spec files
+- **Storybook Stories**: 4 components with 25+ variations
+- **Unit Tests**: 113 tests with key module coverage above targets
+- **Next Phase**: Phase 4 - Observability (Prometheus, Sentry, X-Request-ID, Alerts)
 
 ---
 
