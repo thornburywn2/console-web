@@ -742,7 +742,7 @@ function App() {
                 style={{ color: 'var(--text-muted)', background: 'var(--bg-glass)' }}
                 title="About Console.web"
               >
-                v1.0.9
+                v1.0.10
               </button>
             </div>
             {selectedProject && (

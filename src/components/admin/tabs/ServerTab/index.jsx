@@ -11,6 +11,7 @@ import OverviewPane from './OverviewPane';
 import ServicesPane from './ServicesPane';
 import DockerPane from './DockerPane';
 import StackPane from './StackPane';
+import ObservabilityPane from './ObservabilityPane';
 import PackagesPane from './PackagesPane';
 import LogsPane from './LogsPane';
 import ProcessesPane from './ProcessesPane';
@@ -32,6 +33,7 @@ export function ServerTab() {
     { key: SERVER_TABS.SERVICES, label: 'SERVICES', color: 'green' },
     { key: SERVER_TABS.DOCKER, label: 'DOCKER', color: 'cyan' },
     { key: SERVER_TABS.STACK, label: 'STACK', color: 'purple' },
+    { key: SERVER_TABS.OBSERVABILITY, label: 'OTEL', color: 'blue' },
     { key: SERVER_TABS.PACKAGES, label: 'PACKAGES', color: 'warning' },
     { key: SERVER_TABS.LOGS, label: 'LOGS', color: 'blue' },
     { key: SERVER_TABS.PROCESSES, label: 'PROCESSES', color: 'cyan' },
@@ -41,8 +43,8 @@ export function ServerTab() {
     { key: SERVER_TABS.USERS, label: 'USERS', color: 'cyan' },
   ];
 
-  // Dividers to group related sub-tabs: [OVERVIEW] | [SERVICES DOCKER STACK] | [PACKAGES LOGS PROCESSES] | [NETWORK SCHEDULED] | [AUTHENTIK USERS]
-  const dividers = [1, 4, 7, 9];
+  // Dividers to group related sub-tabs: [OVERVIEW] | [SERVICES DOCKER STACK OTEL] | [PACKAGES LOGS PROCESSES] | [NETWORK SCHEDULED] | [AUTHENTIK USERS]
+  const dividers = [1, 5, 8, 10];
 
   return (
     <TabContainer>
@@ -59,6 +61,7 @@ export function ServerTab() {
       {activeSubTab === SERVER_TABS.SERVICES && <ServicesPane />}
       {activeSubTab === SERVER_TABS.DOCKER && <DockerPane />}
       {activeSubTab === SERVER_TABS.STACK && <StackPane />}
+      {activeSubTab === SERVER_TABS.OBSERVABILITY && <ObservabilityPane />}
       {activeSubTab === SERVER_TABS.PACKAGES && <PackagesPane />}
       {activeSubTab === SERVER_TABS.LOGS && <LogsPane />}
       {activeSubTab === SERVER_TABS.PROCESSES && <ProcessesPane />}

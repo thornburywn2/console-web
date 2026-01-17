@@ -102,7 +102,8 @@ import {
   createProjectTemplatesRouter,
   createDependenciesRouter,
   createSystemRouter,
-  createProjectTagsRouter
+  createProjectTagsRouter,
+  createObservabilityRouter
 } from './routes/index.js';
 
 // Import services
@@ -110,6 +111,11 @@ import { MetricsCollector } from './services/metrics.js';
 import { AgentRunner } from './services/agentRunner.js';
 import MCPManager from './services/mcpManager.js';
 import { createInitializer } from './services/codePuppyInitializer.js';
+import {
+  startObservabilityStack,
+  stopObservabilityStack,
+  isStackConfigured,
+} from './services/observabilityStack.js';
 
 // Import Prometheus metrics
 import {
@@ -506,6 +512,7 @@ app.use('/api/docker', strictRateLimiter);
 app.use('/api/git', strictRateLimiter);
 app.use('/api/infrastructure', strictRateLimiter);
 app.use('/api/admin-users/firewall', strictRateLimiter);
+app.use('/api/observability', strictRateLimiter);
 
 // =============================================================================
 // MODULAR API ROUTES
@@ -743,6 +750,7 @@ app.use('/api/infra', createInfrastructureRouter());
 app.use('/api/admin-users', createUsersFirewallRouter(prisma));
 app.use('/api/project-templates', createProjectTemplatesRouter());
 app.use('/api/dependencies', createDependenciesRouter());
+app.use('/api/observability', createObservabilityRouter());
 
 // Server Configuration endpoint (read-only)
 app.get('/api/config', (req, res) => {
@@ -4592,6 +4600,19 @@ server.listen(PORT, '0.0.0.0', () => {
 ╚═══════════════════════════════════════════════════════════╝
   `);
 
+  // Start observability stack if configured and auto-start is enabled
+  if (process.env.OBSERVABILITY_AUTOSTART === 'true' && isStackConfigured()) {
+    (async () => {
+      try {
+        startupLog.info('Auto-starting observability stack (Jaeger, Loki, Promtail)...');
+        await startObservabilityStack();
+        startupLog.info('Observability stack started successfully');
+      } catch (error) {
+        startupLog.error({ error: error.message }, 'Failed to auto-start observability stack');
+      }
+    })();
+  }
+
   // Signal PM2 that the application is ready (for cluster mode)
   if (process.send) {
     process.send('ready');
@@ -4645,6 +4666,16 @@ async function gracefulShutdown(signal) {
     await mcpManager.shutdown();
   } catch (error) {
     logger.error({ error: error.message }, 'error shutting down MCP manager');
+  }
+
+  // Stop observability stack if it was auto-started
+  if (process.env.OBSERVABILITY_AUTOSTART === 'true') {
+    try {
+      await stopObservabilityStack();
+      logger.info('observability stack stopped');
+    } catch (error) {
+      logger.error({ error: error.message }, 'error stopping observability stack');
+    }
   }
 
   // Wait for in-flight requests to complete (with timeout)

@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              Console.web v1.0.9                              │
+│                             Console.web v1.0.10                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
 │  │  Terminal   │  │   Admin     │  │  Projects   │  │  Sidebars   │        │
@@ -151,6 +151,37 @@ npm run build && npm start
 | **Containers** | Dockerode |
 | **Observability** | OpenTelemetry, Jaeger, Loki, Prometheus, Grafana |
 | **Security** | Helmet, express-rate-limit, Zod, Sentry |
+
+---
+
+## [1.0.10] - 2026-01-17
+
+### Infrastructure Reliability & Version Sync
+
+Robust auto-start infrastructure for sovereign-stack services and version consistency fixes.
+
+#### Startup Scripts (sovereign-stack)
+- **startup.sh**: Robust initialization with Docker cleanup, orphan removal, and health checks
+- **shutdown.sh**: Graceful shutdown with proper timeout handling for container orchestration
+- **status.sh**: Quick health check script for all services, ports, and system status
+- **install-service.sh**: One-command systemd service installation with proper permissions
+
+#### Systemd Service Improvements
+- **Robust restart handling**: New service file with proper error handling and restart policies
+- **Log file creation**: Automatic log file with correct ownership for startup diagnostics
+- **Health check waiting**: Startup script waits for Authentik to be healthy before completing
+- **Orphan cleanup**: Automatic removal of dead/orphaned containers on boot
+
+#### Version Consistency
+- **AboutModal.jsx**: Fixed version display (was showing v1.2.0, now v1.0.10)
+- **App.jsx header**: Updated version badge to v1.0.10
+- **AdminDashboard.jsx footer**: Updated footer version to v1.0.10
+- **ChangelogWidget.jsx**: Added v1.0.10 entry with full feature list
+
+#### Boot Recovery
+- **Docker state cleanup**: Handles corrupted container references after unclean shutdown
+- **Network verification**: Ensures sovereign-stack network exists before starting services
+- **Dependency ordering**: Proper wait for database and redis before starting Authentik
 
 ---
 

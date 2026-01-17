@@ -42,3 +42,4 @@ export { createDependenciesRouter } from './dependencies.js';
 export { createCodePuppyRouter } from './codePuppy.js';
 export { createSystemRouter } from './system.js';
 export { createProjectTagsRouter } from './project-tags.js';
+export { createObservabilityRouter } from './observability.js';

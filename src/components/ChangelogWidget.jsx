@@ -7,6 +7,26 @@ import { useState, useEffect, useCallback } from 'react';
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.10',
+    date: '2026-01-17',
+    type: 'minor',
+    title: 'Infrastructure Reliability & Version Sync',
+    highlights: [
+      'Robust auto-start scripts for sovereign-stack services',
+      'Fixed version display consistency across all UI components',
+      'Improved Docker container state handling after reboot',
+      'Enhanced system boot reliability for auth and proxy services',
+    ],
+    features: [
+      { title: 'Startup Scripts', description: 'New startup.sh with Docker cleanup, health checks, and graceful recovery for sovereign-stack' },
+      { title: 'Shutdown Scripts', description: 'Graceful shutdown.sh with proper timeout handling for container orchestration' },
+      { title: 'Status Monitoring', description: 'New status.sh script for quick health checks of all services and ports' },
+      { title: 'Systemd Service', description: 'Updated sovereign-stack.service with robust error handling and restart policies' },
+      { title: 'Version Consistency', description: 'Synchronized version display in header, footer, About modal, and changelog' },
+      { title: 'Boot Recovery', description: 'Automatic cleanup of orphaned Docker containers and corrupted state on startup' },
+    ],
+  },
+  {
     version: '1.0.9',
     date: '2026-01-17',
     type: 'major',

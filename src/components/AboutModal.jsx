@@ -305,7 +305,7 @@ export default function AboutModal({ isOpen, onClose }) {
               <div>
                 <h2 className="text-2xl font-bold text-primary">Console.web</h2>
                 <div className="flex items-center gap-3 mt-1">
-                  <span className="text-xs font-mono text-accent bg-accent/15 px-2 py-0.5 rounded">v1.2.0</span>
+                  <span className="text-xs font-mono text-accent bg-accent/15 px-2 py-0.5 rounded">v1.0.10</span>
                   <span className="text-xs text-muted">Development Operations Platform</span>
                 </div>
               </div>

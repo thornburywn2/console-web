@@ -36,17 +36,18 @@ export const AUTOMATION_TABS = {
 
 // Server sub-tabs (reorganized from INFRA_TABS)
 export const SERVER_TABS = {
-  OVERVIEW: 'overview',     // New - system overview with key metrics
-  SERVICES: 'services',     // Systemd services
-  DOCKER: 'docker',         // Docker containers, images, volumes
-  STACK: 'stack',           // Sovereign Stack health
-  PACKAGES: 'packages',     // Package management
-  LOGS: 'logs',             // System logs
-  PROCESSES: 'processes',   // Process management
-  NETWORK: 'network',       // Network diagnostics
-  SCHEDULED: 'scheduled',   // Cron jobs and systemd timers
-  AUTHENTIK: 'authentik',   // Authentik SSO management
-  USERS: 'users',           // Server user management
+  OVERVIEW: 'overview',           // System overview with key metrics
+  SERVICES: 'services',           // Systemd services
+  DOCKER: 'docker',               // Docker containers, images, volumes
+  STACK: 'stack',                 // Sovereign Stack health
+  OBSERVABILITY: 'observability', // Jaeger, Loki, Promtail management
+  PACKAGES: 'packages',           // Package management
+  LOGS: 'logs',                   // System logs
+  PROCESSES: 'processes',         // Process management
+  NETWORK: 'network',             // Network diagnostics
+  SCHEDULED: 'scheduled',         // Cron jobs and systemd timers
+  AUTHENTIK: 'authentik',         // Authentik SSO management
+  USERS: 'users',                 // Server user management
 };
 
 // Security sub-tabs (consolidated)
