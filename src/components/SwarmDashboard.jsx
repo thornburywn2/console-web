@@ -6,8 +6,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-
-const API_URL = import.meta.env.VITE_API_URL || '';
+import { API_URL, DEFAULT_SWARM_CONFIG } from './swarm-dashboard';
 
 export function SwarmDashboard({ projectPath, socket, onClose }) {
   const [status, setStatus] = useState(null);
@@ -19,12 +18,7 @@ export function SwarmDashboard({ projectPath, socket, onClose }) {
   const [error, setError] = useState(null);
   const [activeSwarm, setActiveSwarm] = useState(null);
   const [output, setOutput] = useState([]);
-  const [newSwarmConfig, setNewSwarmConfig] = useState({
-    template: '',
-    agents: ['orchestrator', 'coder', 'reviewer'],
-    task: '',
-    model: 'claude-3-5-sonnet-20241022'
-  });
+  const [newSwarmConfig, setNewSwarmConfig] = useState(DEFAULT_SWARM_CONFIG);
   const [showNewSwarm, setShowNewSwarm] = useState(false);
   const [taskInput, setTaskInput] = useState('');
 

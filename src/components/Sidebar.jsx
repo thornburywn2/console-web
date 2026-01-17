@@ -1,60 +1,14 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import UserProfileSection from './UserProfileSection';
 import { GitHubStatusDot } from './GitHubStatusBadge';
-
-// Sort options
-const SORT_OPTIONS = {
-  RECENT: 'recent',
-  NAME_ASC: 'name-asc',
-  NAME_DESC: 'name-desc',
-  ACTIVE: 'active',
-  PINNED: 'pinned',
-};
-
-// LocalStorage keys
-const LAST_ACCESSED_KEY = 'cw-last-accessed';
-const SORT_PREF_KEY = 'cw-sort-preference';
-const FAVORITES_KEY = 'cw-favorites';
-
-// Get last accessed times from localStorage
-const getLastAccessed = () => {
-  try {
-    const stored = localStorage.getItem(LAST_ACCESSED_KEY);
-    return stored ? JSON.parse(stored) : {};
-  } catch {
-    return {};
-  }
-};
-
-// Save last accessed time for a project
-const setLastAccessed = (projectPath) => {
-  try {
-    const current = getLastAccessed();
-    current[projectPath] = Date.now();
-    localStorage.setItem(LAST_ACCESSED_KEY, JSON.stringify(current));
-  } catch {
-    // Ignore localStorage errors
-  }
-};
-
-// Get favorites from localStorage
-const getFavorites = () => {
-  try {
-    const stored = localStorage.getItem(FAVORITES_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-};
-
-// Save favorites to localStorage
-const saveFavorites = (favorites) => {
-  try {
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
-  } catch {
-    // Ignore localStorage errors
-  }
-};
+import {
+  SORT_OPTIONS,
+  SORT_PREF_KEY,
+  getLastAccessed,
+  setLastAccessed,
+  getFavorites,
+  saveFavorites,
+} from './sidebar';
 
 function Sidebar({
   projects,

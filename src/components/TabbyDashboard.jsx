@@ -6,8 +6,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-
-const API_URL = import.meta.env.VITE_API_URL || '';
+import { API_URL, DEFAULT_CONFIG } from './tabby-dashboard';
 
 export function TabbyDashboard({ onClose }) {
   const [status, setStatus] = useState(null);
@@ -19,11 +18,7 @@ export function TabbyDashboard({ onClose }) {
   const [showLogs, setShowLogs] = useState(false);
   const [ideConfig, setIdeConfig] = useState(null);
   const [testResult, setTestResult] = useState(null);
-  const [config, setConfig] = useState({
-    model: 'StarCoder-1B',
-    useGpu: false,
-    port: 8080
-  });
+  const [config, setConfig] = useState(DEFAULT_CONFIG);
 
   useEffect(() => {
     fetchStatus();
