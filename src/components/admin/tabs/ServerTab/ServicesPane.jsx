@@ -3,64 +3,56 @@
  * Systemd services management
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { useApiQueries, useApiMutation } from '../../../../hooks/useApiQuery';
+
+// Server query configuration - defined outside component to prevent re-renders
+const SERVER_QUERIES = [
+  { key: 'status', endpoint: '/server/status' },
+  { key: 'services', endpoint: '/server/services' },
+  { key: 'logs', endpoint: '/server/logs?lines=50' },
+];
 
 export function ServicesPane() {
-  const [services, setServices] = useState([]);
-  const [systemLogs, setSystemLogs] = useState([]);
-  const [serverStatus, setServerStatus] = useState(null);
-  const [loading, setLoading] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const fetchServerData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const [statusRes, servicesRes, logsRes] = await Promise.all([
-        fetch('/api/server/status'),
-        fetch('/api/server/services'),
-        fetch('/api/server/logs?lines=50')
-      ]);
+  // Fetch all server data in parallel with 15-second refresh
+  const {
+    loading,
+    data: serverData,
+    refetchAll: fetchServerData,
+  } = useApiQueries(SERVER_QUERIES, {
+    refetchInterval: 15000,
+  });
 
-      if (statusRes.ok) {
-        const data = await statusRes.json();
-        setServerStatus(data);
-      }
-      if (servicesRes.ok) {
-        const data = await servicesRes.json();
-        // API returns array directly
-        setServices(Array.isArray(data) ? data : []);
-      }
-      if (logsRes.ok) {
-        const data = await logsRes.json();
-        setSystemLogs(data.logs || []);
-      }
-    } catch (err) {
-      console.error('Error fetching server data:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Transform API data with safe defaults
+  const serverStatus = serverData.status || null;
+  const services = useMemo(() =>
+    Array.isArray(serverData.services) ? serverData.services : [],
+    [serverData.services]
+  );
+  const systemLogs = useMemo(() =>
+    serverData.logs?.logs || [],
+    [serverData.logs]
+  );
+
+  // Mutation for server actions
+  const { mutate: performServerAction } = useApiMutation();
 
   const handleServerAction = useCallback(async (action) => {
     try {
-      setLoading(true);
-      const res = await fetch(`/api/server/${action}`, { method: 'POST' });
-      if (res.ok) {
+      setActionLoading(true);
+      const result = await performServerAction(`/server/${action}`, 'POST');
+      if (result) {
         setConfirmAction(null);
       }
     } catch (err) {
       console.error(`Error performing ${action}:`, err);
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    fetchServerData();
-    // Use 15-second interval to avoid rate limiting
-    const interval = setInterval(fetchServerData, 15000);
-    return () => clearInterval(interval);
-  }, [fetchServerData]);
+  }, [performServerAction]);
 
   return (
     <div className="space-y-6">
@@ -104,10 +96,10 @@ export function ServicesPane() {
             <div className="flex gap-3">
               <button
                 onClick={() => handleServerAction(confirmAction)}
-                disabled={loading}
+                disabled={actionLoading}
                 className="hacker-btn flex-1 bg-hacker-error/20 border-hacker-error text-hacker-error hover:bg-hacker-error/30"
               >
-                {loading ? '[EXECUTING...]' : `[CONFIRM ${confirmAction.toUpperCase()}]`}
+                {actionLoading ? '[EXECUTING...]' : `[CONFIRM ${confirmAction.toUpperCase()}]`}
               </button>
               <button
                 onClick={() => setConfirmAction(null)}

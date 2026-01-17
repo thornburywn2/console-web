@@ -3,8 +3,9 @@
  * Project list with completion metrics and management actions
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { TabContainer } from '../shared';
+import { useApiQuery, useApiMutation } from '../../../hooks/useApiQuery';
 
 export function ProjectsTab({
   onEditClaudeMd,
@@ -13,48 +14,32 @@ export function ProjectsTab({
   onDeleteProject,
   onComplianceCheck
 }) {
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [projectSortBy, setProjectSortBy] = useState('name');
   const [projectSortOrder, setProjectSortOrder] = useState('asc');
 
-  const fetchProjects = useCallback(async () => {
-    try {
-      setError(null);
-      setLoading(true);
-      const res = await fetch('/api/admin/projects-extended');
-      if (!res.ok) {
-        throw new Error(`Server responded with ${res.status}: ${res.statusText}`);
-      }
-      const data = await res.json();
-      setProjects(data || []);
-    } catch (err) {
-      console.error('Error fetching projects:', err);
-      setError('Failed to load projects. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Fetch projects using useApiQuery
+  const {
+    data: projects,
+    loading,
+    error,
+    refetch: fetchProjects
+  } = useApiQuery('/admin/projects-extended', {
+    defaultValue: [],
+  });
+
+  // Mutation for toggling skip permissions
+  const { mutate: toggleSkipPermissions } = useApiMutation();
 
   const toggleProjectSkipPermissions = useCallback(async (projectName, currentValue) => {
-    try {
-      const res = await fetch(`/api/projects/${encodeURIComponent(projectName)}/skip-permissions`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skipPermissions: !currentValue })
-      });
-      if (res.ok) {
-        fetchProjects();
-      }
-    } catch (err) {
-      console.error('Error toggling skip permissions:', err);
+    const result = await toggleSkipPermissions(
+      `/projects/${encodeURIComponent(projectName)}/skip-permissions`,
+      'PUT',
+      { skipPermissions: !currentValue }
+    );
+    if (result.success) {
+      fetchProjects();
     }
-  }, [fetchProjects]);
-
-  useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
+  }, [toggleSkipPermissions, fetchProjects]);
 
   // Sort projects
   const sortedProjects = useMemo(() => {
@@ -145,9 +130,9 @@ export function ProjectsTab({
 
         {error && (
           <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-4">
-            <p className="text-red-400">{error}</p>
+            <p className="text-red-400">{error.getUserMessage()}</p>
             <button
-              onClick={() => { setError(null); fetchProjects(); }}
+              onClick={fetchProjects}
               className="mt-2 px-3 py-1 bg-red-500/30 hover:bg-red-500/50 rounded text-sm"
             >
               Retry

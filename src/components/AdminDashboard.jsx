@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import api from '../services/api';
 
 // Import extracted tab components
 import ProjectsTab from './admin/tabs/ProjectsTab';
@@ -81,8 +82,7 @@ function GitHubSettingsTab() {
   const fetchAuthStatus = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/github/auth');
-      const data = await res.json();
+      const data = await api.get('/github/auth');
       setAuthStatus(data);
     } catch (err) {
       setError('Failed to check GitHub status');
@@ -93,11 +93,8 @@ function GitHubSettingsTab() {
 
   const fetchLinkedRepos = async () => {
     try {
-      const res = await fetch('/api/github/repos?linked=true');
-      if (res.ok) {
-        const data = await res.json();
-        setLinkedRepos(data.repos || []);
-      }
+      const data = await api.get('/github/repos?linked=true');
+      setLinkedRepos(data.repos || []);
     } catch (err) {
       console.error('Failed to fetch linked repos:', err);
     }
@@ -113,19 +110,13 @@ function GitHubSettingsTab() {
     setError('');
     setSuccess('');
     try {
-      const res = await fetch('/api/github/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accessToken: accessToken.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to authenticate');
+      const data = await api.post('/github/auth', { accessToken: accessToken.trim() });
       setAuthStatus(data);
       setAccessToken('');
       setSuccess('Successfully connected to GitHub!');
       fetchLinkedRepos();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage ? err.getUserMessage() : err.message);
     } finally {
       setSaving(false);
     }
@@ -136,12 +127,11 @@ function GitHubSettingsTab() {
     setSaving(true);
     setError('');
     try {
-      const res = await fetch('/api/github/auth', { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to disconnect');
+      await api.delete('/github/auth');
       setAuthStatus({ authenticated: false });
       setSuccess('GitHub disconnected');
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage ? err.getUserMessage() : err.message);
     } finally {
       setSaving(false);
     }
@@ -273,8 +263,7 @@ function CloudflareSettingsTab() {
   const fetchSettings = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/cloudflare/settings');
-      const data = await res.json();
+      const data = await api.get('/cloudflare/settings');
       if (data.configured) {
         setSettings(data);
         setFormData({ apiToken: '', accountId: data.accountId || '', tunnelId: data.tunnelId || '', zoneId: data.zoneId || '', zoneName: data.zoneName || 'example.com', tunnelName: data.tunnelName || '', defaultSubdomain: data.defaultSubdomain || '' });
@@ -288,12 +277,9 @@ function CloudflareSettingsTab() {
 
   const fetchRoutes = async () => {
     try {
-      const res = await fetch('/api/cloudflare/routes/mapped');
-      if (res.ok) {
-        const data = await res.json();
-        setRoutes(data.routes || []);
-        setRouteSummary(data.summary || null);
-      }
+      const data = await api.get('/cloudflare/routes/mapped');
+      setRoutes(data.routes || []);
+      setRouteSummary(data.summary || null);
     } catch (err) {
       console.error('Failed to fetch routes:', err);
     }
@@ -301,8 +287,8 @@ function CloudflareSettingsTab() {
 
   const fetchTunnelStatus = async () => {
     try {
-      const res = await fetch('/api/cloudflare/tunnel/status');
-      if (res.ok) setTunnelStatus(await res.json());
+      const data = await api.get('/cloudflare/tunnel/status');
+      setTunnelStatus(data);
     } catch (err) {
       console.error('Failed to fetch tunnel status:', err);
     }
@@ -314,14 +300,12 @@ function CloudflareSettingsTab() {
     setSuccess('');
     setSyncStats(null);
     try {
-      const res = await fetch('/api/cloudflare/sync', { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Sync failed');
+      const data = await api.post('/cloudflare/sync');
       setSyncStats(data);
       setSuccess(`Synced ${data.synced} routes from Cloudflare`);
       fetchRoutes();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage ? err.getUserMessage() : err.message);
     } finally {
       setSyncing(false);
     }
@@ -333,18 +317,12 @@ function CloudflareSettingsTab() {
     setError('');
     setSuccess('');
     try {
-      const res = await fetch('/api/cloudflare/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to save settings');
+      const data = await api.post('/cloudflare/settings', formData);
       setSettings(data);
       setSuccess('Cloudflare settings saved successfully!');
       setFormData(prev => ({ ...prev, apiToken: '' }));
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage ? err.getUserMessage() : err.message);
     } finally {
       setSaving(false);
     }
@@ -354,13 +332,12 @@ function CloudflareSettingsTab() {
     if (!confirm('Are you sure you want to disconnect Cloudflare?')) return;
     setSaving(true);
     try {
-      const res = await fetch('/api/cloudflare/settings', { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to disconnect');
+      await api.delete('/cloudflare/settings');
       setSettings(null);
       setFormData({ apiToken: '', accountId: '', tunnelId: '', zoneId: '', zoneName: 'example.com', tunnelName: '', defaultSubdomain: '' });
       setSuccess('Cloudflare disconnected');
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage ? err.getUserMessage() : err.message);
     } finally {
       setSaving(false);
     }
@@ -496,30 +473,15 @@ function AdminDashboard({ onClose, initialTab = null, currentProject = null }) {
   // Fetch user settings on mount
   useEffect(() => {
     fetchUserSettings();
-    fetchAppName();
   }, []);
 
   const fetchUserSettings = async () => {
     try {
-      const res = await fetch('/api/settings');
-      if (res.ok) {
-        const data = await res.json();
-        setUserSettings(data);
-      }
+      const data = await api.get('/settings');
+      setUserSettings(data);
+      if (data.appName) setAppName(data.appName);
     } catch (err) {
       console.error('Error fetching user settings:', err);
-    }
-  };
-
-  const fetchAppName = async () => {
-    try {
-      const res = await fetch('/api/settings');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.appName) setAppName(data.appName);
-      }
-    } catch (err) {
-      console.error('Error fetching app name:', err);
     }
   };
 
@@ -527,8 +489,7 @@ function AdminDashboard({ onClose, initialTab = null, currentProject = null }) {
   const fetchClaudeMd = useCallback(async (projectName) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/admin/claude-md/${encodeURIComponent(projectName)}`);
-      const data = await res.json();
+      const data = await api.get(`/admin/claude-md/${encodeURIComponent(projectName)}`);
       setClaudeMd(data);
       setClaudeMdEdited(data.content || '');
       setHasUnsavedChanges(false);
@@ -543,17 +504,12 @@ function AdminDashboard({ onClose, initialTab = null, currentProject = null }) {
     if (!claudeMdModalProject) return;
     try {
       setLoading(true);
-      const res = await fetch(`/api/admin/claude-md/${encodeURIComponent(claudeMdModalProject)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: claudeMdEdited })
-      });
-      if (!res.ok) throw new Error('Failed to save');
+      await api.put(`/admin/claude-md/${encodeURIComponent(claudeMdModalProject)}`, { content: claudeMdEdited });
       setClaudeMd({ content: claudeMdEdited, exists: true });
       setHasUnsavedChanges(false);
       setSuccess('CLAUDE.md saved');
     } catch (err) {
-      setError('Failed to save CLAUDE.md');
+      setError(err.getUserMessage ? err.getUserMessage() : 'Failed to save CLAUDE.md');
     } finally {
       setLoading(false);
     }
@@ -562,35 +518,21 @@ function AdminDashboard({ onClose, initialTab = null, currentProject = null }) {
   // Project operations
   const deleteProject = useCallback(async (projectName, permanent = false) => {
     try {
-      const res = await fetch(`/api/admin/projects/${encodeURIComponent(projectName)}?permanent=${permanent}`, {
-        method: 'DELETE'
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to delete project');
-      }
+      await api.delete(`/admin/projects/${encodeURIComponent(projectName)}?permanent=${permanent}`);
       setDeleteConfirm(null);
       setSuccess(`Project ${permanent ? 'deleted' : 'moved to trash'}`);
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage ? err.getUserMessage() : err.message);
     }
   }, []);
 
   const handleRenameProject = useCallback(async (oldName, newName) => {
     try {
-      const res = await fetch(`/api/admin/projects/${encodeURIComponent(oldName)}/rename`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newName })
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to rename project');
-      }
+      await api.put(`/admin/projects/${encodeURIComponent(oldName)}/rename`, { newName });
       setRenameProject(null);
       setSuccess(`Project renamed to ${newName}`);
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage ? err.getUserMessage() : err.message);
     }
   }, []);
 

@@ -3,40 +3,29 @@
  * System overview with key metrics (new - combines quick stats)
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { formatBytes, formatUptime } from '../../utils';
+import { useApiQuery } from '../../../../hooks/useApiQuery';
 
 export function OverviewPane() {
-  const [systemInfo, setSystemInfo] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(new Date());
 
-  const fetchSystemInfo = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await fetch('/api/admin/system');
-      if (res.ok) {
-        const data = await res.json();
-        setSystemInfo(data);
-        setLastUpdated(new Date());
-      } else {
-        setError(`Failed to fetch system info (HTTP ${res.status})`);
-      }
-    } catch (err) {
-      console.error('Error fetching system info:', err);
-      setError(err.message || 'Failed to connect to server');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Fetch system info with 10-second refresh
+  const {
+    data: systemInfo,
+    loading,
+    error,
+    refetch: fetchSystemInfo
+  } = useApiQuery('/admin/system', {
+    refetchInterval: 10000,
+  });
 
+  // Update timestamp when data changes
   useEffect(() => {
-    fetchSystemInfo();
-    const interval = setInterval(fetchSystemInfo, 10000);
-    return () => clearInterval(interval);
-  }, [fetchSystemInfo]);
+    if (systemInfo) {
+      setLastUpdated(new Date());
+    }
+  }, [systemInfo]);
 
   // Show error state with retry button
   if (error && !systemInfo) {
@@ -48,7 +37,7 @@ export function OverviewPane() {
             Failed to Load System Info
           </h3>
           <p className="text-sm text-hacker-text-dim mb-4 font-mono">
-            {error}
+            {error.getUserMessage()}
           </p>
           <button
             onClick={fetchSystemInfo}
@@ -85,7 +74,7 @@ export function OverviewPane() {
       {/* Error Banner (shown when refresh fails but we have stale data) */}
       {error && systemInfo && (
         <div className="hacker-card border-hacker-error/50 bg-hacker-error/10 flex items-center justify-between">
-          <p className="text-sm text-hacker-error font-mono">{error}</p>
+          <p className="text-sm text-hacker-error font-mono">{error.getUserMessage()}</p>
           <button
             onClick={fetchSystemInfo}
             disabled={loading}

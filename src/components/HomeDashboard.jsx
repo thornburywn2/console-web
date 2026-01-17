@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ErrorBoundary } from './admin/shared/ErrorBoundary';
+import { useApiQueries } from '../hooks/useApiQuery';
 import {
   LAST_ACCESSED_KEY,
   DASHBOARD_LAYOUT_KEY,
@@ -17,15 +18,47 @@ import {
 
 /**
  * Home Dashboard - Customizable widget-based dashboard
+ * Uses useApiQueries hook for standardized data fetching with automatic refresh
  */
+// Dashboard query configuration - memoized to prevent infinite re-renders
+const DASHBOARD_QUERIES = [
+  { key: 'projectsExtended', endpoint: '/admin/projects-extended' },
+  { key: 'system', endpoint: '/admin/system' },
+  { key: 'containers', endpoint: '/docker/containers?all=true' },
+  { key: 'dashboard', endpoint: '/dashboard' },
+];
+
 function HomeDashboard({ onSelectProject, projects = [] }) {
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState({
-    projectsExtended: [],
-    system: null,
-    containers: [],
-    dashboard: null,
+  // Fetch dashboard data using standardized API hook
+  const {
+    loading,
+    data: apiData,
+    errors,
+    hasErrors,
+    refetchAll,
+  } = useApiQueries(DASHBOARD_QUERIES, {
+    refetchInterval: 15000,
   });
+
+  // Transform API data with safe defaults for partial failures
+  // Use Array.isArray for defensive checks since API could return non-array on error
+  const data = useMemo(() => ({
+    projectsExtended: Array.isArray(apiData.projectsExtended) ? apiData.projectsExtended : [],
+    system: apiData.system || null,
+    containers: Array.isArray(apiData.containers) ? apiData.containers : [],
+    dashboard: apiData.dashboard || null,
+  }), [apiData]);
+
+  // Log errors for debugging but don't block rendering
+  useEffect(() => {
+    if (hasErrors) {
+      Object.entries(errors).forEach(([key, error]) => {
+        if (error) {
+          console.warn(`Dashboard widget data error (${key}):`, error.message);
+        }
+      });
+    }
+  }, [hasErrors, errors]);
 
   // Widget state
   const [widgets, setWidgets] = useState([]);
@@ -53,35 +86,6 @@ function HomeDashboard({ onSelectProject, projects = [] }) {
     localStorage.setItem(DASHBOARD_LAYOUT_KEY, JSON.stringify(newWidgets));
     setWidgets(newWidgets);
   }, []);
-
-  // Fetch data
-  const fetchData = useCallback(async () => {
-    try {
-      const [projectsRes, systemRes, containersRes, dashboardRes] = await Promise.all([
-        fetch('/api/admin/projects-extended'),
-        fetch('/api/admin/system'),
-        fetch('/api/docker/containers?all=true').catch(() => ({ ok: false })),
-        fetch('/api/dashboard').catch(() => ({ ok: false })),
-      ]);
-
-      const projectsExtended = projectsRes.ok ? await projectsRes.json() : [];
-      const system = systemRes.ok ? await systemRes.json() : null;
-      const containers = containersRes.ok ? await containersRes.json() : [];
-      const dashboard = dashboardRes.ok ? await dashboardRes.json() : null;
-
-      setData({ projectsExtended, system, containers, dashboard });
-    } catch (err) {
-      console.error('Error fetching dashboard data:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 15000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
 
   // Widget handlers
   const handleRemoveWidget = useCallback((widgetId) => {
@@ -433,7 +437,7 @@ function HomeDashboard({ onSelectProject, projects = [] }) {
           >
             {isEditing ? '✓ Done' : '✎ Edit'}
           </button>
-          <button onClick={fetchData} className="p-1.5 rounded-lg" style={{ background: 'var(--bg-glass)', color: 'var(--text-muted)' }}>
+          <button onClick={refetchAll} className="p-1.5 rounded-lg" style={{ background: 'var(--bg-glass)', color: 'var(--text-muted)' }}>
             🔄
           </button>
         </div>

@@ -263,15 +263,27 @@ export function useApiMutation(endpoint, method = 'post', options = {}) {
  * useApiQueries - Hook for multiple parallel queries
  *
  * @param {array} queries - Array of { key, endpoint, options }
+ * @param {object} globalOptions - Global options for all queries
+ * @param {number} globalOptions.refetchInterval - Auto-refetch interval in ms
  *
- * @returns {object} { data, loading, errors, refetchAll }
+ * @returns {object} { data, loading, errors, refetchAll, hasErrors }
  */
-export function useApiQueries(queries) {
-  const [results, setResults] = useState({});
+export function useApiQueries(queries, globalOptions = {}) {
+  const { refetchInterval = null } = globalOptions;
+
+  // Initialize results with null for each key to ensure stable references
+  const [results, setResults] = useState(() => {
+    const initial = {};
+    queries.forEach(q => {
+      initial[q.key] = null;
+    });
+    return initial;
+  });
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState({});
 
   const mountedRef = useRef(true);
+  const intervalRef = useRef(null);
 
   const fetchAll = useCallback(async () => {
     if (!mountedRef.current) return;
@@ -303,6 +315,7 @@ export function useApiQueries(queries) {
     }
   }, [queries]);
 
+  // Initial fetch
   useEffect(() => {
     mountedRef.current = true;
     fetchAll();
@@ -311,6 +324,24 @@ export function useApiQueries(queries) {
       mountedRef.current = false;
     };
   }, [fetchAll]);
+
+  // Auto-refetch interval
+  useEffect(() => {
+    if (refetchInterval && refetchInterval > 0) {
+      intervalRef.current = setInterval(() => {
+        if (mountedRef.current) {
+          fetchAll();
+        }
+      }, refetchInterval);
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [refetchInterval, fetchAll]);
 
   return {
     data: results,

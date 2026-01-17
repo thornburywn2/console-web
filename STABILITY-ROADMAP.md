@@ -13,7 +13,7 @@
 |-------|--------|----------|--------|
 | Phase 0: Immediate | ✅ Complete | 3/3 | This Week |
 | Phase 1: Error Handling | ✅ Complete | 4/4 | Week 1-2 |
-| Phase 2: Integration Hardening | 🔄 In Progress | 2/4 | Week 3-4 |
+| Phase 2: Integration Hardening | 🔄 In Progress | 3/4 | Week 3-4 |
 | Phase 3: Testing Foundation | 🔄 In Progress | 2/4 | Week 5-8 |
 | Phase 4: Observability | ⏳ Pending | 0/4 | Week 9-10 |
 | Phase 5: Full Hardening | ⏳ Pending | 0/4 | Week 11-16 |
@@ -108,15 +108,15 @@ Routes updated (24 files, 300+ catch blocks):
 - [x] **2.1.7** Added useApiMutation for POST/PUT/DELETE operations ✅
 - [x] **2.1.8** Added useApiQueries for parallel fetching ✅
 
-### 2.2 Migrate fetch() Calls (First 50%)
-- [ ] **2.2.1** HomeDashboard.jsx - migrate to useApiQuery
-- [ ] **2.2.2** ProjectsTab.jsx - migrate to useApiQuery
-- [ ] **2.2.3** DockerPane.jsx - migrate to useApiQuery
-- [ ] **2.2.4** OverviewPane.jsx - migrate to useApiQuery
-- [ ] **2.2.5** ServicesPane.jsx - migrate to useApiQuery
-- [ ] **2.2.6** GitWorkflow.jsx - migrate to useApiQuery
-- [ ] **2.2.7** DatabaseBrowser.jsx - migrate to useApiQuery
-- [ ] **2.2.8** AdminDashboard.jsx - migrate to useApiQuery
+### 2.2 Migrate fetch() Calls (First 50%) ✅
+- [x] **2.2.1** HomeDashboard.jsx - migrate to useApiQueries ✅
+- [x] **2.2.2** ProjectsTab.jsx - migrate to useApiQuery ✅
+- [x] **2.2.3** DockerPane.jsx - migrate to useApiQueries ✅
+- [x] **2.2.4** OverviewPane.jsx - migrate to useApiQuery ✅
+- [x] **2.2.5** ServicesPane.jsx - migrate to useApiQueries ✅
+- [x] **2.2.6** GitWorkflow.jsx - migrate to useApiQuery ✅
+- [x] **2.2.7** DatabaseBrowser.jsx - migrate to useApiQuery ✅
+- [x] **2.2.8** AdminDashboard.jsx - migrate to api service ✅
 
 ### 2.3 Add Request Timeout ✅
 - [x] **2.3.1** Update api.js default timeout to 30s ✅ (already implemented)
@@ -317,6 +317,32 @@ Routes updated (24 files, 300+ catch blocks):
   - ✅ 3.2: Basic E2E tests created (dashboard, admin nav, theme, search)
   - ✅ 3.4.9: useApiQuery hook tests (16 tests)
   - ⏳ Remaining: More E2E tests, Storybook, coverage increase
+
+### Session 4 (2026-01-17)
+- **Phase 2 Progress:**
+  - ✅ 2.2.1: Migrated HomeDashboard.jsx to useApiQueries
+    - Replaced manual fetch/Promise.all with useApiQueries hook
+    - 15-second refetch interval via hook option
+    - Partial failure handling with safe defaults
+    - Error logging for debugging without blocking UI
+
+### Session 5 (2026-01-17)
+- **Phase 2 Complete - Component Migrations:**
+  - ✅ 2.2.2: Migrated ProjectsTab.jsx to useApiQuery + useApiMutation
+  - ✅ 2.2.3: Migrated DockerPane.jsx to useApiQueries + useApiMutation
+  - ✅ 2.2.4: Migrated OverviewPane.jsx to useApiQuery with refetchInterval
+  - ✅ 2.2.5: Migrated ServicesPane.jsx to useApiQueries + useApiMutation
+  - ✅ 2.2.6: Migrated GitWorkflow.jsx to useApiQuery + api service
+  - ✅ 2.2.7: Migrated DatabaseBrowser.jsx to useApiQuery + api service
+  - ✅ 2.2.8: Migrated AdminDashboard.jsx + embedded settings tabs to api service
+- **Key Patterns Used:**
+  - `useApiQuery` for single-endpoint GET requests with refetch
+  - `useApiQueries` for parallel data fetching (Docker, Services)
+  - `useApiMutation` for POST/PUT/DELETE operations
+  - Direct `api` service calls for complex dynamic endpoints
+  - Constants moved outside components to prevent infinite re-render loops
+  - Error objects use `getUserMessage()` for user-friendly error display
+- ⏳ Remaining in Phase 2: Socket.IO event standardization (2.4)
 
 ---
 

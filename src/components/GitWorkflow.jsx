@@ -3,7 +3,9 @@
  * Git automation panel for common operations
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
+import { useApiQuery } from '../hooks/useApiQuery';
+import api from '../services/api';
 
 const GIT_OPERATIONS = [
   { id: 'status', name: 'Status', icon: '📋', description: 'View repository status' },
@@ -21,65 +23,46 @@ export default function GitWorkflow({
   onExecute,
   embedded = false,
 }) {
-  const [status, setStatus] = useState(null);
-  const [loading, setLoading] = useState(false);
   const [executing, setExecuting] = useState(null);
   const [commitMessage, setCommitMessage] = useState('');
   const [branchName, setBranchName] = useState('');
   const [output, setOutput] = useState('');
-  const [error, setError] = useState(null);
+  const [actionError, setActionError] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
-  // Fetch git status
-  const fetchStatus = useCallback(async () => {
-    if (!projectPath) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch('/api/git/' + encodeURIComponent(projectPath) + '/status');
-      if (!response.ok) {
-        throw new Error('Failed to fetch git status');
-      }
-      const data = await response.json();
-      setStatus(data);
-    } catch (err) {
-      console.error('Failed to fetch git status:', err);
-      setError('Failed to load git status. Please check if this is a valid git repository.');
-    } finally {
-      setLoading(false);
+  // Fetch git status using useApiQuery
+  const {
+    data: status,
+    loading,
+    error: statusError,
+    refetch: fetchStatus
+  } = useApiQuery(
+    projectPath ? `/git/${encodeURIComponent(projectPath)}/status` : null,
+    {
+      enabled: isOpen && !!projectPath,
     }
-  }, [projectPath]);
+  );
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchStatus();
-    }
-  }, [isOpen, fetchStatus]);
+  // Compute combined error state
+  const error = actionError || (statusError ? statusError.getUserMessage() : null);
 
   // Execute git operation
   const executeOperation = async (operation, params = {}) => {
     setExecuting(operation);
-    setError(null);
+    setActionError(null);
     setOutput('');
 
     try {
-      const response = await fetch('/api/git/' + encodeURIComponent(projectPath) + '/' + operation, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setOutput(data.output || 'Operation completed successfully');
-        if (onExecute) onExecute(operation, data);
-        // Refresh status
-        setTimeout(fetchStatus, 500);
-      } else {
-        setError(data.error || 'Operation failed');
-      }
+      const data = await api.post(
+        `/git/${encodeURIComponent(projectPath)}/${operation}`,
+        params
+      );
+      setOutput(data.output || 'Operation completed successfully');
+      if (onExecute) onExecute(operation, data);
+      // Refresh status
+      setTimeout(fetchStatus, 500);
     } catch (err) {
-      setError(err.message);
+      setActionError(err.getUserMessage ? err.getUserMessage() : err.message);
     } finally {
       setExecuting(null);
     }
@@ -101,24 +84,16 @@ export default function GitWorkflow({
 
   // Generate AI commit message
   const generateCommitMessage = async () => {
-    setLoading(true);
-    setError(null);
+    setAiLoading(true);
+    setActionError(null);
     try {
-      const response = await fetch('/api/ai/commit-message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectPath }),
-      });
-      if (!response.ok) {
-        throw new Error('Failed to generate commit message');
-      }
-      const data = await response.json();
+      const data = await api.post('/ai/commit-message', { projectPath });
       setCommitMessage(data.message || '');
     } catch (err) {
       console.error('Failed to generate commit message:', err);
-      setError('Failed to generate commit message. Please try again.');
+      setActionError(err.getUserMessage ? err.getUserMessage() : 'Failed to generate commit message. Please try again.');
     } finally {
-      setLoading(false);
+      setAiLoading(false);
     }
   };
 
@@ -222,7 +197,7 @@ export default function GitWorkflow({
               <p className="text-red-400">{error}</p>
               <button
                 onClick={() => {
-                  setError(null);
+                  setActionError(null);
                   fetchStatus();
                 }}
                 className="mt-2 px-3 py-1 bg-red-500/20 hover:bg-red-500/30 rounded text-sm text-red-400"
@@ -317,10 +292,10 @@ export default function GitWorkflow({
               <h3 className="text-sm font-medium text-secondary">Quick Commit</h3>
               <button
                 onClick={generateCommitMessage}
-                disabled={loading || !hasChanges}
+                disabled={aiLoading || !hasChanges}
                 className="text-xs text-accent hover:underline disabled:opacity-50"
               >
-                Generate with AI
+                {aiLoading ? 'Generating...' : 'Generate with AI'}
               </button>
             </div>
             <div className="flex gap-2">

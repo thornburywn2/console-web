@@ -11,13 +11,14 @@ import {
   QueryEditor,
   RecordModal,
 } from './database-browser';
+import { useApiQuery } from '../hooks/useApiQuery';
+import api from '../services/api';
 
 export default function DatabaseBrowser({ isOpen, onClose, embedded = false }) {
-  const [tables, setTables] = useState([]);
   const [selectedTable, setSelectedTable] = useState(null);
   const [columns, setColumns] = useState([]);
   const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tableDataLoading, setTableDataLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [totalRows, setTotalRows] = useState(0);
   const [sortColumn, setSortColumn] = useState(null);
@@ -29,32 +30,28 @@ export default function DatabaseBrowser({ isOpen, onClose, embedded = false }) {
   const [runningQuery, setRunningQuery] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [showQueryEditor, setShowQueryEditor] = useState(false);
-  const [error, setError] = useState(null);
+  const [actionError, setActionError] = useState(null);
 
   const pageSize = 25;
 
-  const fetchTables = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch('/api/db/tables');
-      if (!response.ok) {
-        throw new Error('Failed to fetch tables');
-      }
-      const data = await response.json();
-      setTables(data.tables || []);
-    } catch (err) {
-      console.error('Failed to fetch tables:', err);
-      setError('Failed to load database tables. Please check your connection.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Fetch tables using useApiQuery
+  const {
+    data: tablesData,
+    loading: tablesLoading,
+    error: tablesError,
+    refetch: fetchTables
+  } = useApiQuery('/db/tables', {
+    enabled: isOpen || embedded,
+  });
+
+  const tables = tablesData?.tables || [];
+  const loading = tablesLoading || tableDataLoading;
+  const error = actionError || (tablesError ? tablesError.getUserMessage() : null);
 
   const fetchTableData = useCallback(async () => {
     if (!selectedTable) return;
-    setLoading(true);
-    setError(null);
+    setTableDataLoading(true);
+    setActionError(null);
     try {
       const params = new URLSearchParams({
         page: String(page),
@@ -62,27 +59,17 @@ export default function DatabaseBrowser({ isOpen, onClose, embedded = false }) {
         ...(sortColumn && { sortColumn, sortDirection }),
         ...(filter && { filter })
       });
-      const response = await fetch(`/api/db/tables/${selectedTable}/data?${params}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch table data');
-      }
-      const data = await response.json();
+      const data = await api.get(`/db/tables/${selectedTable}/data?${params}`);
       setColumns(data.columns || []);
       setRows(data.rows || []);
       setTotalRows(data.totalRows || 0);
     } catch (err) {
       console.error('Failed to fetch table data:', err);
-      setError(`Failed to load data for table "${selectedTable}".`);
+      setActionError(err.getUserMessage ? err.getUserMessage() : `Failed to load data for table "${selectedTable}".`);
     } finally {
-      setLoading(false);
+      setTableDataLoading(false);
     }
   }, [selectedTable, page, sortColumn, sortDirection, filter]);
-
-  useEffect(() => {
-    if (isOpen || embedded) {
-      fetchTables();
-    }
-  }, [isOpen, embedded, fetchTables]);
 
   useEffect(() => {
     if (selectedTable) {
@@ -111,60 +98,37 @@ export default function DatabaseBrowser({ isOpen, onClose, embedded = false }) {
     setQueryError(null);
     setQueryResults(null);
     try {
-      const response = await fetch('/api/db/query', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query })
-      });
-      const data = await response.json();
-      if (response.ok) {
-        setQueryResults(data);
-      } else {
-        setQueryError(data.error || 'Query failed');
-      }
-    } catch (error) {
-      setQueryError(error.message);
+      const data = await api.post('/db/query', { query });
+      setQueryResults(data);
+    } catch (err) {
+      setQueryError(err.getUserMessage ? err.getUserMessage() : err.message);
     } finally {
       setRunningQuery(false);
     }
   };
 
   const handleSaveRecord = async (record) => {
-    setError(null);
+    setActionError(null);
     try {
-      const response = await fetch(`/api/db/tables/${selectedTable}/update`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(record)
-      });
-      if (!response.ok) {
-        throw new Error('Failed to save record');
-      }
+      await api.put(`/db/tables/${selectedTable}/update`, record);
       fetchTableData();
       setEditingRecord(null);
     } catch (err) {
       console.error('Failed to save record:', err);
-      setError('Failed to save record. Please try again.');
+      setActionError(err.getUserMessage ? err.getUserMessage() : 'Failed to save record. Please try again.');
     }
   };
 
   const handleDeleteRecord = async (record) => {
     if (!confirm('Delete this record?')) return;
-    setError(null);
+    setActionError(null);
     try {
-      const response = await fetch(`/api/db/tables/${selectedTable}/delete`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(record)
-      });
-      if (!response.ok) {
-        throw new Error('Failed to delete record');
-      }
+      await api.delete(`/db/tables/${selectedTable}/delete`, record);
       fetchTableData();
       setEditingRecord(null);
     } catch (err) {
       console.error('Failed to delete record:', err);
-      setError('Failed to delete record. Please try again.');
+      setActionError(err.getUserMessage ? err.getUserMessage() : 'Failed to delete record. Please try again.');
     }
   };
 
@@ -180,7 +144,7 @@ export default function DatabaseBrowser({ isOpen, onClose, embedded = false }) {
         <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4">
           <p className="text-red-400 text-sm">{error}</p>
           <button
-            onClick={() => { setError(null); fetchTables(); }}
+            onClick={() => { setActionError(null); fetchTables(); }}
             className="mt-2 px-3 py-1 bg-red-500/20 hover:bg-red-500/30 rounded text-sm text-red-400"
           >
             Retry
@@ -272,7 +236,7 @@ export default function DatabaseBrowser({ isOpen, onClose, embedded = false }) {
           <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mx-4 mt-4">
             <p className="text-red-400">{error}</p>
             <button
-              onClick={() => { setError(null); selectedTable ? fetchTableData() : fetchTables(); }}
+              onClick={() => { setActionError(null); selectedTable ? fetchTableData() : fetchTables(); }}
               className="mt-2 px-3 py-1 bg-red-500/20 hover:bg-red-500/30 rounded text-sm text-red-400"
             >
               Retry

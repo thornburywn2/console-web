@@ -3,113 +3,84 @@
  * Docker container, image, and volume management
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { formatBytes } from '../../utils';
+import { useApiQueries, useApiMutation } from '../../../../hooks/useApiQuery';
+
+// Docker query configuration - defined outside component to prevent re-renders
+const DOCKER_QUERIES = [
+  { key: 'system', endpoint: '/docker/system' },
+  { key: 'containers', endpoint: '/docker/containers?all=true' },
+  { key: 'images', endpoint: '/docker/images' },
+  { key: 'volumes', endpoint: '/docker/volumes' },
+  { key: 'networks', endpoint: '/docker/networks' },
+];
 
 export function DockerPane() {
-  const [dockerSystem, setDockerSystem] = useState(null);
-  const [containers, setContainers] = useState([]);
-  const [images, setImages] = useState([]);
-  const [volumes, setVolumes] = useState([]);
-  const [networks, setNetworks] = useState([]);
   const [containerAction, setContainerAction] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [partialErrors, setPartialErrors] = useState([]);
-
-  const fetchDockerData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      setPartialErrors([]);
-
-      const errors = [];
-
-      // Use Promise.allSettled to handle partial failures
-      const [systemRes, containersRes, imagesRes, volumesRes, networksRes] = await Promise.allSettled([
-        fetch('/api/docker/system'),
-        fetch('/api/docker/containers?all=true'),
-        fetch('/api/docker/images'),
-        fetch('/api/docker/volumes'),
-        fetch('/api/docker/networks')
-      ]);
-
-      // Process system info
-      if (systemRes.status === 'fulfilled' && systemRes.value.ok) {
-        setDockerSystem(await systemRes.value.json());
-      } else if (systemRes.status === 'rejected') {
-        errors.push('System info: Network error');
-      } else if (!systemRes.value.ok) {
-        errors.push(`System info: ${systemRes.value.status} ${systemRes.value.statusText}`);
-      }
-
-      // Process containers
-      if (containersRes.status === 'fulfilled' && containersRes.value.ok) {
-        const data = await containersRes.value.json();
-        setContainers(Array.isArray(data) ? data : []);
-      } else if (containersRes.status === 'rejected') {
-        errors.push('Containers: Network error');
-      } else if (!containersRes.value.ok) {
-        errors.push(`Containers: ${containersRes.value.status} ${containersRes.value.statusText}`);
-      }
-
-      // Process images
-      if (imagesRes.status === 'fulfilled' && imagesRes.value.ok) {
-        const data = await imagesRes.value.json();
-        setImages(Array.isArray(data) ? data : []);
-      } else if (imagesRes.status === 'rejected') {
-        errors.push('Images: Network error');
-      } else if (!imagesRes.value.ok) {
-        errors.push(`Images: ${imagesRes.value.status} ${imagesRes.value.statusText}`);
-      }
-
-      // Process volumes
-      if (volumesRes.status === 'fulfilled' && volumesRes.value.ok) {
-        const data = await volumesRes.value.json();
-        setVolumes(Array.isArray(data) ? data : []);
-      } else if (volumesRes.status === 'rejected') {
-        errors.push('Volumes: Network error');
-      } else if (!volumesRes.value.ok) {
-        errors.push(`Volumes: ${volumesRes.value.status} ${volumesRes.value.statusText}`);
-      }
-
-      // Process networks
-      if (networksRes.status === 'fulfilled' && networksRes.value.ok) {
-        const data = await networksRes.value.json();
-        setNetworks(Array.isArray(data) ? data : []);
-      } else if (networksRes.status === 'rejected') {
-        errors.push('Networks: Network error');
-      } else if (!networksRes.value.ok) {
-        errors.push(`Networks: ${networksRes.value.status} ${networksRes.value.statusText}`);
-      }
-
-      // Set partial errors if some but not all requests failed
-      if (errors.length > 0 && errors.length < 5) {
-        setPartialErrors(errors);
-      } else if (errors.length === 5) {
-        // All requests failed - show full error
-        setError('Failed to connect to Docker. Is Docker daemon running?');
-      }
-    } catch (err) {
-      console.error('Error fetching Docker data:', err);
-      setError(err.message || 'Failed to fetch Docker data');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   const [actionError, setActionError] = useState(null);
+
+  // Fetch all Docker data in parallel with 30-second refresh
+  const {
+    loading,
+    data: dockerData,
+    errors,
+    hasErrors,
+    refetchAll: fetchDockerData,
+  } = useApiQueries(DOCKER_QUERIES, {
+    refetchInterval: 30000,
+  });
+
+  // Transform API data with safe defaults
+  const dockerSystem = dockerData.system || null;
+  const containers = useMemo(() =>
+    Array.isArray(dockerData.containers) ? dockerData.containers : [],
+    [dockerData.containers]
+  );
+  const images = useMemo(() =>
+    Array.isArray(dockerData.images) ? dockerData.images : [],
+    [dockerData.images]
+  );
+  const volumes = useMemo(() =>
+    Array.isArray(dockerData.volumes) ? dockerData.volumes : [],
+    [dockerData.volumes]
+  );
+  const networks = useMemo(() =>
+    Array.isArray(dockerData.networks) ? dockerData.networks : [],
+    [dockerData.networks]
+  );
+
+  // Calculate partial errors for display
+  const partialErrors = useMemo(() => {
+    if (!hasErrors) return [];
+    const errorList = [];
+    const errorKeys = Object.keys(errors);
+    for (const key of errorKeys) {
+      if (errors[key]) {
+        errorList.push(`${key}: ${errors[key].getUserMessage()}`);
+      }
+    }
+    return errorList;
+  }, [errors, hasErrors]);
+
+  // Check if all requests failed
+  const allFailed = partialErrors.length === DOCKER_QUERIES.length;
+
+  // Mutation for container actions
+  const { mutate: performAction } = useApiMutation();
 
   const handleContainerAction = useCallback(async (containerId, action) => {
     try {
       setContainerAction({ containerId, action });
       setActionError(null);
-      const res = await fetch(`/api/docker/containers/${containerId}/${action}`, { method: 'POST' });
-      if (res.ok) {
+      const result = await performAction(
+        `/docker/containers/${containerId}/${action}`,
+        'POST'
+      );
+      if (result.success) {
         fetchDockerData();
       } else {
-        const errorText = await res.text().catch(() => res.statusText);
-        setActionError(`Failed to ${action} container: ${errorText || res.status}`);
+        setActionError(`Failed to ${action} container: ${result.error?.getUserMessage() || 'Unknown error'}`);
       }
     } catch (err) {
       console.error(`Error ${action} container:`, err);
@@ -117,26 +88,19 @@ export function DockerPane() {
     } finally {
       setContainerAction(null);
     }
-  }, [fetchDockerData]);
-
-  useEffect(() => {
-    fetchDockerData();
-    // Use 30-second interval to avoid rate limiting (5 concurrent API calls)
-    const interval = setInterval(fetchDockerData, 30000);
-    return () => clearInterval(interval);
-  }, [fetchDockerData]);
+  }, [performAction, fetchDockerData]);
 
   return (
     <div className="space-y-6">
-      {/* Full Error State */}
-      {error && (
+      {/* Full Error State - all requests failed */}
+      {allFailed && partialErrors.length > 0 && (
         <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <span className="text-red-500 text-lg">!</span>
               <div>
                 <div className="text-red-400 font-semibold text-sm">Docker Error</div>
-                <div className="text-red-300/80 text-xs font-mono mt-1">{error}</div>
+                <div className="text-red-300/80 text-xs font-mono mt-1">Failed to connect to Docker. Is Docker daemon running?</div>
               </div>
             </div>
             <button
@@ -150,8 +114,8 @@ export function DockerPane() {
         </div>
       )}
 
-      {/* Partial Error State */}
-      {partialErrors.length > 0 && (
+      {/* Partial Error State - some but not all requests failed */}
+      {!allFailed && partialErrors.length > 0 && (
         <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3">
