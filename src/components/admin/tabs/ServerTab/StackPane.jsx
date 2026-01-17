@@ -1,10 +1,13 @@
 /**
  * StackPane Component
  * Sovereign Stack services health monitoring
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { formatTime } from '../../utils';
+import { stackApi } from '../../../../services/api.js';
 
 export function StackPane() {
   const [stackServices, setStackServices] = useState([]);
@@ -14,19 +17,13 @@ export function StackPane() {
   const fetchStackData = useCallback(async () => {
     try {
       setLoading(true);
-      const [servicesRes, healthRes] = await Promise.all([
-        fetch('/api/stack/services'),
-        fetch('/api/stack/health')
+      const [servicesData, healthData] = await Promise.all([
+        stackApi.getServices(),
+        stackApi.getHealth()
       ]);
 
-      if (servicesRes.ok) {
-        const data = await servicesRes.json();
-        setStackServices(data.services || []);
-      }
-      if (healthRes.ok) {
-        const data = await healthRes.json();
-        setStackHealth(data);
-      }
+      setStackServices(servicesData.services || []);
+      setStackHealth(healthData);
     } catch (err) {
       console.error('Error fetching stack data:', err);
     } finally {
@@ -37,10 +34,8 @@ export function StackPane() {
   const handleStackRestart = useCallback(async (serviceId) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/stack/services/${serviceId}/restart`, { method: 'POST' });
-      if (res.ok) {
-        fetchStackData();
-      }
+      await stackApi.restartService(serviceId);
+      fetchStackData();
     } catch (err) {
       console.error('Error restarting service:', err);
     } finally {

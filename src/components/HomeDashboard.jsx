@@ -310,7 +310,7 @@ function HomeDashboard({ onSelectProject, projects = [] }) {
             {activePorts.slice(0, 10).map((port, i) => (
               <div key={i} className="flex items-center gap-2 p-2 rounded-lg" style={{ background: 'var(--bg-glass)' }}>
                 <span className="text-xs font-mono font-bold" style={{ color: 'var(--accent-primary)' }}>{port.port}</span>
-                <span className="text-xs truncate flex-1" style={{ color: 'var(--text-secondary)' }}>{port.process || port.name || 'Unknown'}</span>
+                <span className="text-xs truncate flex-1" style={{ color: 'var(--text-secondary)' }}>{typeof port.process === 'object' ? port.process?.name : port.process || port.name || 'Unknown'}</span>
               </div>
             ))}
           </div>

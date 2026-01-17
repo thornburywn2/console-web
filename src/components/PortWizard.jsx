@@ -1,4 +1,12 @@
+/**
+ * Port Wizard Component
+ * Visual port management and scanning
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
+ */
+
 import { useState, useEffect, useCallback } from 'react';
+import { portsApi } from '../services/api.js';
 
 // Common port ranges for reference
 const PORT_RANGES = {
@@ -35,13 +43,11 @@ function PortWizard({ projects = [], onSelectProject }) {
   const fetchPorts = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/ports');
-      if (!response.ok) throw new Error('Failed to fetch ports');
-      const data = await response.json();
+      const data = await portsApi.getStatus();
       setPorts(data.ports || []);
       setError(null);
     } catch (err) {
-      console.error('Error fetching ports:', err);
+      console.error('Error fetching ports:', err.getUserMessage?.() || err.message);
       setError('Failed to load port data');
     } finally {
       setIsLoading(false);
@@ -59,13 +65,11 @@ function PortWizard({ projects = [], onSelectProject }) {
   const handleScan = async () => {
     try {
       setIsScanning(true);
-      const response = await fetch('/api/ports/scan', { method: 'POST' });
-      if (!response.ok) throw new Error('Scan failed');
-      const data = await response.json();
+      const data = await portsApi.scan();
       setPorts(data.ports || []);
       setError(null);
     } catch (err) {
-      console.error('Error scanning ports:', err);
+      console.error('Error scanning ports:', err.getUserMessage?.() || err.message);
       setError('Port scan failed');
     } finally {
       setIsScanning(false);
@@ -81,12 +85,11 @@ function PortWizard({ projects = [], onSelectProject }) {
     }
 
     try {
-      const response = await fetch(`/api/ports/kill/${port}`, { method: 'DELETE' });
-      if (!response.ok) throw new Error('Failed to kill process');
+      await portsApi.kill(port);
       setConfirmKill(null);
       fetchPorts(); // Refresh list
     } catch (err) {
-      console.error('Error killing port:', err);
+      console.error('Error killing port:', err.getUserMessage?.() || err.message);
       setError(`Failed to kill process on port ${port}`);
     }
   };
@@ -138,7 +141,7 @@ function PortWizard({ projects = [], onSelectProject }) {
                 key={`${p.port}-${index}`}
                 className="port-map-indicator"
                 style={{ left: `${position}%` }}
-                title={`Port ${p.port}: ${p.process}`}
+                title={`Port ${p.port}: ${typeof p.process === 'object' ? p.process?.name : p.process || 'Unknown'}`}
               />
             );
           })}
@@ -265,7 +268,7 @@ function PortWizard({ projects = [], onSelectProject }) {
                     <span className={`list-item-indicator ${p.isRegistered ? 'active' : ''}`} style={!p.isRegistered ? { background: 'var(--status-warning)', opacity: 0.7 } : {}} title={p.isRegistered ? 'Registered in PORTS.md' : 'Not registered'} />
                     <span className="text-xs font-mono font-semibold" style={{ color: 'var(--accent-primary)' }}>{p.port}</span>
                     <span className="text-xs font-mono truncate" style={{ color: 'var(--text-secondary)' }}>
-                      {p.registeredName || p.process}
+                      {p.registeredName || (typeof p.process === 'object' ? p.process?.name : p.process) || 'Unknown'}
                     </span>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">

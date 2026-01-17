@@ -1,9 +1,12 @@
 /**
  * Markdown Viewer Component
  * Renders CLAUDE.md and README files with styling
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useMemo } from 'react';
+import { filesContentApi } from '../services/api.js';
 
 // Simple markdown parser (no external dependencies)
 const parseMarkdown = (md) => {
@@ -146,15 +149,10 @@ export default function MarkdownViewer({
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch('/api/files/' + encodeURIComponent(filePath) + '/content');
-        if (response.ok) {
-          const text = await response.text();
-          setMarkdown(text);
-        } else {
-          setError('Failed to load file');
-        }
+        const text = await filesContentApi.getContent(filePath);
+        setMarkdown(text);
       } catch (err) {
-        setError('Error: ' + err.message);
+        setError('Error: ' + (err.getUserMessage?.() || err.message));
       } finally {
         setLoading(false);
       }

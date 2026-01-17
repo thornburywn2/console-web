@@ -2,9 +2,12 @@
  * AgentExecutionLog Component
  * Displays paginated table of agent execution history
  * Sortable columns, status badges, duration calculation
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { agentExecutionsApi } from '../services/api.js';
 
 const STATUS_STYLES = {
   SUCCESS: 'bg-green-500/20 text-green-400 border-green-500/30',
@@ -88,15 +91,7 @@ export default function AgentExecutionLog({ agentId }) {
     setError(null);
 
     try {
-      const response = await fetch(
-        `/api/agents/${agentId}?page=${pagination.page}&limit=${pagination.limit}`
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch executions');
-      }
-
-      const data = await response.json();
+      const data = await agentExecutionsApi.list(agentId, pagination.page, pagination.limit);
       setExecutions(data.executions || []);
       setPagination(prev => ({
         ...prev,
@@ -104,7 +99,7 @@ export default function AgentExecutionLog({ agentId }) {
         pages: data.pagination?.pages || 0
       }));
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setLoading(false);
     }

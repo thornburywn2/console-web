@@ -1,10 +1,15 @@
-import { useState, useEffect, useCallback } from 'react';
-
 /**
- * CloudflarePublishPanel - Allows publishing a project to Cloudflare Tunnel
+ * CloudflarePublishPanel Component
+ * Allows publishing a project to Cloudflare Tunnel
  * Shows only this project's tunnel route - simplified for per-project use
  * Port changes update CLAUDE.md and can restart the project
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
+
+import { useState, useEffect, useCallback } from 'react';
+import { cloudflareApi, cloudflareExtendedApi } from '../services/api.js';
+
 function CloudflarePublishPanel({ project, onRefresh }) {
   const [settings, setSettings] = useState(null);
   const [route, setRoute] = useState(null);
@@ -42,26 +47,21 @@ function CloudflarePublishPanel({ project, onRefresh }) {
 
     try {
       // Fetch Cloudflare settings
-      const settingsRes = await fetch('/api/cloudflare/settings');
-      const settingsData = await settingsRes.json();
+      const settingsData = await cloudflareApi.getSettings();
       setSettings(settingsData);
 
       if (settingsData.configured) {
         // Fetch tunnel status
         try {
-          const statusRes = await fetch('/api/cloudflare/tunnel/status');
-          if (statusRes.ok) {
-            const statusData = await statusRes.json();
-            setTunnelStatus(statusData);
-          }
+          const statusData = await cloudflareApi.getTunnelStatus();
+          setTunnelStatus(statusData);
         } catch (e) {
-          console.warn('Could not fetch tunnel status:', e);
+          console.warn('Could not fetch tunnel status:', e.getUserMessage?.() || e.message);
         }
 
         // Fetch existing route for THIS project only
-        const routeRes = await fetch(`/api/cloudflare/routes/${encodeURIComponent(project.name)}`);
-        if (routeRes.ok) {
-          const routeData = await routeRes.json();
+        try {
+          const routeData = await cloudflareApi.getProjectRoutes(project.name);
 
           // Use configured subdomain from CLAUDE.md if available, otherwise fall back to project name
           const configuredSubdomain = routeData.projectSubdomain;
@@ -71,21 +71,16 @@ function CloudflarePublishPanel({ project, onRefresh }) {
           if (routeData.routes?.length === 0 && configuredSubdomain) {
             console.log('[CloudflarePublishPanel] No routes found, auto-syncing from Cloudflare...');
             try {
-              const syncRes = await fetch('/api/cloudflare/sync', { method: 'POST' });
-              if (syncRes.ok) {
-                // Re-fetch routes after sync
-                const retryRes = await fetch(`/api/cloudflare/routes/${encodeURIComponent(project.name)}`);
-                if (retryRes.ok) {
-                  const retryData = await retryRes.json();
-                  if (retryData.routes?.length > 0) {
-                    setRoute(retryData.routes[0]);
-                  } else {
-                    setRoute(null);
-                  }
-                }
+              await cloudflareApi.sync();
+              // Re-fetch routes after sync
+              const retryData = await cloudflareApi.getProjectRoutes(project.name);
+              if (retryData.routes?.length > 0) {
+                setRoute(retryData.routes[0]);
+              } else {
+                setRoute(null);
               }
             } catch (syncErr) {
-              console.warn('[CloudflarePublishPanel] Auto-sync failed:', syncErr);
+              console.warn('[CloudflarePublishPanel] Auto-sync failed:', syncErr.getUserMessage?.() || syncErr.message);
             }
           } else if (routeData.routes?.length > 0) {
             setRoute(routeData.routes[0]);
@@ -98,7 +93,7 @@ function CloudflarePublishPanel({ project, onRefresh }) {
             subdomain: prev.subdomain || configuredSubdomain || project.name.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
             localPort: prev.localPort || (configuredPort ? String(configuredPort) : '')
           }));
-        } else {
+        } catch {
           // Fallback to project name if API fails
           setFormData(prev => ({
             ...prev,
@@ -113,7 +108,7 @@ function CloudflarePublishPanel({ project, onRefresh }) {
         }));
       }
     } catch (err) {
-      console.error('Error fetching Cloudflare data:', err);
+      console.error('Error fetching Cloudflare data:', err.getUserMessage?.() || err.message);
     } finally {
       setLoading(false);
     }
@@ -138,34 +133,20 @@ function CloudflarePublishPanel({ project, onRefresh }) {
 
     try {
       // First update CLAUDE.md with the port
-      await fetch(`/api/admin/claude-md/${encodeURIComponent(project.name)}/port`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ port: parseInt(formData.localPort, 10) })
+      await cloudflareExtendedApi.updateClaudeMdPort(project.name, parseInt(formData.localPort, 10));
+
+      const data = await cloudflareApi.publish({
+        projectId: project.name,
+        subdomain: formData.subdomain,
+        localPort: parseInt(formData.localPort, 10),
+        description: formData.description || `Published from ${project.name}`
       });
-
-      const res = await fetch('/api/cloudflare/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId: project.name,
-          subdomain: formData.subdomain,
-          localPort: parseInt(formData.localPort, 10),
-          description: formData.description || `Published from ${project.name}`
-        })
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to publish');
-      }
 
       setSuccess(`Published to ${data.route.hostname}`);
       setRoute(data.route);
       onRefresh?.();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setPublishing(false);
     }
@@ -179,20 +160,12 @@ function CloudflarePublishPanel({ project, onRefresh }) {
     setError('');
 
     try {
-      const res = await fetch(`/api/cloudflare/publish/${encodeURIComponent(route.hostname)}`, {
-        method: 'DELETE'
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to unpublish');
-      }
-
+      await cloudflareApi.unpublish(route.hostname);
       setSuccess('Route unpublished');
       setRoute(null);
       onRefresh?.();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setPublishing(false);
     }
@@ -205,18 +178,13 @@ function CloudflarePublishPanel({ project, onRefresh }) {
     setSuccess('');
 
     try {
-      const res = await fetch('/api/cloudflare/sync', { method: 'POST' });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Sync failed');
-      }
-      const data = await res.json();
+      const data = await cloudflareApi.sync();
       setSuccess(`Synced ${data.synced} routes`);
       // Refresh data after sync
       await fetchData();
       onRefresh?.();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setSyncing(false);
     }
@@ -241,38 +209,23 @@ function CloudflarePublishPanel({ project, onRefresh }) {
 
     try {
       // Update CLAUDE.md with new port
-      await fetch(`/api/admin/claude-md/${encodeURIComponent(project.name)}/port`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ port: portNum })
-      });
+      await cloudflareExtendedApi.updateClaudeMdPort(project.name, portNum);
 
       // Update the Cloudflare route
-      const res = await fetch(`/api/cloudflare/routes/${encodeURIComponent(route.hostname)}/port`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ localPort: portNum })
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to update port');
-      }
+      await cloudflareApi.updatePort(route.hostname, portNum);
 
       // Restart project if running
       try {
-        await fetch(`/api/projects/${encodeURIComponent(project.name)}/restart`, {
-          method: 'POST'
-        });
+        await cloudflareExtendedApi.restartProject(project.name);
       } catch (e) {
-        console.warn('Could not restart project:', e);
+        console.warn('Could not restart project:', e.getUserMessage?.() || e.message);
       }
 
       setSuccess(`Port updated to ${portNum}`);
       fetchData(); // Refresh route data
       onRefresh?.();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setUpdatingPort(false);
     }

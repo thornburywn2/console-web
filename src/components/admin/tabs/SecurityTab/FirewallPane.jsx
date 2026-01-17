@@ -1,9 +1,12 @@
 /**
  * FirewallPane Component
  * UFW firewall management
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { firewallExtendedApi } from '../../../../services/api.js';
 
 export function FirewallPane() {
   const [firewallStatus, setFirewallStatus] = useState(null);
@@ -21,26 +24,17 @@ export function FirewallPane() {
   const fetchFirewallStatus = useCallback(async () => {
     try {
       setLoading(true);
-      const [statusRes, logsRes, portsRes] = await Promise.all([
-        fetch('/api/admin-users/firewall/status'),
-        fetch('/api/admin-users/firewall/logs'),
-        fetch('/api/admin-users/firewall/project-ports')
+      const [statusData, logsData, portsData] = await Promise.all([
+        firewallExtendedApi.getStatus(),
+        firewallExtendedApi.getLogs(),
+        firewallExtendedApi.getProjectPorts()
       ]);
 
-      if (statusRes.ok) {
-        const data = await statusRes.json();
-        setFirewallStatus(data.status);
-        setFirewallRules(data.rules || []);
-        setFirewallApps(data.apps || []);
-      }
-      if (logsRes.ok) {
-        const data = await logsRes.json();
-        setFirewallLogs(data.logs || []);
-      }
-      if (portsRes.ok) {
-        const data = await portsRes.json();
-        setProjectPorts(data.ports || []);
-      }
+      setFirewallStatus(statusData.status);
+      setFirewallRules(statusData.rules || []);
+      setFirewallApps(statusData.apps || []);
+      setFirewallLogs(logsData.logs || []);
+      setProjectPorts(portsData.ports || []);
     } catch (err) {
       console.error('Error fetching firewall status:', err);
     } finally {
@@ -51,13 +45,16 @@ export function FirewallPane() {
   const toggleFirewall = useCallback(async (enable) => {
     try {
       setLoading(true);
-      const endpoint = enable ? '/api/admin-users/firewall/enable' : '/api/admin-users/firewall/disable';
-      const res = await fetch(endpoint, { method: 'POST' });
-      if (!res.ok) throw new Error('Failed to toggle firewall');
+      if (enable) {
+        await firewallExtendedApi.enableFirewall();
+      } else {
+        await firewallExtendedApi.disableFirewall();
+      }
       fetchFirewallStatus();
       setSuccess(`Firewall ${enable ? 'enabled' : 'disabled'}`);
     } catch (err) {
-      setError(err.message);
+      const message = err.getUserMessage?.() || err.message;
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -67,19 +64,14 @@ export function FirewallPane() {
     try {
       setLoading(true);
       setError('');
-      const res = await fetch('/api/admin-users/firewall/rules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newRule)
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      await firewallExtendedApi.addRule(newRule);
       fetchFirewallStatus();
       setShowAddRule(false);
       setNewRule({ action: 'allow', port: '', protocol: 'tcp', from: 'any', comment: '' });
       setSuccess('Rule added successfully');
     } catch (err) {
-      setError(err.message);
+      const message = err.getUserMessage?.() || err.message;
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -89,18 +81,17 @@ export function FirewallPane() {
     try {
       setLoading(true);
       setError('');
-      const res = await fetch(`/api/admin-users/firewall/rules/${ruleNumber}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (!res.ok) {
-        if (data.protected) {
-          throw new Error('SSH rules cannot be deleted - SSH access is protected');
-        }
-        throw new Error(data.error || 'Failed to delete rule');
-      }
+      await firewallExtendedApi.deleteRule(ruleNumber);
       fetchFirewallStatus();
       setSuccess('Rule deleted');
     } catch (err) {
-      setError(err.message);
+      const message = err.getUserMessage?.() || err.message;
+      // Check for protected SSH rule
+      if (err.details?.protected) {
+        setError('SSH rules cannot be deleted - SSH access is protected');
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -110,18 +101,13 @@ export function FirewallPane() {
     try {
       setSyncingPorts(true);
       setError('');
-      const res = await fetch('/api/admin-users/firewall/sync-projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
+      const data = await firewallExtendedApi.syncProjectPorts();
       const { summary } = data;
       setSuccess(`Firewall synced! SSH: ${summary.sshStatus}, Added: ${summary.portsAdded} ports, Skipped: ${summary.portsSkipped} (already exist)`);
       fetchFirewallStatus();
     } catch (err) {
-      setError(err.message);
+      const message = err.getUserMessage?.() || err.message;
+      setError(message);
     } finally {
       setSyncingPorts(false);
     }

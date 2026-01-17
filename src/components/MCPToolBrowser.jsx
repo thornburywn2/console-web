@@ -1,9 +1,12 @@
 /**
  * MCPToolBrowser Component
  * Browse and test MCP tools across all servers
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect } from 'react';
+import { mcpApi } from '../services/api.js';
 
 export default function MCPToolBrowser({ servers }) {
   const [tools, setTools] = useState([]);
@@ -21,12 +24,10 @@ export default function MCPToolBrowser({ servers }) {
 
   const fetchTools = async () => {
     try {
-      const response = await fetch('/api/mcp/tools/all');
-      if (!response.ok) throw new Error('Failed to fetch tools');
-      const data = await response.json();
+      const data = await mcpApi.getAllTools();
       setTools(data);
     } catch (err) {
-      console.error('Error fetching tools:', err);
+      console.error('Error fetching tools:', err.getUserMessage?.() || err.message);
     } finally {
       setLoading(false);
     }
@@ -48,19 +49,8 @@ export default function MCPToolBrowser({ servers }) {
         return;
       }
 
-      const response = await fetch(`/api/mcp/${selectedTool.serverId}/tools/${selectedTool.name}/call`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ args })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setTestResult({ error: data.error || 'Tool call failed' });
-      } else {
-        setTestResult({ success: true, result: data.result });
-      }
+      const data = await mcpApi.callTool(selectedTool.serverId, selectedTool.name, args);
+      setTestResult({ success: true, result: data.result });
     } catch (err) {
       setTestResult({ error: err.message });
     } finally {

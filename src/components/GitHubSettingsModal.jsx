@@ -1,9 +1,12 @@
 /**
  * GitHub Settings Modal
  * Configure GitHub Personal Access Token and view authentication status
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect } from 'react';
+import { githubApi } from '../services/api.js';
 
 // GitHub Octocat icon
 function GitHubIcon({ className = "w-5 h-5" }) {
@@ -30,11 +33,10 @@ export default function GitHubSettingsModal({ isOpen, onClose }) {
 
   const checkAuthStatus = async () => {
     try {
-      const response = await fetch('/api/github/auth');
-      const data = await response.json();
+      const data = await githubApi.getAuthStatus();
       setAuthStatus(data);
     } catch (err) {
-      console.error('Error checking auth status:', err);
+      console.error('Error checking auth status:', err.getUserMessage?.() || err.message);
     }
   };
 
@@ -44,22 +46,11 @@ export default function GitHubSettingsModal({ isOpen, onClose }) {
     setError('');
 
     try {
-      const response = await fetch('/api/github/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accessToken })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to authenticate');
-      }
-
+      const data = await githubApi.authenticate(accessToken);
       setAuthStatus(data);
       setAccessToken('');
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setLoading(false);
     }
@@ -70,17 +61,10 @@ export default function GitHubSettingsModal({ isOpen, onClose }) {
     setError('');
 
     try {
-      const response = await fetch('/api/github/auth', {
-        method: 'DELETE'
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to disconnect');
-      }
-
+      await githubApi.disconnect();
       setAuthStatus({ authenticated: false });
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setLoading(false);
     }

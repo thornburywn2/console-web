@@ -4,13 +4,82 @@
  * - Consistent error handling
  * - Request/response logging
  * - Automatic retry logic
- * - Response type validation
+ * - Response type validation (Phase 5.2)
  * - Request cancellation support
  * - Authentication header injection
  * - Sentry error tracking with request IDs
  */
 
 import { captureException, addBreadcrumb, isSentryEnabled } from '../sentry.js';
+import {
+  validateResponse,
+  schemas,
+  systemStatsSchema,
+  settingsSchema,
+  projectsListSchema,
+  projectsExtendedListSchema,
+  sessionsListSchema,
+  foldersListSchema,
+  tagsListSchema,
+  dockerContainersSchema,
+  dockerImagesSchema,
+  dockerVolumesSchema,
+  servicesListSchema,
+  processesResponseSchema,
+  firewallStatusSchema,
+  firewallRulesSchema,
+  gitStatusSchema,
+  gitCommitsSchema,
+  gitBranchesSchema,
+  gitDiffSchema,
+  githubReposSchema,
+  githubRunsSchema,
+  aiUsageSchema,
+  personasListSchema,
+  agentsListSchema,
+  agentExecutionsSchema,
+  marketplaceAgentsSchema,
+  promptsListSchema,
+  snippetsListSchema,
+  shortcutsListSchema,
+  dashboardDataSchema,
+  notesListSchema,
+  metricsResponseSchema,
+  scheduledTasksSchema,
+  mcpServersSchema,
+  cloudflareTunnelStatusSchema,
+  codePuppyStatusSchema,
+  aiderStatusSchema,
+  tabbyStatusSchema,
+} from './responseSchemas.js';
+
+// =============================================================================
+// Validation Configuration (Phase 5.2)
+// =============================================================================
+
+/**
+ * Global validation configuration
+ * Set VITE_API_VALIDATION=true to enable response validation
+ */
+const validationConfig = {
+  enabled: import.meta.env.VITE_API_VALIDATION === 'true' || import.meta.env.DEV,
+  logWarnings: import.meta.env.DEV,
+  strictMode: false, // If true, throws on validation failure instead of returning data
+};
+
+/**
+ * Enable or disable API response validation at runtime
+ */
+export function setValidationEnabled(enabled) {
+  validationConfig.enabled = enabled;
+}
+
+/**
+ * Check if validation is enabled
+ */
+export function isValidationEnabled() {
+  return validationConfig.enabled;
+}
 
 // Request ID generator for tracing
 let requestId = 0;
@@ -386,15 +455,51 @@ const api = {
 };
 
 // ============================================
+// VALIDATION HELPERS (Phase 5.2)
+// ============================================
+
+/**
+ * Wraps an API call with optional response validation
+ * @param {Function} apiCall - The API method to call
+ * @param {z.ZodSchema} schema - The Zod schema to validate against
+ * @param {string} context - Context for error logging
+ * @returns {Promise<any>} The validated response data
+ */
+async function withValidation(apiCall, schema, context) {
+  const data = await apiCall();
+  if (validationConfig.enabled && schema) {
+    return validateResponse(schema, data, context);
+  }
+  return data;
+}
+
+/**
+ * Creates a validated API method
+ * @param {Function} method - The original API method
+ * @param {z.ZodSchema} schema - The response schema
+ * @param {string} context - Context string for logging
+ */
+function validated(method, schema, context) {
+  return async (...args) => {
+    const data = await method(...args);
+    if (validationConfig.enabled && schema) {
+      return validateResponse(schema, data, context);
+    }
+    return data;
+  };
+}
+
+// ============================================
 // DOMAIN-SPECIFIC API METHODS
 // ============================================
 
 /**
  * Project-related API methods
+ * Phase 5.2: Response validation enabled for list methods
  */
 export const projectsApi = {
-  list: () => api.get('/projects'),
-  listExtended: () => api.get('/admin/projects-extended'),
+  list: validated(() => api.get('/projects'), projectsListSchema, 'projectsApi.list'),
+  listExtended: validated(() => api.get('/admin/projects-extended'), projectsExtendedListSchema, 'projectsApi.listExtended'),
   get: (id) => api.get(`/projects/${encodeURIComponent(id)}`),
   getClaudeMd: (project) => api.get(`/admin/claude-md/${encodeURIComponent(project)}`),
   updateClaudeMd: (project, content) => api.put(`/admin/claude-md/${encodeURIComponent(project)}`, { content }),
@@ -405,22 +510,24 @@ export const projectsApi = {
 
 /**
  * System/Admin API methods
+ * Phase 5.2: Response validation enabled
  */
 export const systemApi = {
-  getStats: () => api.get('/admin/system'),
-  getDashboard: () => api.get('/dashboard'),
-  getSettings: () => api.get('/settings'),
+  getStats: validated(() => api.get('/admin/system'), systemStatsSchema, 'systemApi.getStats'),
+  getDashboard: validated(() => api.get('/dashboard'), dashboardDataSchema, 'systemApi.getDashboard'),
+  getSettings: validated(() => api.get('/settings'), settingsSchema, 'systemApi.getSettings'),
   updateSettings: (settings) => api.put('/settings', settings),
   getHealth: () => api.get('/health')
 };
 
 /**
  * Docker API methods
+ * Phase 5.2: Response validation enabled for list methods
  */
 export const dockerApi = {
-  listContainers: (all = true) => api.get(`/docker/containers?all=${all}`),
-  listImages: () => api.get('/docker/images'),
-  listVolumes: () => api.get('/docker/volumes'),
+  listContainers: validated((all = true) => api.get(`/docker/containers?all=${all}`), dockerContainersSchema, 'dockerApi.listContainers'),
+  listImages: validated(() => api.get('/docker/images'), dockerImagesSchema, 'dockerApi.listImages'),
+  listVolumes: validated(() => api.get('/docker/volumes'), dockerVolumesSchema, 'dockerApi.listVolumes'),
   startContainer: (id) => api.post(`/docker/containers/${id}/start`),
   stopContainer: (id) => api.post(`/docker/containers/${id}/stop`),
   restartContainer: (id) => api.post(`/docker/containers/${id}/restart`),
@@ -430,10 +537,11 @@ export const dockerApi = {
 
 /**
  * Infrastructure API methods
+ * Phase 5.2: Response validation enabled for list methods
  */
 export const infraApi = {
-  getServices: () => api.get('/server/services'),
-  getProcesses: () => api.get('/infra/processes'),
+  getServices: validated(() => api.get('/server/services'), servicesListSchema, 'infraApi.getServices'),
+  getProcesses: validated(() => api.get('/infra/processes'), processesResponseSchema, 'infraApi.getProcesses'),
   getNetworkInterfaces: () => api.get('/infra/network/interfaces'),
   ping: (host, count = 4) => api.post('/infra/network/ping', { host, count }),
   dnsLookup: (host, type = 'A') => api.post('/infra/network/dns', { host, type }),
@@ -444,10 +552,11 @@ export const infraApi = {
 
 /**
  * Firewall API methods
+ * Phase 5.2: Response validation enabled
  */
 export const firewallApi = {
-  getStatus: () => api.get('/admin-users/firewall/status'),
-  getRules: () => api.get('/admin-users/firewall/rules'),
+  getStatus: validated(() => api.get('/admin-users/firewall/status'), firewallStatusSchema, 'firewallApi.getStatus'),
+  getRules: validated(() => api.get('/admin-users/firewall/rules'), firewallRulesSchema, 'firewallApi.getRules'),
   addRule: (rule) => api.post('/admin-users/firewall/rules', rule),
   deleteRule: (number) => api.delete(`/admin-users/firewall/rules/${number}`),
   enable: () => api.post('/admin-users/firewall/enable'),
@@ -458,46 +567,92 @@ export const firewallApi = {
 
 /**
  * Sessions API methods
+ * Phase 5.2: Response validation enabled
  */
 export const sessionsApi = {
-  list: () => api.get('/sessions'),
+  list: validated(() => api.get('/sessions'), sessionsListSchema, 'sessionsApi.list'),
   get: (id) => api.get(`/sessions/${id}`),
   create: (data) => api.post('/sessions', data),
   update: (id, data) => api.put(`/sessions/${id}`, data),
   delete: (id) => api.delete(`/sessions/${id}`),
-  getFolders: () => api.get('/folders'),
-  getTags: () => api.get('/tags')
+  // Session operations
+  setFolder: (sessionId, folderId) => api.put(`/sessions/${sessionId}/folder`, { folderId }),
+  setPin: (sessionId, isPinned) => api.put(`/sessions/${sessionId}/pin`, { isPinned }),
+  setArchive: (sessionId, isArchived) => api.put(`/sessions/${sessionId}/archive`, { isArchived }),
+  addTag: (sessionId, tagId) => api.post(`/sessions/${sessionId}/tags/${tagId}`),
+  removeTag: (sessionId, tagId) => api.delete(`/sessions/${sessionId}/tags/${tagId}`),
+  // Bulk operations
+  bulk: (action, sessionIds) => api.post('/sessions/bulk', { action, sessionIds }),
+};
+
+/**
+ * Folders API methods
+ * Phase 5.2: Response validation enabled
+ */
+export const foldersApi = {
+  list: validated(() => api.get('/folders'), foldersListSchema, 'foldersApi.list'),
+  get: (id) => api.get(`/folders/${id}`),
+  create: (name, parentId = null) => api.post('/folders', { name, parentId }),
+  update: (id, data) => api.put(`/folders/${id}`, data),
+  delete: (id) => api.delete(`/folders/${id}`),
+};
+
+/**
+ * Tags API methods
+ * Phase 5.2: Response validation enabled
+ */
+export const tagsApi = {
+  list: validated(() => api.get('/tags'), tagsListSchema, 'tagsApi.list'),
+  get: (id) => api.get(`/tags/${id}`),
+  create: (data) => api.post('/tags', data),
+  update: (id, data) => api.put(`/tags/${id}`, data),
+  delete: (id) => api.delete(`/tags/${id}`),
 };
 
 /**
  * Prompts API methods
+ * Phase 5.2: Response validation enabled
  */
 export const promptsApi = {
-  list: () => api.get('/prompts'),
+  list: validated((params = {}) => {
+    const query = new URLSearchParams();
+    if (params.category) query.set('category', params.category);
+    if (params.favorite) query.set('favorite', 'true');
+    if (params.search) query.set('search', params.search);
+    const qs = query.toString();
+    return api.get(`/prompts${qs ? `?${qs}` : ''}`);
+  }, promptsListSchema, 'promptsApi.list'),
   get: (id) => api.get(`/prompts/${id}`),
+  getCategories: () => api.get('/prompts/categories'),
   create: (data) => api.post('/prompts', data),
   update: (id, data) => api.put(`/prompts/${id}`, data),
-  delete: (id) => api.delete(`/prompts/${id}`)
+  delete: (id) => api.delete(`/prompts/${id}`),
+  toggleFavorite: (id, isFavorite) => api.put(`/prompts/${id}/favorite`, { isFavorite }),
+  execute: (id, variables = {}) => api.post(`/prompts/${id}/execute`, { variables }),
 };
 
 /**
  * Snippets API methods
+ * Phase 5.2: Response validation enabled
  */
 export const snippetsApi = {
-  list: () => api.get('/snippets'),
+  list: validated(() => api.get('/snippets'), snippetsListSchema, 'snippetsApi.list'),
   get: (id) => api.get(`/snippets/${id}`),
   create: (data) => api.post('/snippets', data),
   update: (id, data) => api.put(`/snippets/${id}`, data),
-  delete: (id) => api.delete(`/snippets/${id}`)
+  delete: (id) => api.delete(`/snippets/${id}`),
+  run: (id) => api.post(`/snippets/${id}/run`),
+  toggleFavorite: (id, isFavorite) => api.put(`/snippets/${id}`, { isFavorite }),
 };
 
 /**
  * Cloudflare API methods
+ * Phase 5.2: Response validation enabled
  */
 export const cloudflareApi = {
   getSettings: () => api.get('/cloudflare/settings'),
   saveSettings: (settings) => api.post('/cloudflare/settings', settings),
-  getTunnelStatus: () => api.get('/cloudflare/tunnel/status'),
+  getTunnelStatus: validated(() => api.get('/cloudflare/tunnel/status'), cloudflareTunnelStatusSchema, 'cloudflareApi.getTunnelStatus'),
   getRoutes: () => api.get('/cloudflare/routes'),
   getMappedRoutes: () => api.get('/cloudflare/routes/mapped'),
   getProjectRoutes: (projectId) => api.get(`/cloudflare/routes/${encodeURIComponent(projectId)}`),
@@ -510,9 +665,10 @@ export const cloudflareApi = {
 
 /**
  * Agents API methods
+ * Phase 5.2: Response validation enabled
  */
 export const agentsApi = {
-  list: () => api.get('/agents'),
+  list: validated(() => api.get('/agents'), agentsListSchema, 'agentsApi.list'),
   get: (id) => api.get(`/agents/${id}`),
   create: (data) => api.post('/agents', data),
   update: (id, data) => api.put(`/agents/${id}`, data),
@@ -520,7 +676,7 @@ export const agentsApi = {
   run: (id) => api.post(`/agents/${id}/run`),
   stop: (id) => api.post(`/agents/${id}/stop`),
   toggle: (id) => api.post(`/agents/${id}/toggle`),
-  getMarketplace: () => api.get('/marketplace/agents'),
+  getMarketplace: validated(() => api.get('/marketplace/agents'), marketplaceAgentsSchema, 'agentsApi.getMarketplace'),
   installFromMarketplace: (id) => api.post(`/marketplace/agents/${id}/install`)
 };
 
@@ -532,6 +688,10 @@ export const searchApi = {
     let url = `/search?q=${encodeURIComponent(query)}&limit=${limit}`;
     if (types) url += `&types=${types}`;
     return api.get(url);
+  },
+  globalSearch: (query, category = 'all', limit = 20) => {
+    const params = new URLSearchParams({ q: query, category, limit: String(limit) });
+    return api.get(`/search/global?${params}`);
   },
   getSuggestions: (query, limit = 10) => api.get(`/search/suggestions?q=${encodeURIComponent(query)}&limit=${limit}`),
   getRecent: () => api.get('/search/recent'),
@@ -550,11 +710,12 @@ export const dbBrowserApi = {
 
 /**
  * Git API methods
+ * Phase 5.2: Response validation enabled
  */
 export const gitApi = {
-  getStatus: (project) => api.get(`/git/${encodeURIComponent(project)}/status`),
-  getBranches: (project) => api.get(`/git/${encodeURIComponent(project)}/branches`),
-  getLog: (project, limit = 20) => api.get(`/git/${encodeURIComponent(project)}/log?limit=${limit}`),
+  getStatus: validated((project) => api.get(`/git/${encodeURIComponent(project)}/status`), gitStatusSchema, 'gitApi.getStatus'),
+  getBranches: validated((project) => api.get(`/git/${encodeURIComponent(project)}/branches`), gitBranchesSchema, 'gitApi.getBranches'),
+  getLog: validated((project, limit = 20) => api.get(`/git/${encodeURIComponent(project)}/log?limit=${limit}`), gitCommitsSchema, 'gitApi.getLog'),
   commit: (project, message, files) => api.post(`/git/${encodeURIComponent(project)}/commit`, { message, files }),
   push: (project) => api.post(`/git/${encodeURIComponent(project)}/push`),
   pull: (project) => api.post(`/git/${encodeURIComponent(project)}/pull`),
@@ -569,6 +730,763 @@ export const dependenciesApi = {
   update: (projectPath, packageName) => api.post('/dependencies/update', { projectPath, packageName }),
   updateAll: (projectPath) => api.post('/dependencies/update-all', { projectPath }),
   auditFix: (projectPath) => api.post('/dependencies/audit-fix', { projectPath })
+};
+
+/**
+ * Authentik SSO API methods
+ */
+export const authentikApi = {
+  getStatus: () => api.get('/admin-users/authentik/status'),
+  getSettings: () => api.get('/admin-users/authentik/settings'),
+  saveSettings: (settings) => api.post('/admin-users/authentik/settings', settings),
+  listUsers: (search = '') => {
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    return api.get(`/admin-users/authentik/users?${params}`);
+  },
+  createUser: (userData) => api.post('/admin-users/authentik/users', userData),
+  listGroups: () => api.get('/admin-users/authentik/groups'),
+};
+
+/**
+ * Server API methods (logs, services)
+ */
+export const serverApi = {
+  getLogs: (filter = {}) => {
+    const params = new URLSearchParams();
+    if (filter.unit) params.append('unit', filter.unit);
+    if (filter.priority) params.append('priority', filter.priority);
+    params.append('lines', filter.lines || 100);
+    return api.get(`/server/logs?${params}`);
+  },
+  getServices: () => api.get('/server/services'),
+};
+
+/**
+ * Extended Infrastructure API methods
+ */
+export const infraExtendedApi = {
+  // Network
+  getNetworkInterfaces: () => api.get('/infra/network/interfaces'),
+  getNetworkConnections: () => api.get('/infra/network/connections'),
+  ping: (host) => api.post('/infra/network/ping', { host }),
+  dnsLookup: (host) => api.post('/infra/network/dns', { host }),
+
+  // Packages
+  getPackages: () => api.get('/infra/packages'),
+  getPackageUpdates: () => api.get('/infra/packages/updates'),
+  searchPackages: (query) => api.get(`/infra/packages/search?q=${encodeURIComponent(query)}`),
+  installPackage: (packageName) => api.post('/infra/packages/install', { package: packageName }),
+  upgradeAllPackages: () => api.post('/infra/packages/upgrade-all'),
+
+  // Processes
+  getProcesses: (sort = 'cpu') => api.get(`/infra/processes?sort=${sort}`),
+  killProcess: (pid, signal = 'SIGTERM') => api.post(`/infra/processes/${pid}/kill`, { signal }),
+
+  // Scheduled tasks
+  getCronJobs: () => api.get('/infra/scheduled/cron'),
+  getSystemdTimers: () => api.get('/infra/scheduled/timers'),
+  addCronJob: (schedule, command) => api.post('/infra/scheduled/cron', { schedule, command }),
+  deleteCronJob: (index) => api.delete(`/infra/scheduled/cron/${index}`),
+  toggleTimer: (timerName) => api.post(`/infra/scheduled/timers/${timerName}/toggle`),
+
+  // Security
+  getFail2banStatus: () => api.get('/infra/security/fail2ban/status'),
+  getSshSessions: () => api.get('/infra/security/ssh/sessions'),
+  getSshFailedAttempts: () => api.get('/infra/security/ssh/failed'),
+  getSshKeys: () => api.get('/infra/security/ssh/keys'),
+  getOpenPorts: () => api.get('/infra/security/ports'),
+  getLastLogins: () => api.get('/infra/security/last-logins'),
+  unbanIp: (jail, ip) => api.post(`/infra/security/fail2ban/${jail}/unban`, { ip }),
+};
+
+/**
+ * Stack (Sovereign Stack) API methods
+ */
+export const stackApi = {
+  getServices: () => api.get('/stack/services'),
+  getHealth: () => api.get('/stack/health'),
+  restartService: (serviceId) => api.post(`/stack/services/${serviceId}/restart`),
+};
+
+/**
+ * Server Users API methods (Linux users/groups)
+ */
+export const serverUsersApi = {
+  listUsers: () => api.get('/admin-users/server/users'),
+  listGroups: () => api.get('/admin-users/server/groups'),
+  listShells: () => api.get('/admin-users/server/shells'),
+  createUser: (userData) => api.post('/admin-users/server/users', userData),
+  deleteUser: (username) => api.delete(`/admin-users/server/users/${username}`),
+};
+
+/**
+ * Extended Firewall API methods
+ */
+export const firewallExtendedApi = {
+  getStatus: () => api.get('/admin-users/firewall/status'),
+  getLogs: () => api.get('/admin-users/firewall/logs'),
+  getProjectPorts: () => api.get('/admin-users/firewall/project-ports'),
+  enableFirewall: () => api.post('/admin-users/firewall/enable'),
+  disableFirewall: () => api.post('/admin-users/firewall/disable'),
+  addRule: (rule) => api.post('/admin-users/firewall/rules', rule),
+  deleteRule: (ruleNumber) => api.delete(`/admin-users/firewall/rules/${ruleNumber}`),
+  syncProjectPorts: () => api.post('/admin-users/firewall/sync-projects'),
+};
+
+/**
+ * Admin API methods
+ */
+export const adminApi = {
+  getHistory: (limit = 50) => api.get(`/admin/history?limit=${limit}`),
+  getProjectsExtended: () => api.get('/admin/projects-extended'),
+  getClaudeMd: (project) => api.get(`/admin/claude-md/${encodeURIComponent(project)}`),
+  updateClaudeMd: (project, content) => api.put(`/admin/claude-md/${encodeURIComponent(project)}`, { content }),
+};
+
+/**
+ * AI API methods (usage tracking, cost estimation)
+ * Phase 5.2: Response validation enabled
+ */
+export const aiApi = {
+  getUsage: validated((params = {}) => {
+    const query = new URLSearchParams();
+    if (params.sessionId) query.set('sessionId', params.sessionId);
+    if (params.projectId) query.set('projectId', params.projectId);
+    if (params.range) query.set('range', params.range);
+    return api.get(`/ai/usage?${query}`);
+  }, aiUsageSchema, 'aiApi.getUsage'),
+};
+
+/**
+ * Marketplace API methods
+ */
+export const marketplaceApi = {
+  getAgents: () => api.get('/marketplace/agents'),
+  getCategories: () => api.get('/marketplace/categories'),
+  getStats: () => api.get('/marketplace/stats'),
+  installAgent: (id, config = {}) => api.post(`/marketplace/agents/${id}/install`, { config }),
+  uninstallAgent: (id) => api.delete(`/marketplace/agents/${id}/uninstall`),
+};
+
+/**
+ * Files API methods
+ */
+export const filesApi = {
+  list: (path) => api.get(`/files/${encodeURIComponent(path)}`),
+  get: (path) => api.get(`/files/content/${encodeURIComponent(path)}`),
+  create: (path, content) => api.post('/files', { path, content }),
+  update: (path, content) => api.put(`/files/${encodeURIComponent(path)}`, { content }),
+  delete: (path) => api.delete(`/files/${encodeURIComponent(path)}`),
+};
+
+/**
+ * MCP Server Catalog API methods
+ */
+export const mcpCatalogApi = {
+  getCatalog: () => api.get('/mcp/catalog'),
+  getInstalled: () => api.get('/mcp/catalog/installed'),
+  install: (serverId, config = {}) => api.post(`/mcp/catalog/install/${serverId}`, config),
+};
+
+/**
+ * Lifecycle API methods (security scanning, tools)
+ */
+export const lifecycleApi = {
+  getToolsStatus: () => api.get('/lifecycle/tools/status'),
+  installTool: (tool, command) => api.post('/lifecycle/tools/install', { tool, command }),
+  runScan: (agent, command, project) => api.post('/lifecycle/scan', { agent, command, project }),
+};
+
+/**
+ * Extended Agents API methods (runner status, metadata)
+ */
+export const agentsExtendedApi = {
+  list: () => api.get('/agents'),
+  get: (id) => api.get(`/agents/${id}`),
+  create: (data) => api.post('/agents', data),
+  update: (id, data) => api.put(`/agents/${id}`, data),
+  delete: (id) => api.delete(`/agents/${id}`),
+  run: (id) => api.post(`/agents/${id}/run`),
+  stop: (id) => api.post(`/agents/${id}/stop`),
+  toggle: (id) => api.post(`/agents/${id}/toggle`),
+  getRunnerStatus: () => api.get('/agents/status/runner'),
+  getTriggerTypes: () => api.get('/agents/meta/triggers'),
+  getActionTypes: () => api.get('/agents/meta/actions'),
+};
+
+/**
+ * Proxy API methods (for API tester)
+ */
+export const proxyApi = {
+  request: (url, method, headers, body) => api.post('/proxy', { url, method, headers, body }),
+};
+
+/**
+ * Logs API methods
+ */
+export const logsApi = {
+  get: (path, lines = 1000) => api.get(`/logs/${encodeURIComponent(path)}?lines=${lines}`),
+};
+
+/**
+ * Backups API methods
+ */
+export const backupsApi = {
+  list: (projectPath) => api.get(`/backups/${encodeURIComponent(projectPath)}`),
+  create: (projectPath, data) => api.post(`/backups/${encodeURIComponent(projectPath)}`, data),
+  restore: (projectPath, backupId) => api.post(`/backups/${encodeURIComponent(projectPath)}/${backupId}/restore`),
+  delete: (projectPath, backupId) => api.delete(`/backups/${encodeURIComponent(projectPath)}/${backupId}`),
+  saveSchedule: (projectPath, schedule) => api.put(`/backups/${encodeURIComponent(projectPath)}/schedule`, schedule),
+};
+
+/**
+ * Share API methods
+ */
+export const shareApi = {
+  createSession: (data) => api.post('/share/session', data),
+  revokeSession: (shareId) => api.delete(`/share/session/${encodeURIComponent(shareId)}`),
+};
+
+/**
+ * Team API methods
+ */
+export const teamApi = {
+  listMembers: () => api.get('/team/members'),
+};
+
+/**
+ * Session handoff (extends sessionsApi)
+ */
+export const sessionHandoffApi = {
+  handoff: (sessionId, data) => api.post(`/sessions/${sessionId}/handoff`, data),
+};
+
+/**
+ * Uptime API methods
+ */
+export const uptimeApi = {
+  getServices: () => api.get('/uptime'),
+};
+
+/**
+ * Project Templates/Compliance API methods
+ */
+export const projectTemplatesApi = {
+  checkPath: (projectPath) => api.post('/project-templates/check-path', { projectPath }),
+  migrate: (projectPath, options) => api.post('/project-templates/migrate', { projectPath, options }),
+};
+
+/**
+ * Status Page API methods
+ */
+export const statusApi = {
+  getStatus: () => api.get('/status'),
+};
+
+/**
+ * Ports API methods
+ */
+export const portsApi = {
+  getStatus: () => api.get('/ports/status'),
+  scan: (start, end) => api.get(`/ports/scan?start=${start}&end=${end}`),
+  suggest: (base) => api.get(`/ports/suggest?base=${base}`),
+  check: (port) => api.get(`/ports/check/${port}`),
+  kill: (pid) => api.post(`/ports/kill/${pid}`),
+};
+
+/**
+ * Session History API methods
+ */
+export const sessionHistoryApi = {
+  getHistory: (sessionId) => api.get(`/sessions/${sessionId}/history`),
+};
+
+/**
+ * Comments API methods
+ */
+export const commentsApi = {
+  list: (sessionId, line) => api.get(`/sessions/${sessionId}/comments?line=${line}`),
+  getCounts: (sessionId) => api.get(`/sessions/${sessionId}/comments/counts`),
+  create: (sessionId, data) => api.post(`/sessions/${sessionId}/comments`, data),
+  delete: (sessionId, commentId) => api.delete(`/sessions/${sessionId}/comments/${commentId}`),
+};
+
+/**
+ * AI Costs API methods
+ */
+export const aiCostsApi = {
+  getCosts: (range = '7d') => api.get(`/ai/costs?range=${range}`),
+};
+
+/**
+ * Commands API methods
+ */
+export const commandsApi = {
+  getHistory: () => api.get('/commands/history'),
+};
+
+/**
+ * Network API methods
+ */
+export const networkApi = {
+  getStats: () => api.get('/network'),
+};
+
+/**
+ * Docker Extended API methods (container stats)
+ */
+export const dockerStatsApi = {
+  getContainerStats: () => api.get('/docker/containers/stats'),
+};
+
+/**
+ * Tests API methods
+ */
+export const testsApi = {
+  run: (projectPath, testName) => api.post('/tests/run', { projectPath, testName }),
+};
+
+/**
+ * Files Content API methods
+ */
+export const filesContentApi = {
+  getContent: (filePath) => api.get(`/files/${encodeURIComponent(filePath)}/content`),
+};
+
+/**
+ * GitHub API methods
+ * Phase 5.2: Response validation enabled
+ */
+export const githubApi = {
+  getAuthStatus: () => api.get('/github/auth'),
+  authenticate: (accessToken) => api.post('/github/auth', { accessToken }),
+  disconnect: () => api.delete('/github/auth'),
+  getRepos: validated((page = 1, perPage = 30) => api.get(`/github/repos?page=${page}&per_page=${perPage}`), githubReposSchema, 'githubApi.getRepos'),
+  searchRepos: (query, page = 1) => api.get(`/github/repos/search?q=${encodeURIComponent(query)}&page=${page}`),
+  cloneRepo: (owner, repo) => api.post('/github/clone', { owner, repo }),
+};
+
+/**
+ * Browser Session API methods
+ */
+export const browserApi = {
+  createSession: (data) => api.post('/browser', data),
+  navigate: (sessionId, url) => api.post(`/browser/${sessionId}/navigate`, { url }),
+  updateSession: (sessionId, data) => api.put(`/browser/${sessionId}`, data),
+  closeSession: (sessionId) => api.post(`/browser/${sessionId}/close`),
+  getScreenshots: (sessionId) => api.get(`/browser/${sessionId}/screenshots`),
+  saveScreenshot: (sessionId, data) => api.post(`/browser/${sessionId}/screenshots`, data),
+  saveConsoleLogs: (sessionId, logs) => api.post(`/browser/${sessionId}/console`, { logs }),
+};
+
+/**
+ * MCP Server API methods
+ */
+export const mcpApi = {
+  getAllTools: () => api.get('/mcp/tools/all'),
+  callTool: (serverId, toolName, args) => api.post(`/mcp/${serverId}/tools/${toolName}/call`, { args }),
+};
+
+/**
+ * Aider AI API methods
+ * Phase 5.2: Response validation enabled
+ */
+export const aiderApi = {
+  getStatus: validated(() => api.get('/aider/status'), aiderStatusSchema, 'aiderApi.getStatus'),
+  getModels: () => api.get('/aider/models'),
+  getConfig: () => api.get('/aider/config'),
+  createSession: (data) => api.post('/aider/sessions', data),
+  deleteSession: (sessionId) => api.delete(`/aider/sessions/${sessionId}`),
+  sendInput: (sessionId, input) => api.post(`/aider/sessions/${sessionId}/input`, { input }),
+  toggleVoice: (sessionId, action) => api.post(`/aider/sessions/${sessionId}/voice/${action}`),
+};
+
+/**
+ * Memory Bank API methods
+ */
+export const memoryApi = {
+  list: (params) => api.get(`/memory?${params.toString()}`),
+  getStats: (projectId) => api.get(`/memory/stats/overview${projectId ? `?projectId=${projectId}` : ''}`),
+  create: (data) => api.post('/memory', data),
+  update: (id, data) => api.put(`/memory/${id}`, data),
+  delete: (id) => api.delete(`/memory/${id}`),
+};
+
+/**
+ * Alerts API methods
+ */
+export const alertsApi = {
+  list: () => api.get('/alerts'),
+  create: (rule) => api.post('/alerts', rule),
+  update: (id, rule) => api.put(`/alerts/${id}`, rule),
+  delete: (id) => api.delete(`/alerts/${id}`),
+};
+
+/**
+ * MCP Servers API methods (extended)
+ * Phase 5.2: Response validation enabled
+ */
+export const mcpServersApi = {
+  list: validated(() => api.get('/mcp'), mcpServersSchema, 'mcpServersApi.list'),
+  create: (serverData) => api.post('/mcp', serverData),
+  update: (id, serverData) => api.put(`/mcp/${id}`, serverData),
+  delete: (id) => api.delete(`/mcp/${id}`),
+  action: (id, action) => api.post(`/mcp/${id}/${action}`),
+};
+
+/**
+ * Claude Flow API methods (experimental)
+ */
+export const claudeFlowApi = {
+  getStatus: () => api.get('/claude-flow/status'),
+  getRoles: () => api.get('/claude-flow/roles'),
+  getTemplates: () => api.get('/claude-flow/templates'),
+  getSwarms: () => api.get('/claude-flow/swarms'),
+  install: (options) => api.post('/claude-flow/install', options),
+  createSwarm: (data) => api.post('/claude-flow/swarms', data),
+  deleteSwarm: (id) => api.delete(`/claude-flow/swarms/${id}`),
+  sendTask: (id, task) => api.post(`/claude-flow/swarms/${id}/task`, { task }),
+};
+
+/**
+ * Tabby API methods
+ * Phase 5.2: Response validation enabled
+ */
+export const tabbyApi = {
+  getStatus: validated(() => api.get('/tabby/status'), tabbyStatusSchema, 'tabbyApi.getStatus'),
+  getModels: () => api.get('/tabby/models'),
+  getConfig: () => api.get('/tabby/config'),
+  saveConfig: (config) => api.put('/tabby/config', config),
+  getLogs: (tail = 100) => api.get(`/tabby/logs?tail=${tail}`),
+  getIdeConfig: () => api.get('/tabby/ide-config'),
+  start: (config) => api.post('/tabby/start', config),
+  stop: () => api.post('/tabby/stop'),
+  restart: () => api.post('/tabby/restart'),
+  pull: (options) => api.post('/tabby/pull', options),
+  test: (code) => api.post('/tabby/test', { code }),
+};
+
+/**
+ * Checkpoints API methods
+ */
+export const checkpointsApi = {
+  getByProject: (projectId, limit = 50) => api.get(`/checkpoints/project/${projectId}?limit=${limit}`),
+  getStats: (projectId) => api.get(`/checkpoints/project/${projectId}/stats`),
+  create: (data) => api.post('/checkpoints', data),
+  update: (id, data) => api.put(`/checkpoints/${id}`, data),
+  delete: (id) => api.delete(`/checkpoints/${id}`),
+  restore: (id, options) => api.post(`/checkpoints/${id}/restore`, options),
+  cleanup: () => api.post('/checkpoints/cleanup'),
+};
+
+/**
+ * Code Puppy API methods
+ * Phase 5.1: Centralized API for Code Puppy AI assistant
+ * Phase 5.2: Response validation enabled
+ */
+export const codePuppyApi = {
+  // Status & Info
+  getStatus: validated(() => api.get('/code-puppy/status'), codePuppyStatusSchema, 'codePuppyApi.getStatus'),
+  getProviders: () => api.get('/code-puppy/providers'),
+  getTools: () => api.get('/code-puppy/tools'),
+  getCommands: () => api.get('/code-puppy/commands'),
+
+  // Sessions
+  getSessions: () => api.get('/code-puppy/sessions'),
+  createSession: (data) => api.post('/code-puppy/sessions', data),
+  stopSession: (sessionId) => api.post(`/code-puppy/sessions/${sessionId}/stop`),
+  deleteSession: (sessionId) => api.delete(`/code-puppy/sessions/${sessionId}`),
+  sendInput: (sessionId, input) => api.post(`/code-puppy/sessions/${sessionId}/input`, { input }),
+
+  // Agents
+  getAgents: () => api.get('/code-puppy/agents'),
+  createAgent: (data) => api.post('/code-puppy/agents', data),
+  deleteAgent: (agentName) => api.delete(`/code-puppy/agents/${agentName}`),
+
+  // Config
+  getConfig: () => api.get('/code-puppy/config'),
+  updateConfig: (key, value) => api.put(`/code-puppy/config/${key}`, { value }),
+
+  // MCP Servers
+  getMcpServers: () => api.get('/code-puppy/mcp'),
+  addMcpServer: (name, command, args) => api.post('/code-puppy/mcp', { name, command, args }),
+  removeMcpServer: (name) => api.delete(`/code-puppy/mcp/${name}`),
+  getClaudeConfig: () => api.get('/code-puppy/mcp/claude-config'),
+  syncFromClaude: (mode = 'merge') => api.post('/code-puppy/mcp/sync-claude', { mode }),
+};
+
+/**
+ * Environment Files API methods
+ * Phase 5.1: Centralized API for .env file management
+ */
+export const envApi = {
+  getFiles: (projectPath) => api.get(`/env/files/${encodeURIComponent(projectPath || '')}`),
+  getVariables: (projectPath, fileName) => api.get(`/env/variables/${encodeURIComponent(projectPath || '')}/${encodeURIComponent(fileName)}`),
+  compare: (projectPath, source, target) => api.get(`/env/compare/${encodeURIComponent(projectPath || '')}?source=${encodeURIComponent(source)}&target=${encodeURIComponent(target)}`),
+  save: (projectPath, fileName, variables) => api.post(`/env/save/${encodeURIComponent(projectPath || '')}/${encodeURIComponent(fileName)}`, { variables }),
+  sync: (projectPath, source, target) => api.post(`/env/sync/${encodeURIComponent(projectPath || '')}`, { source, target }),
+  generateExample: (projectPath, source) => api.post(`/env/generate-example/${encodeURIComponent(projectPath || '')}`, { source }),
+};
+
+/**
+ * Project Tags API methods
+ * Phase 5.1: Centralized API for project tag management
+ */
+export const projectTagsApi = {
+  list: () => api.get('/project-tags'),
+  create: (data) => api.post('/project-tags', data),
+  getProjectTags: (encodedPath) => api.get(`/projects/by-path/${encodedPath}/tags`),
+  addToProject: (encodedPath, tagId) => api.post(`/projects/by-path/${encodedPath}/tags/${tagId}`),
+  removeFromProject: (encodedPath, tagId) => api.delete(`/projects/by-path/${encodedPath}/tags/${tagId}`),
+};
+
+/**
+ * Extended Cloudflare API methods (port updates, project restarts)
+ * Phase 5.1: Additional methods for CloudflarePublishPanel
+ */
+export const cloudflareExtendedApi = {
+  updateClaudeMdPort: (project, port) => api.put(`/admin/claude-md/${encodeURIComponent(project)}/port`, { port }),
+  restartProject: (project) => api.post(`/projects/${encodeURIComponent(project)}/restart`),
+};
+
+/**
+ * Observability API methods (Jaeger, Loki, Promtail)
+ * Phase 5.1: Centralized API for observability stack
+ */
+export const observabilityApi = {
+  // Stack management
+  getStackStatus: () => api.get('/observability/stack/status'),
+  stackAction: (action) => api.post(`/observability/stack/${action}`),
+
+  // Jaeger traces
+  getServices: () => api.get('/observability/services'),
+  getOperations: (service) => api.get(`/observability/operations/${encodeURIComponent(service)}`),
+  searchTraces: (params) => {
+    const query = new URLSearchParams(params);
+    return api.get(`/observability/traces?${query}`);
+  },
+
+  // Loki logs
+  getLabels: () => api.get('/observability/loki/labels'),
+  queryLogs: (query, limit = 100) => {
+    const params = new URLSearchParams({ query, limit: String(limit) });
+    return api.get(`/observability/loki/query?${params}`);
+  },
+};
+
+/**
+ * Plans API methods
+ * Phase 5.1: Centralized API for plan management
+ */
+export const plansApi = {
+  list: (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.projectId) query.set('projectId', params.projectId);
+    if (params.sessionId) query.set('sessionId', params.sessionId);
+    return api.get(`/plans?${query}`);
+  },
+  get: (id) => api.get(`/plans/${id}`),
+  getDiagram: (id) => api.get(`/plans/${id}/diagram`),
+  create: (data) => api.post('/plans', data),
+  updateStep: (planId, stepId, data) => api.put(`/plans/${planId}/steps/${stepId}`, data),
+  execute: (id) => api.post(`/plans/${id}/execute`),
+  action: (id, action) => api.post(`/plans/${id}/${action}`),
+};
+
+/**
+ * Projects Extended API methods
+ * Phase 5.1: Centralized API for project creation and management
+ */
+export const projectsExtendedApi = {
+  list: () => api.get('/projects-extended'),
+  create: (data) => api.post('/projects', data),
+  createGitHubRepo: (projectName, data) => api.post(`/github/projects/${encodeURIComponent(projectName)}/create`, data),
+};
+
+/**
+ * GitHub Extended API methods
+ * Phase 5.1: Additional GitHub methods
+ */
+export const githubExtendedApi = {
+  getSettings: () => api.get('/github/settings'),
+};
+
+/**
+ * System Version API methods
+ * Phase 5.1: System version and update management
+ */
+export const systemVersionApi = {
+  getVersion: () => api.get('/system/version'),
+  triggerUpdate: () => api.post('/system/update'),
+};
+
+/**
+ * Shortcuts API methods
+ * Phase 5.1: Keyboard shortcuts management
+ */
+export const shortcutsApi = {
+  list: () => api.get('/shortcuts'),
+  update: (action, keys) => api.put(`/shortcuts/${action}`, { keys }),
+  reset: (action) => api.delete(`/shortcuts/${action}`),
+  resetAll: () => api.post('/shortcuts/reset-all'),
+};
+
+/**
+ * AI Personas API methods
+ * Phase 5.1: AI persona management
+ */
+export const personasApi = {
+  list: () => api.get('/ai/personas'),
+  create: (persona) => api.post('/ai/personas', persona),
+  update: (id, persona) => api.put(`/ai/personas/${id}`, persona),
+  delete: (id) => api.delete(`/ai/personas/${id}`),
+};
+
+/**
+ * Config API methods
+ * Phase 5.1: Server configuration
+ */
+export const configApi = {
+  get: () => api.get('/config'),
+};
+
+/**
+ * Authentik Settings API methods
+ * Phase 5.1: Authentik SSO settings through Cloudflare route
+ */
+export const authentikSettingsApi = {
+  get: () => api.get('/cloudflare/authentik/settings'),
+  save: (settings) => api.post('/cloudflare/authentik/settings', settings),
+};
+
+/**
+ * Lifecycle Extended API methods
+ * Phase 5.1: Security scanning settings and queue management
+ */
+export const lifecycleExtendedApi = {
+  getSettings: () => api.get('/lifecycle/settings'),
+  reloadSettings: () => api.post('/lifecycle/settings/reload'),
+  getRecommendations: () => api.get('/lifecycle/recommendations'),
+  getQueue: () => api.get('/lifecycle/queue'),
+  cancelQueue: () => api.post('/lifecycle/queue/cancel'),
+};
+
+/**
+ * Voice API methods
+ * Phase 5.1: Voice command interface
+ */
+export const voiceApi = {
+  getSettings: () => api.get('/voice/settings'),
+  updateSettings: (settings) => api.put('/voice/settings', settings),
+  process: (data) => api.post('/voice/process', data),
+  execute: (data) => api.post('/voice/execute', data),
+};
+
+/**
+ * Project Context API methods
+ * Phase 5.1: Project settings, notes, and context management
+ */
+export const projectContextApi = {
+  // Settings
+  getSettings: (encodedPath) => api.get(`/projects/by-path/${encodedPath}/settings`),
+  updateSettings: (encodedPath, updates) => api.patch(`/projects/by-path/${encodedPath}/settings`, updates),
+
+  // Notes
+  getNotes: (encodedPath) => api.get(`/projects/by-path/${encodedPath}/notes`),
+  createNote: (encodedPath, data) => api.post(`/projects/by-path/${encodedPath}/notes`, data),
+  updateNote: (noteId, data) => api.put(`/projects/notes/${noteId}`, data),
+  deleteNote: (noteId) => api.delete(`/projects/notes/${noteId}`),
+
+  // Stats
+  getStats: (path) => api.get(`/admin/project-stats?path=${encodeURIComponent(path)}`),
+
+  // Clone
+  clone: (data) => api.post('/projects/clone', data),
+};
+
+/**
+ * GitHub Projects API methods
+ * Phase 5.1: GitHub project management (per-project operations)
+ */
+export const githubProjectsApi = {
+  get: (projectName) => api.get(`/github/projects/${encodeURIComponent(projectName)}`),
+  getRuns: (projectName, perPage = 5) => api.get(`/github/projects/${encodeURIComponent(projectName)}/runs?per_page=${perPage}`),
+  push: (projectName) => api.post(`/github/projects/${encodeURIComponent(projectName)}/push`),
+  pull: (projectName) => api.post(`/github/projects/${encodeURIComponent(projectName)}/pull`),
+  fetch: (projectName) => api.post(`/github/projects/${encodeURIComponent(projectName)}/fetch`),
+  create: (projectName, data) => api.post(`/github/projects/${encodeURIComponent(projectName)}/create`, data),
+  unlink: (projectName) => api.delete(`/github/projects/${encodeURIComponent(projectName)}`),
+};
+
+/**
+ * Metrics API methods
+ * Phase 5.1: Resource metrics (CPU, memory, disk)
+ */
+export const metricsApi = {
+  get: (metric, minutes = 60) => api.get(`/metrics/${metric}?minutes=${minutes}`),
+};
+
+/**
+ * Project Contexts API methods
+ * Phase 5.1: Project context management (files, snippets, notes)
+ */
+export const projectContextsApi = {
+  list: (projectName) => api.get(`/projects/${encodeURIComponent(projectName)}/contexts`),
+  create: (projectName, data) => api.post(`/projects/${encodeURIComponent(projectName)}/contexts`, data),
+  delete: (projectName, contextId) => api.delete(`/projects/${encodeURIComponent(projectName)}/contexts/${contextId}`),
+};
+
+/**
+ * Scheduled Tasks API methods
+ * Phase 5.1: Cron job scheduling
+ */
+export const scheduledTasksApi = {
+  list: () => api.get('/workflows/scheduled'),
+  create: (data) => api.post('/workflows/scheduled', data),
+  update: (id, data) => api.put(`/workflows/scheduled/${id}`, data),
+  delete: (id) => api.delete(`/workflows/scheduled/${id}`),
+  run: (id) => api.post(`/workflows/scheduled/${id}/run`),
+};
+
+/**
+ * Agent Executions API methods
+ * Phase 5.1: Agent execution history with pagination
+ */
+export const agentExecutionsApi = {
+  list: (agentId, page = 1, limit = 50) => api.get(`/agents/${agentId}?page=${page}&limit=${limit}`),
+};
+
+/**
+ * Diff API methods
+ * Phase 5.1: Git diff visualization
+ */
+export const diffApi = {
+  get: (projectPath, commitHash = null) => {
+    const url = commitHash
+      ? `/diff/${encodeURIComponent(projectPath)}?commit=${commitHash}`
+      : `/diff/${encodeURIComponent(projectPath)}`;
+    return api.get(url);
+  },
+};
+
+/**
+ * Notes API methods
+ * Phase 5.1: Session notes management
+ */
+export const notesApi = {
+  list: (projectPath) => api.get(`/notes?projectPath=${encodeURIComponent(projectPath)}`),
+  create: (sessionId, content) => api.post('/notes', { sessionId, content }),
+  update: (noteId, sessionId, content) => api.put(`/notes/${noteId}`, { sessionId, content }),
+  delete: (noteId) => api.delete(`/notes/${noteId}`),
+};
+
+/**
+ * Sessions Persisted API methods
+ * Phase 5.1: Persisted session management for auto-reconnect
+ */
+export const sessionsPersistedApi = {
+  list: () => api.get('/sessions/persisted'),
 };
 
 export default api;

@@ -1,9 +1,12 @@
 /**
  * GitHub Project Panel
  * Displays GitHub info and actions for a project in the RightSidebar
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { githubProjectsApi } from '../services/api.js';
 
 // GitHub Octocat icon
 function GitHubIcon({ className = "w-4 h-4" }) {
@@ -48,26 +51,22 @@ export default function GitHubProjectPanel({ project, onRefresh, onOpenSettings 
     setError('');
 
     try {
-      const response = await fetch(`/api/github/projects/${encodeURIComponent(project.name)}`);
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch GitHub data');
-      }
-
+      const data = await githubProjectsApi.get(project.name);
       setGithubData(data);
 
       // Fetch workflow runs if linked
       if (data.linked) {
-        const runsResponse = await fetch(`/api/github/projects/${encodeURIComponent(project.name)}/runs?per_page=5`);
-        if (runsResponse.ok) {
-          const runsData = await runsResponse.json();
+        try {
+          const runsData = await githubProjectsApi.getRuns(project.name, 5);
           setWorkflowRuns(runsData.runs || []);
+        } catch {
+          // Workflow runs are optional, don't fail on error
         }
       }
     } catch (err) {
-      if (err.message !== 'GitHub not authenticated') {
-        setError(err.message);
+      const message = err.getUserMessage?.() || err.message;
+      if (message !== 'GitHub not authenticated') {
+        setError(message);
       }
     } finally {
       setLoading(false);
@@ -82,13 +81,10 @@ export default function GitHubProjectPanel({ project, onRefresh, onOpenSettings 
   const handlePush = async () => {
     setSyncing('push');
     try {
-      const response = await fetch(`/api/github/projects/${encodeURIComponent(project.name)}/push`, {
-        method: 'POST'
-      });
-      if (!response.ok) throw new Error('Push failed');
+      await githubProjectsApi.push(project.name);
       await fetchGitHubData();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setSyncing(null);
     }
@@ -97,13 +93,10 @@ export default function GitHubProjectPanel({ project, onRefresh, onOpenSettings 
   const handlePull = async () => {
     setSyncing('pull');
     try {
-      const response = await fetch(`/api/github/projects/${encodeURIComponent(project.name)}/pull`, {
-        method: 'POST'
-      });
-      if (!response.ok) throw new Error('Pull failed');
+      await githubProjectsApi.pull(project.name);
       await fetchGitHubData();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setSyncing(null);
     }
@@ -112,13 +105,10 @@ export default function GitHubProjectPanel({ project, onRefresh, onOpenSettings 
   const handleFetch = async () => {
     setSyncing('fetch');
     try {
-      const response = await fetch(`/api/github/projects/${encodeURIComponent(project.name)}/fetch`, {
-        method: 'POST'
-      });
-      if (!response.ok) throw new Error('Fetch failed');
+      await githubProjectsApi.fetch(project.name);
       await fetchGitHubData();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setSyncing(null);
     }
@@ -131,26 +121,16 @@ export default function GitHubProjectPanel({ project, onRefresh, onOpenSettings 
     setError('');
 
     try {
-      const response = await fetch(`/api/github/projects/${encodeURIComponent(project.name)}/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: createForm.name || project.name,
-          isPrivate: createForm.isPrivate
-        })
+      await githubProjectsApi.create(project.name, {
+        name: createForm.name || project.name,
+        isPrivate: createForm.isPrivate
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create repo');
-      }
 
       setShowCreateForm(false);
       await fetchGitHubData();
       if (onRefresh) onRefresh();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setSyncing(null);
     }
@@ -161,14 +141,11 @@ export default function GitHubProjectPanel({ project, onRefresh, onOpenSettings 
     if (!confirm('Unlink this GitHub repository? (This will not delete the remote repo)')) return;
 
     try {
-      const response = await fetch(`/api/github/projects/${encodeURIComponent(project.name)}`, {
-        method: 'DELETE'
-      });
-      if (!response.ok) throw new Error('Failed to unlink');
+      await githubProjectsApi.unlink(project.name);
       setGithubData({ linked: false });
       if (onRefresh) onRefresh();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     }
   };
 

@@ -1,9 +1,12 @@
 /**
  * Docker Widget Component
  * Displays Docker container status
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect } from 'react';
+import { dockerApi } from '../../services/api.js';
 
 export default function DockerWidget() {
   const [containers, setContainers] = useState([]);
@@ -14,18 +17,15 @@ export default function DockerWidget() {
     const fetchContainers = async () => {
       try {
         setLoading(true);
-        const response = await fetch('/api/docker/containers');
-        if (!response.ok) {
-          throw new Error('Failed to fetch containers');
-        }
-        const data = await response.json();
+        const data = await dockerApi.listContainers(false);
         // Handle both array and object with containers property
         const containerList = Array.isArray(data) ? data : (data.containers || []);
         setContainers(containerList.slice(0, 8));
         setError(null);
       } catch (err) {
         console.error('Docker fetch error:', err);
-        setError(err.message);
+        const message = err.getUserMessage?.() || err.message;
+        setError(message);
         setContainers([]);
       } finally {
         setLoading(false);

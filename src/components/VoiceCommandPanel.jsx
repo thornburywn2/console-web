@@ -10,9 +10,12 @@
  * - Enhanced fuzzy pattern matching
  * - Command disambiguation dialog
  * - Audio feedback sounds
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { voiceApi } from '../services/api.js';
 import {
   Mic, MicOff, Settings, History,
   ChevronUp, AlertCircle, Wand2
@@ -132,12 +135,11 @@ export function VoiceCommandPanel({
 
   // Load settings from server
   useEffect(() => {
-    fetch('/api/voice/settings')
-      .then(res => res.ok ? res.json() : null)
+    voiceApi.getSettings()
       .then(data => {
         if (data) setSettings(prev => ({ ...prev, ...data }));
       })
-      .catch(err => console.error('Failed to load voice settings:', err));
+      .catch(err => console.error('Failed to load voice settings:', err.getUserMessage?.() || err.message));
   }, []);
 
   // Handle voice result
@@ -153,19 +155,12 @@ export function VoiceCommandPanel({
     setCurrentTranscript(text);
 
     try {
-      const res = await fetch('/api/voice/process', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transcript: text,
-          sessionId,
-          confidence: inputConfidence
-        })
+      const data = await voiceApi.process({
+        transcript: text,
+        sessionId,
+        confidence: inputConfidence
       });
 
-      if (!res.ok) throw new Error('Failed to process');
-
-      const data = await res.json();
       setParsedCommand(data.command);
 
       // Check if disambiguation is needed
@@ -193,7 +188,7 @@ export function VoiceCommandPanel({
         setShowConfirm(true);
       }
     } catch (err) {
-      console.error('Voice processing error:', err);
+      console.error('Voice processing error:', err.getUserMessage?.() || err.message);
       playErrorSound();
     }
   }
@@ -204,11 +199,8 @@ export function VoiceCommandPanel({
 
     // Track execution
     if (commandId) {
-      fetch('/api/voice/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ commandId, confirmed: true })
-      }).catch(err => console.error('Failed to track execution:', err));
+      voiceApi.execute({ commandId, confirmed: true })
+        .catch(err => console.error('Failed to track execution:', err.getUserMessage?.() || err.message));
     }
 
     // Add to local history
@@ -369,13 +361,9 @@ export function VoiceCommandPanel({
     setSettings(newSettings);
 
     try {
-      await fetch('/api/voice/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates)
-      });
+      await voiceApi.updateSettings(updates);
     } catch (err) {
-      console.error('Failed to save settings:', err);
+      console.error('Failed to save settings:', err.getUserMessage?.() || err.message);
     }
   };
 

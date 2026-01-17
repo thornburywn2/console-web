@@ -1,9 +1,12 @@
 /**
  * GitHub Repository List Modal
  * Browse all GitHub repos with search and clone functionality
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { githubApi } from '../services/api.js';
 
 // GitHub Octocat icon
 function GitHubIcon({ className = "w-5 h-5" }) {
@@ -48,16 +51,9 @@ export default function GitHubRepoList({ isOpen, onClose, onClone, onRefresh }) 
     setError('');
 
     try {
-      const endpoint = searchTerm
-        ? `/api/github/repos/search?q=${encodeURIComponent(searchTerm)}&page=${pageNum}`
-        : `/api/github/repos?page=${pageNum}&per_page=30`;
-
-      const response = await fetch(endpoint);
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch repos');
-      }
+      const data = searchTerm
+        ? await githubApi.searchRepos(searchTerm, pageNum)
+        : await githubApi.getRepos(pageNum, 30);
 
       if (pageNum === 1) {
         setRepos(data.repos);
@@ -68,7 +64,7 @@ export default function GitHubRepoList({ isOpen, onClose, onClone, onRefresh }) 
       setHasMore(data.repos.length >= 30);
       setPage(pageNum);
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setLoading(false);
     }
@@ -98,20 +94,7 @@ export default function GitHubRepoList({ isOpen, onClose, onClone, onRefresh }) 
     setError('');
 
     try {
-      const response = await fetch('/api/github/clone', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          owner: repo.owner,
-          repo: repo.name
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to clone repo');
-      }
+      const data = await githubApi.cloneRepo(repo.owner, repo.name);
 
       // Update repo as linked
       setRepos(prev => prev.map(r =>
@@ -124,7 +107,7 @@ export default function GitHubRepoList({ isOpen, onClose, onClone, onRefresh }) 
       if (onClone) onClone(data.project);
       if (onRefresh) onRefresh();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setCloning(null);
     }

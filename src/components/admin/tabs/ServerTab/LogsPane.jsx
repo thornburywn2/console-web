@@ -1,9 +1,12 @@
 /**
  * LogsPane Component
  * System logs viewer (journalctl)
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { serverApi } from '../../../../services/api.js';
 
 export function LogsPane() {
   const [logs, setLogs] = useState([]);
@@ -14,16 +17,8 @@ export function LogsPane() {
   const fetchLogs = useCallback(async (filter) => {
     try {
       setLoading(true);
-      const params = new URLSearchParams();
-      if (filter.unit) params.append('unit', filter.unit);
-      if (filter.priority) params.append('priority', filter.priority);
-      params.append('lines', filter.lines);
-
-      const res = await fetch(`/api/server/logs?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        setLogs(data.logs || []);
-      }
+      const data = await serverApi.getLogs(filter);
+      setLogs(data.logs || []);
     } catch (err) {
       console.error('Error fetching logs:', err);
     } finally {
@@ -34,13 +29,10 @@ export function LogsPane() {
   // Fetch common unit names from services
   const fetchUnits = useCallback(async () => {
     try {
-      const res = await fetch('/api/server/services');
-      if (res.ok) {
-        const data = await res.json();
-        const services = Array.isArray(data) ? data : [];
-        const unitNames = services.map(s => s.name).filter(Boolean);
-        setUnits(unitNames);
-      }
+      const data = await serverApi.getServices();
+      const services = Array.isArray(data) ? data : [];
+      const unitNames = services.map(s => s.name).filter(Boolean);
+      setUnits(unitNames);
     } catch (err) {
       console.error('Error fetching units:', err);
     }

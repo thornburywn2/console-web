@@ -2,9 +2,12 @@
  * ScheduledPane Component
  * Cron jobs and systemd timer management
  * Extracted from AdminDashboard.jsx INFRA_TABS.SCHEDULED
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { infraExtendedApi } from '../../../../services/api.js';
 
 export function ScheduledPane() {
   // State
@@ -25,18 +28,12 @@ export function ScheduledPane() {
   const fetchScheduledTasks = useCallback(async () => {
     try {
       setLoading(true);
-      const [cronRes, timersRes] = await Promise.all([
-        fetch('/api/infra/scheduled/cron'),
-        fetch('/api/infra/scheduled/timers')
+      const [cronData, timersData] = await Promise.all([
+        infraExtendedApi.getCronJobs(),
+        infraExtendedApi.getSystemdTimers()
       ]);
-      if (cronRes.ok) {
-        const data = await cronRes.json();
-        setCronJobs(data.jobs || []);
-      }
-      if (timersRes.ok) {
-        const data = await timersRes.json();
-        setSystemdTimers(data.timers || []);
-      }
+      setCronJobs(cronData.jobs || []);
+      setSystemdTimers(timersData.timers || []);
     } catch (err) {
       console.error('Error fetching scheduled tasks:', err);
     } finally {
@@ -48,14 +45,8 @@ export function ScheduledPane() {
   const addCronJob = useCallback(async (schedule, command) => {
     try {
       setLoading(true);
-      const res = await fetch('/api/infra/scheduled/cron', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ schedule, command })
-      });
-      if (res.ok) {
-        fetchScheduledTasks();
-      }
+      await infraExtendedApi.addCronJob(schedule, command);
+      fetchScheduledTasks();
     } catch (err) {
       console.error('Error adding cron job:', err);
     } finally {
@@ -67,10 +58,8 @@ export function ScheduledPane() {
   const deleteCronJob = useCallback(async (index) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/infra/scheduled/cron/${index}`, { method: 'DELETE' });
-      if (res.ok) {
-        fetchScheduledTasks();
-      }
+      await infraExtendedApi.deleteCronJob(index);
+      fetchScheduledTasks();
     } catch (err) {
       console.error('Error deleting cron job:', err);
     } finally {
@@ -82,10 +71,8 @@ export function ScheduledPane() {
   const toggleTimer = useCallback(async (timerName, isActive) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/infra/scheduled/timers/${timerName}/toggle`, { method: 'POST' });
-      if (res.ok) {
-        fetchScheduledTasks();
-      }
+      await infraExtendedApi.toggleTimer(timerName);
+      fetchScheduledTasks();
     } catch (err) {
       console.error('Error toggling timer:', err);
     } finally {

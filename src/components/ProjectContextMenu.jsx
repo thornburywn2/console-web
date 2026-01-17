@@ -1,9 +1,12 @@
 /**
  * Project Context Menu Component
  * Right-click context menu for project management, tagging, settings, notes, and info
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { projectTagsApi, projectContextApi } from '../services/api.js';
 import {
   PRIORITY_OPTIONS,
   ProjectInfoView,
@@ -48,22 +51,15 @@ export default function ProjectContextMenu({
     if (!encodedPath) return;
 
     try {
-      const [allTagsRes, projectTagsRes] = await Promise.all([
-        fetch('/api/project-tags'),
-        fetch(`/api/projects/by-path/${encodedPath}/tags`)
+      const [allTagsData, projectTagsData] = await Promise.all([
+        projectTagsApi.list(),
+        projectTagsApi.getProjectTags(encodedPath)
       ]);
 
-      if (allTagsRes.ok) {
-        const tags = await allTagsRes.json();
-        setAllTags(tags);
-      }
-
-      if (projectTagsRes.ok) {
-        const tags = await projectTagsRes.json();
-        setProjectTags(tags);
-      }
+      if (allTagsData) setAllTags(allTagsData);
+      if (projectTagsData) setProjectTags(projectTagsData);
     } catch (err) {
-      console.error('Failed to fetch tags:', err);
+      console.error('Failed to fetch tags:', err.getUserMessage?.() || err.message);
     }
   }, [encodedPath]);
 
@@ -72,14 +68,11 @@ export default function ProjectContextMenu({
     if (!encodedPath) return;
 
     try {
-      const res = await fetch(`/api/projects/by-path/${encodedPath}/settings`);
-      if (res.ok) {
-        const settings = await res.json();
-        setSkipPermissions(settings.skipPermissions || false);
-        setPriority(settings.priority || null);
-      }
+      const settings = await projectContextApi.getSettings(encodedPath);
+      setSkipPermissions(settings.skipPermissions || false);
+      setPriority(settings.priority || null);
     } catch (err) {
-      console.error('Failed to fetch settings:', err);
+      console.error('Failed to fetch settings:', err.getUserMessage?.() || err.message);
     }
   }, [encodedPath]);
 
@@ -88,13 +81,10 @@ export default function ProjectContextMenu({
     if (!encodedPath) return;
 
     try {
-      const res = await fetch(`/api/projects/by-path/${encodedPath}/notes`);
-      if (res.ok) {
-        const notesData = await res.json();
-        setNotes(notesData);
-      }
+      const notesData = await projectContextApi.getNotes(encodedPath);
+      setNotes(notesData);
     } catch (err) {
-      console.error('Failed to fetch notes:', err);
+      console.error('Failed to fetch notes:', err.getUserMessage?.() || err.message);
     }
   }, [encodedPath]);
 
@@ -104,20 +94,10 @@ export default function ProjectContextMenu({
 
     setLoadingInfo(true);
     try {
-      const res = await fetch(`/api/admin/project-stats?path=${encodeURIComponent(project.path)}`);
-      if (res.ok) {
-        const info = await res.json();
-        setProjectInfo(info);
-      } else {
-        setProjectInfo({
-          name: project.name,
-          path: project.path,
-          hasActiveSession: project.hasActiveSession,
-          lastModified: project.lastModified,
-        });
-      }
+      const info = await projectContextApi.getStats(project.path);
+      setProjectInfo(info);
     } catch (err) {
-      console.error('Failed to fetch project info:', err);
+      console.error('Failed to fetch project info:', err.getUserMessage?.() || err.message);
       setProjectInfo({
         name: project.name,
         path: project.path,
@@ -177,18 +157,15 @@ export default function ProjectContextMenu({
 
     try {
       if (hasTag) {
-        await fetch(`/api/projects/by-path/${encodedPath}/tags/${tagId}`, { method: 'DELETE' });
+        await projectTagsApi.removeFromProject(encodedPath, tagId);
         setProjectTags(prev => prev.filter(t => t.id !== tagId));
       } else {
-        const res = await fetch(`/api/projects/by-path/${encodedPath}/tags/${tagId}`, { method: 'POST' });
-        if (res.ok) {
-          const { tag } = await res.json();
-          setProjectTags(prev => [...prev, tag]);
-        }
+        const { tag } = await projectTagsApi.addToProject(encodedPath, tagId);
+        setProjectTags(prev => [...prev, tag]);
       }
       onRefresh?.();
     } catch (err) {
-      console.error('Failed to toggle tag:', err);
+      console.error('Failed to toggle tag:', err.getUserMessage?.() || err.message);
     } finally {
       setIsLoading(false);
     }
@@ -198,23 +175,15 @@ export default function ProjectContextMenu({
   const handleCreateTag = async (name, color) => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/project-tags', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, color })
-      });
-
-      if (res.ok) {
-        const tag = await res.json();
-        setAllTags(prev => [...prev, tag]);
-        if (encodedPath) {
-          await fetch(`/api/projects/by-path/${encodedPath}/tags/${tag.id}`, { method: 'POST' });
-          setProjectTags(prev => [...prev, tag]);
-        }
-        onRefresh?.();
+      const tag = await projectTagsApi.create({ name, color });
+      setAllTags(prev => [...prev, tag]);
+      if (encodedPath) {
+        await projectTagsApi.addToProject(encodedPath, tag.id);
+        setProjectTags(prev => [...prev, tag]);
       }
+      onRefresh?.();
     } catch (err) {
-      console.error('Failed to create tag:', err);
+      console.error('Failed to create tag:', err.getUserMessage?.() || err.message);
     } finally {
       setIsLoading(false);
     }
@@ -225,20 +194,12 @@ export default function ProjectContextMenu({
     if (!encodedPath) return;
 
     try {
-      const res = await fetch(`/api/projects/by-path/${encodedPath}/settings`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates)
-      });
-
-      if (res.ok) {
-        const settings = await res.json();
-        setSkipPermissions(settings.skipPermissions);
-        setPriority(settings.priority);
-        onRefresh?.();
-      }
+      const settings = await projectContextApi.updateSettings(encodedPath, updates);
+      setSkipPermissions(settings.skipPermissions);
+      setPriority(settings.priority);
+      onRefresh?.();
     } catch (err) {
-      console.error('Failed to update settings:', err);
+      console.error('Failed to update settings:', err.getUserMessage?.() || err.message);
     }
   };
 
@@ -246,18 +207,10 @@ export default function ProjectContextMenu({
   const handleCreateNote = async (title, content) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/projects/by-path/${encodedPath}/notes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, content })
-      });
-
-      if (res.ok) {
-        const note = await res.json();
-        setNotes(prev => [note, ...prev]);
-      }
+      const note = await projectContextApi.createNote(encodedPath, { title, content });
+      setNotes(prev => [note, ...prev]);
     } catch (err) {
-      console.error('Failed to create note:', err);
+      console.error('Failed to create note:', err.getUserMessage?.() || err.message);
     } finally {
       setIsLoading(false);
     }
@@ -266,58 +219,41 @@ export default function ProjectContextMenu({
   // Delete note
   const handleDeleteNote = async (noteId) => {
     try {
-      await fetch(`/api/projects/notes/${noteId}`, { method: 'DELETE' });
+      await projectContextApi.deleteNote(noteId);
       setNotes(prev => prev.filter(n => n.id !== noteId));
     } catch (err) {
-      console.error('Failed to delete note:', err);
+      console.error('Failed to delete note:', err.getUserMessage?.() || err.message);
     }
   };
 
   // Toggle note pin
   const handleToggleNotePin = async (noteId, currentPinned) => {
     try {
-      const res = await fetch(`/api/projects/notes/${noteId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isPinned: !currentPinned })
-      });
-
-      if (res.ok) {
-        setNotes(prev => prev.map(n =>
-          n.id === noteId ? { ...n, isPinned: !currentPinned } : n
-        ).sort((a, b) => {
-          if (a.isPinned !== b.isPinned) return b.isPinned ? 1 : -1;
-          return new Date(b.createdAt) - new Date(a.createdAt);
-        }));
-      }
+      await projectContextApi.updateNote(noteId, { isPinned: !currentPinned });
+      setNotes(prev => prev.map(n =>
+        n.id === noteId ? { ...n, isPinned: !currentPinned } : n
+      ).sort((a, b) => {
+        if (a.isPinned !== b.isPinned) return b.isPinned ? 1 : -1;
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      }));
     } catch (err) {
-      console.error('Failed to toggle pin:', err);
+      console.error('Failed to toggle pin:', err.getUserMessage?.() || err.message);
     }
   };
 
   // Clone project
   const handleCloneProject = async (cloneName, copySettings) => {
     try {
-      const res = await fetch('/api/projects/clone', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sourcePath: project.path,
-          newName: cloneName,
-          copySettings,
-        })
+      await projectContextApi.clone({
+        sourcePath: project.path,
+        newName: cloneName,
+        copySettings,
       });
-
-      if (res.ok) {
-        onRefresh?.();
-        onClose();
-      } else {
-        const error = await res.json();
-        alert(error.error || 'Failed to clone project');
-      }
+      onRefresh?.();
+      onClose();
     } catch (err) {
-      console.error('Failed to clone project:', err);
-      alert('Failed to clone project');
+      console.error('Failed to clone project:', err.getUserMessage?.() || err.message);
+      alert(err.getUserMessage?.() || 'Failed to clone project');
     }
   };
 

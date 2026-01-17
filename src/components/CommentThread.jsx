@@ -1,9 +1,12 @@
 /**
  * Comment Thread Component
  * Inline comments on session history
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useRef } from 'react';
+import { commentsApi } from '../services/api.js';
 
 export default function CommentThread({
   sessionId,
@@ -39,13 +42,8 @@ export default function CommentThread({
 
   const fetchComments = async () => {
     try {
-      const response = await fetch(
-        `/api/sessions/${sessionId}/comments?line=${lineNumber}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setComments(data.comments || []);
-      }
+      const data = await commentsApi.list(sessionId, lineNumber);
+      setComments(data.comments || []);
     } catch (error) {
       console.error('Failed to fetch comments:', error);
     }
@@ -57,23 +55,15 @@ export default function CommentThread({
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/sessions/${sessionId}/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lineNumber,
-          content: newComment.trim(),
-          authorName,
-        }),
+      const data = await commentsApi.create(sessionId, {
+        lineNumber,
+        content: newComment.trim(),
+        authorName,
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setComments(prev => [...prev, data.comment]);
-        setNewComment('');
-        if (onAddComment) {
-          onAddComment(data.comment);
-        }
+      setComments(prev => [...prev, data.comment]);
+      setNewComment('');
+      if (onAddComment) {
+        onAddComment(data.comment);
       }
     } catch (error) {
       console.error('Failed to add comment:', error);
@@ -84,13 +74,8 @@ export default function CommentThread({
 
   const handleDelete = async (commentId) => {
     try {
-      const response = await fetch(
-        `/api/sessions/${sessionId}/comments/${commentId}`,
-        { method: 'DELETE' }
-      );
-      if (response.ok) {
-        setComments(prev => prev.filter(c => c.id !== commentId));
-      }
+      await commentsApi.delete(sessionId, commentId);
+      setComments(prev => prev.filter(c => c.id !== commentId));
     } catch (error) {
       console.error('Failed to delete comment:', error);
     }
@@ -298,11 +283,8 @@ export function useSessionComments(sessionId) {
 
   const fetchCommentCounts = async () => {
     try {
-      const response = await fetch(`/api/sessions/${sessionId}/comments/counts`);
-      if (response.ok) {
-        const data = await response.json();
-        setCommentCounts(data.counts || {});
-      }
+      const data = await commentsApi.getCounts(sessionId);
+      setCommentCounts(data.counts || {});
     } catch (error) {
       console.error('Failed to fetch comment counts:', error);
     }

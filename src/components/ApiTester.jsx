@@ -1,6 +1,8 @@
 /**
  * API Tester Component
  * HTTP request builder and tester
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect } from 'react';
@@ -12,6 +14,7 @@ import {
   ResponseViewer,
   SavedRequestCard,
 } from './api-tester';
+import { proxyApi } from '../services/api.js';
 
 export default function ApiTester({ isOpen, onClose, embedded = false }) {
   const [method, setMethod] = useState('GET');
@@ -85,33 +88,15 @@ export default function ApiTester({ isOpen, onClose, embedded = false }) {
         requestHeaders[h.key] = h.value;
       });
 
-      const options = {
-        method,
-        headers: requestHeaders,
-      };
-
-      if (method !== 'GET' && method !== 'HEAD' && body) {
-        options.body = body;
-      }
+      const requestBody = (method !== 'GET' && method !== 'HEAD' && body) ? body : undefined;
 
       // Use backend proxy for CORS
-      const proxyResponse = await fetch('/api/proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: fullUrl,
-          method,
-          headers: requestHeaders,
-          body: options.body
-        })
-      });
-
-      const data = await proxyResponse.json();
+      const data = await proxyApi.request(fullUrl, method, requestHeaders, requestBody);
       const endTime = performance.now();
 
       const responseObj = {
-        status: data.status || proxyResponse.status,
-        statusText: data.statusText || proxyResponse.statusText,
+        status: data.status || 200,
+        statusText: data.statusText || 'OK',
         headers: data.headers || {},
         body: data.body || data,
         time: Math.round(endTime - startTime),
@@ -134,10 +119,11 @@ export default function ApiTester({ isOpen, onClose, embedded = false }) {
       saveToStorage('api-tester-history', newHistory);
 
     } catch (error) {
+      const message = error.getUserMessage?.() || error.message;
       setResponse({
         status: 0,
         statusText: 'Error',
-        body: error.message,
+        body: message,
         time: Math.round(performance.now() - startTime),
         size: '0 B'
       });

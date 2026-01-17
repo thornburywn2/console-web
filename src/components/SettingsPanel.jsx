@@ -4,10 +4,21 @@
  * Consolidates: General Settings, Themes, Keyboard Shortcuts, AI Personas, Auth, Paths, Integrations
  *
  * Refactored to use extracted pane components from ./settings/
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
+import {
+  systemApi,
+  systemVersionApi,
+  shortcutsApi,
+  personasApi,
+  authentikSettingsApi,
+  configApi,
+  lifecycleExtendedApi,
+} from '../services/api.js';
 
 // Import extracted settings pane components
 import {
@@ -84,44 +95,16 @@ export default function SettingsPanel() {
   // Fetch version info
   const fetchVersionInfo = async () => {
     try {
-      const res = await fetch('/api/system/version');
-
-      // Check content type to avoid JSON parse errors on HTML responses
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        console.warn('Version endpoint returned non-JSON response (may need authentication or server update)');
-        setVersionInfo({
-          version: 'Unknown',
-          branch: 'unknown',
-          commit: 'unknown',
-          hasUpdates: false,
-          error: 'Update feature requires server update or authentication'
-        });
-        return;
-      }
-
-      if (res.ok) {
-        const data = await res.json();
-        setVersionInfo(data);
-      } else {
-        const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
-        console.warn('Version fetch failed:', errorData);
-        setVersionInfo({
-          version: 'Unknown',
-          branch: 'unknown',
-          commit: 'unknown',
-          hasUpdates: false,
-          error: errorData.error || 'Failed to fetch version'
-        });
-      }
+      const data = await systemVersionApi.getVersion();
+      setVersionInfo(data);
     } catch (err) {
-      console.error('Failed to fetch version info:', err);
+      console.error('Failed to fetch version info:', err.getUserMessage?.() || err.message);
       setVersionInfo({
         version: 'Unknown',
         branch: 'unknown',
         commit: 'unknown',
         hasUpdates: false,
-        error: 'Connection error'
+        error: err.getUserMessage?.() || 'Connection error'
       });
     }
   };
@@ -139,22 +122,12 @@ export default function SettingsPanel() {
     setShowUpdateModal(true);
 
     try {
-      const res = await fetch('/api/system/update', { method: 'POST' });
-      if (!res.ok) {
-        const err = await res.json();
-        setUpdateLogs(prev => [...prev, {
-          step: 'error',
-          status: 'error',
-          message: err.error || 'Failed to start update',
-          timestamp: new Date().toISOString()
-        }]);
-        setUpdateInProgress(false);
-      }
+      await systemVersionApi.triggerUpdate();
     } catch (err) {
       setUpdateLogs(prev => [...prev, {
         step: 'error',
         status: 'error',
-        message: err.message,
+        message: err.getUserMessage?.() || err.message,
         timestamp: new Date().toISOString()
       }]);
       setUpdateInProgress(false);
@@ -164,27 +137,27 @@ export default function SettingsPanel() {
   const fetchAllSettings = async () => {
     setLoading(true);
     try {
-      const [settingsRes, shortcutsRes, personasRes, authRes, configRes, scanRes, scanRecsRes, scanQueueRes] = await Promise.all([
-        fetch('/api/settings'),
-        fetch('/api/shortcuts'),
-        fetch('/api/ai/personas'),
-        fetch('/api/cloudflare/authentik/settings'),
-        fetch('/api/config'),
-        fetch('/api/lifecycle/settings'),
-        fetch('/api/lifecycle/recommendations'),
-        fetch('/api/lifecycle/queue'),
+      const [settings, shortcuts, personas, authSettings, config, scanSettings, scanRecs, scanQueue] = await Promise.all([
+        systemApi.getSettings().catch(() => null),
+        shortcutsApi.list().catch(() => []),
+        personasApi.list().catch(() => []),
+        authentikSettingsApi.get().catch(() => null),
+        configApi.get().catch(() => null),
+        lifecycleExtendedApi.getSettings().catch(() => null),
+        lifecycleExtendedApi.getRecommendations().catch(() => null),
+        lifecycleExtendedApi.getQueue().catch(() => null),
       ]);
 
-      if (settingsRes.ok) setGeneralSettings(await settingsRes.json());
-      if (shortcutsRes.ok) setShortcuts(await shortcutsRes.json());
-      if (personasRes.ok) setPersonas(await personasRes.json());
-      if (authRes.ok) setAuthentikSettings(await authRes.json());
-      if (configRes.ok) setServerConfig(await configRes.json());
-      if (scanRes.ok) setScanSettings(await scanRes.json());
-      if (scanRecsRes.ok) setScanRecommendations(await scanRecsRes.json());
-      if (scanQueueRes.ok) setScanQueueStatus(await scanQueueRes.json());
+      if (settings) setGeneralSettings(settings);
+      if (shortcuts) setShortcuts(shortcuts);
+      if (personas) setPersonas(personas);
+      if (authSettings) setAuthentikSettings(authSettings);
+      if (config) setServerConfig(config);
+      if (scanSettings) setScanSettings(scanSettings);
+      if (scanRecs) setScanRecommendations(scanRecs);
+      if (scanQueue) setScanQueueStatus(scanQueue);
     } catch (err) {
-      setError('Failed to load settings');
+      setError(err.getUserMessage?.() || 'Failed to load settings');
     } finally {
       setLoading(false);
     }
@@ -195,18 +168,12 @@ export default function SettingsPanel() {
     setSaving(true);
     setError('');
     try {
-      const res = await fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
-      if (!res.ok) throw new Error('Failed to save settings');
-      const data = await res.json();
+      const data = await systemApi.updateSettings(updates);
       setGeneralSettings(data);
       setSuccess('Settings saved');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setSaving(false);
     }
@@ -215,30 +182,22 @@ export default function SettingsPanel() {
   // Save keyboard shortcut
   const saveShortcut = async (action, keys) => {
     try {
-      const res = await fetch(`/api/shortcuts/${action}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keys }),
-      });
-      if (!res.ok) throw new Error('Failed to save shortcut');
-      const updated = await res.json();
+      const updated = await shortcutsApi.update(action, keys);
       setShortcuts(prev => prev.map(s => s.action === action ? { ...s, ...updated } : s));
       setSuccess('Shortcut updated');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     }
   };
 
   // Reset shortcut to default
   const resetShortcut = async (action) => {
     try {
-      const res = await fetch(`/api/shortcuts/${action}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to reset shortcut');
-      const defaultShortcut = await res.json();
+      const defaultShortcut = await shortcutsApi.reset(action);
       setShortcuts(prev => prev.map(s => s.action === action ? { ...s, ...defaultShortcut } : s));
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     }
   };
 
@@ -246,14 +205,12 @@ export default function SettingsPanel() {
   const resetAllShortcuts = async () => {
     if (!confirm('Reset all shortcuts to defaults?')) return;
     try {
-      const res = await fetch('/api/shortcuts/reset-all', { method: 'POST' });
-      if (!res.ok) throw new Error('Failed to reset shortcuts');
-      const defaults = await res.json();
+      const defaults = await shortcutsApi.resetAll();
       setShortcuts(defaults);
       setSuccess('All shortcuts reset to defaults');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     }
   };
 
@@ -261,13 +218,10 @@ export default function SettingsPanel() {
   const savePersona = async (persona) => {
     try {
       const isNew = !persona.id;
-      const res = await fetch(isNew ? '/api/ai/personas' : `/api/ai/personas/${persona.id}`, {
-        method: isNew ? 'POST' : 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(persona),
-      });
-      if (!res.ok) throw new Error('Failed to save persona');
-      const saved = await res.json();
+      const saved = isNew
+        ? await personasApi.create(persona)
+        : await personasApi.update(persona.id, persona);
+
       if (isNew) {
         setPersonas(prev => [...prev, saved]);
       } else {
@@ -276,7 +230,7 @@ export default function SettingsPanel() {
       setSuccess('Persona saved');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     }
   };
 
@@ -284,11 +238,10 @@ export default function SettingsPanel() {
   const deletePersona = async (id) => {
     if (!confirm('Delete this persona?')) return;
     try {
-      const res = await fetch(`/api/ai/personas/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete persona');
+      await personasApi.delete(id);
       setPersonas(prev => prev.filter(p => p.id !== id));
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     }
   };
 
@@ -296,18 +249,12 @@ export default function SettingsPanel() {
   const saveAuthentikSettings = async (settings) => {
     setSaving(true);
     try {
-      const res = await fetch('/api/cloudflare/authentik/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
-      });
-      if (!res.ok) throw new Error('Failed to save Authentik settings');
-      const saved = await res.json();
+      const saved = await authentikSettingsApi.save(settings);
       setAuthentikSettings(saved);
       setSuccess('Authentik settings saved');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setSaving(false);
     }
@@ -422,16 +369,16 @@ export default function SettingsPanel() {
             scanRecommendations={scanRecommendations}
             onSave={saveGeneralSettings}
             onReloadSettings={async () => {
-              await fetch('/api/lifecycle/settings/reload', { method: 'POST' });
-              const scanRes = await fetch('/api/lifecycle/settings');
-              if (scanRes.ok) setScanSettings(await scanRes.json());
+              await lifecycleExtendedApi.reloadSettings();
+              const scanSettingsData = await lifecycleExtendedApi.getSettings();
+              if (scanSettingsData) setScanSettings(scanSettingsData);
               setSuccess('Settings reloaded');
               setTimeout(() => setSuccess(''), 3000);
             }}
             onCancelScans={async () => {
-              await fetch('/api/lifecycle/queue/cancel', { method: 'POST' });
-              const queueRes = await fetch('/api/lifecycle/queue');
-              if (queueRes.ok) setScanQueueStatus(await queueRes.json());
+              await lifecycleExtendedApi.cancelQueue();
+              const queueData = await lifecycleExtendedApi.getQueue();
+              if (queueData) setScanQueueStatus(queueData);
               setSuccess('Pending scans cancelled');
               setTimeout(() => setSuccess(''), 3000);
             }}

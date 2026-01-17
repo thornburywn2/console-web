@@ -1,9 +1,12 @@
 /**
  * Snippet Palette Component
  * Quick command snippet selection with categories and search
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { snippetsApi } from '../services/api.js';
 
 export default function SnippetPalette({
   isOpen,
@@ -32,11 +35,8 @@ export default function SnippetPalette({
   const fetchSnippets = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/snippets');
-      if (response.ok) {
-        const data = await response.json();
-        setSnippets(data);
-      }
+      const data = await snippetsApi.list();
+      setSnippets(data);
     } catch (error) {
       console.error('Failed to fetch snippets:', error);
     } finally {
@@ -105,7 +105,7 @@ export default function SnippetPalette({
   const handleExecute = async (snippet) => {
     // Track usage
     try {
-      await fetch(`/api/snippets/${snippet.id}/run`, { method: 'POST' });
+      await snippetsApi.run(snippet.id);
     } catch (error) {
       console.error('Failed to track snippet usage:', error);
     }
@@ -126,16 +126,10 @@ export default function SnippetPalette({
   const toggleFavorite = async (e, snippet) => {
     e.stopPropagation();
     try {
-      const response = await fetch(`/api/snippets/${snippet.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isFavorite: !snippet.isFavorite }),
-      });
-      if (response.ok) {
-        setSnippets(prev =>
-          prev.map(s => s.id === snippet.id ? { ...s, isFavorite: !s.isFavorite } : s)
-        );
-      }
+      await snippetsApi.toggleFavorite(snippet.id, !snippet.isFavorite);
+      setSnippets(prev =>
+        prev.map(s => s.id === snippet.id ? { ...s, isFavorite: !s.isFavorite } : s)
+      );
     } catch (error) {
       console.error('Failed to toggle favorite:', error);
     }

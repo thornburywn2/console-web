@@ -1,4 +1,12 @@
+/**
+ * System Stats Component
+ * Real-time CPU, memory, disk monitoring
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
+ */
+
 import { useState, useEffect, useCallback } from 'react';
+import { systemApi } from '../services/api.js';
 
 function SystemStats() {
   const [stats, setStats] = useState(null);
@@ -7,14 +15,13 @@ function SystemStats() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const response = await fetch('/api/admin/system');
-      if (!response.ok) throw new Error('Failed to fetch system stats');
-      const data = await response.json();
+      const data = await systemApi.getStats();
       setStats(data);
       setError(null);
     } catch (err) {
       console.error('Error fetching system stats:', err);
-      setError('Failed to load stats');
+      const message = err.getUserMessage?.() || 'Failed to load stats';
+      setError(message);
     } finally {
       setIsLoading(false);
     }

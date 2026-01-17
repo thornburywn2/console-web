@@ -1,9 +1,12 @@
 /**
  * PlanModeViewer Component
  * AI planning visualization with Mermaid diagrams and step tracking
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { plansApi } from '../services/api.js';
 import {
   PLAN_STATUS_CONFIG,
   StepCard,
@@ -22,31 +25,21 @@ export default function PlanModeViewer({ projectId, sessionId, onClose }) {
   // Fetch plans
   const fetchPlans = useCallback(async () => {
     try {
-      const params = new URLSearchParams();
-      if (projectId) params.set('projectId', projectId);
-      if (sessionId) params.set('sessionId', sessionId);
-
-      const response = await fetch(`/api/plans?${params}`);
-      if (response.ok) {
-        const data = await response.json();
-        setPlans(data.plans);
-      }
+      const data = await plansApi.list({ projectId, sessionId });
+      setPlans(data.plans);
     } catch (err) {
-      console.error('Error fetching plans:', err);
+      console.error('Error fetching plans:', err.getUserMessage?.() || err.message);
     }
   }, [projectId, sessionId]);
 
   // Fetch diagram for selected plan
   const fetchDiagram = useCallback(async (planId) => {
     try {
-      const response = await fetch(`/api/plans/${planId}/diagram`);
-      if (response.ok) {
-        const data = await response.json();
-        setMermaidDiagram(data.diagram);
-        renderMermaid(data.diagram);
-      }
+      const data = await plansApi.getDiagram(planId);
+      setMermaidDiagram(data.diagram);
+      renderMermaid(data.diagram);
     } catch (err) {
-      console.error('Error fetching diagram:', err);
+      console.error('Error fetching diagram:', err.getUserMessage?.() || err.message);
     }
   }, []);
 
@@ -99,21 +92,14 @@ export default function PlanModeViewer({ projectId, sessionId, onClose }) {
     if (!selectedPlan) return;
 
     try {
-      await fetch(`/api/plans/${selectedPlan.id}/steps/${stepId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
-      });
+      await plansApi.updateStep(selectedPlan.id, stepId, { status });
 
       // Refresh plan
-      const response = await fetch(`/api/plans/${selectedPlan.id}`);
-      if (response.ok) {
-        const plan = await response.json();
-        setSelectedPlan(plan);
-        fetchDiagram(plan.id);
-      }
+      const plan = await plansApi.get(selectedPlan.id);
+      setSelectedPlan(plan);
+      fetchDiagram(plan.id);
     } catch (err) {
-      console.error('Error updating step:', err);
+      console.error('Error updating step:', err.getUserMessage?.() || err.message);
     }
   };
 
@@ -122,15 +108,12 @@ export default function PlanModeViewer({ projectId, sessionId, onClose }) {
     if (!selectedPlan) return;
 
     try {
-      const response = await fetch(`/api/plans/${selectedPlan.id}/execute`, { method: 'POST' });
-      if (response.ok) {
-        const plan = await response.json();
-        setSelectedPlan(plan);
-        fetchPlans();
-        fetchDiagram(plan.id);
-      }
+      const plan = await plansApi.execute(selectedPlan.id);
+      setSelectedPlan(plan);
+      fetchPlans();
+      fetchDiagram(plan.id);
     } catch (err) {
-      console.error('Error executing plan:', err);
+      console.error('Error executing plan:', err.getUserMessage?.() || err.message);
     }
   };
 
@@ -139,14 +122,11 @@ export default function PlanModeViewer({ projectId, sessionId, onClose }) {
     if (!selectedPlan) return;
 
     try {
-      const response = await fetch(`/api/plans/${selectedPlan.id}/${action}`, { method: 'POST' });
-      if (response.ok) {
-        const plan = await response.json();
-        setSelectedPlan(plan);
-        fetchPlans();
-      }
+      const plan = await plansApi.action(selectedPlan.id, action);
+      setSelectedPlan(plan);
+      fetchPlans();
     } catch (err) {
-      console.error(`Error ${action} plan:`, err);
+      console.error(`Error ${action} plan:`, err.getUserMessage?.() || err.message);
     }
   };
 

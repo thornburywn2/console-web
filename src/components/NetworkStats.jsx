@@ -1,9 +1,12 @@
 /**
  * Network Stats Component
  * Bandwidth monitoring and network traffic analysis
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { networkApi } from '../services/api.js';
 
 const COLORS = {
   inbound: '#2ecc71',
@@ -213,13 +216,10 @@ export default function NetworkStats({ isOpen, onClose }) {
 
   const fetchStats = useCallback(async () => {
     try {
-      const response = await fetch('/api/network');
-      if (response.ok) {
-        const data = await response.json();
-        setInterfaces(data.interfaces || []);
-      }
+      const data = await networkApi.getStats();
+      setInterfaces(data.interfaces || []);
     } catch (error) {
-      console.error('Failed to fetch network stats:', error);
+      console.error('Failed to fetch network stats:', error.getUserMessage?.() || error.message);
       // Demo data
       setInterfaces([
         {
@@ -362,13 +362,10 @@ export function NetworkWidget() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch('/api/network');
-        if (response.ok) {
-          const data = await response.json();
-          const totalRx = data.interfaces?.reduce((sum, i) => sum + (i.rxRate || 0), 0) || 0;
-          const totalTx = data.interfaces?.reduce((sum, i) => sum + (i.txRate || 0), 0) || 0;
-          setStats({ rx: totalRx, tx: totalTx });
-        }
+        const data = await networkApi.getStats();
+        const totalRx = data.interfaces?.reduce((sum, i) => sum + (i.rxRate || 0), 0) || 0;
+        const totalTx = data.interfaces?.reduce((sum, i) => sum + (i.txRate || 0), 0) || 0;
+        setStats({ rx: totalRx, tx: totalTx });
       } catch (error) {
         setStats({ rx: 52428, tx: 20480 }); // Demo
       }

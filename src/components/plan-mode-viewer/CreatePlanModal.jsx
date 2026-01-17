@@ -1,9 +1,12 @@
 /**
  * CreatePlanModal Component
  * Modal for creating new plans with steps
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState } from 'react';
+import { plansApi } from '../../services/api.js';
 
 export default function CreatePlanModal({ onClose, onCreate, projectId, sessionId }) {
   const [formData, setFormData] = useState({
@@ -33,28 +36,18 @@ export default function CreatePlanModal({ onClose, onCreate, projectId, sessionI
     setError(null);
 
     try {
-      const response = await fetch('/api/plans', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId,
-          sessionId,
-          title: formData.title,
-          description: formData.description,
-          goal: formData.goal,
-          steps: formData.steps.filter(s => s.title.trim())
-        })
+      const plan = await plansApi.create({
+        projectId,
+        sessionId,
+        title: formData.title,
+        description: formData.description,
+        goal: formData.goal,
+        steps: formData.steps.filter(s => s.title.trim())
       });
 
-      if (response.ok) {
-        const plan = await response.json();
-        onCreate(plan);
-      } else {
-        const data = await response.json();
-        setError(data.error);
-      }
+      onCreate(plan);
     } catch (err) {
-      setError('Failed to create plan');
+      setError(err.getUserMessage?.() || 'Failed to create plan');
     }
   };
 

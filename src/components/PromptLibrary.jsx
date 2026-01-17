@@ -1,16 +1,18 @@
 /**
  * Prompt Library Component
  * Manage and use reusable prompts with variable interpolation
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect } from 'react';
 import {
-  API_BASE,
   extractVariables,
   PromptEditor,
   VariableInput,
   PromptCard,
 } from './prompt-library';
+import { promptsApi } from '../services/api.js';
 
 export default function PromptLibrary({
   isOpen,
@@ -43,13 +45,11 @@ export default function PromptLibrary({
   const fetchPrompts = async () => {
     try {
       setLoading(true);
-      const params = new URLSearchParams();
-      if (selectedCategory) params.set('category', selectedCategory);
-      if (showFavorites) params.set('favorite', 'true');
-      if (searchQuery) params.set('search', searchQuery);
-
-      const res = await fetch(`${API_BASE}?${params}`);
-      const data = await res.json();
+      const data = await promptsApi.list({
+        category: selectedCategory,
+        favorite: showFavorites,
+        search: searchQuery
+      });
       setPrompts(data.prompts || []);
     } catch (error) {
       console.error('Error fetching prompts:', error);
@@ -61,8 +61,7 @@ export default function PromptLibrary({
   // Fetch categories
   const fetchCategories = async () => {
     try {
-      const res = await fetch(`${API_BASE}/categories`);
-      const data = await res.json();
+      const data = await promptsApi.getCategories();
       setCategories(data || []);
     } catch (error) {
       console.error('Error fetching categories:', error);
@@ -79,12 +78,7 @@ export default function PromptLibrary({
   // Create prompt
   const handleCreate = async () => {
     try {
-      const res = await fetch(API_BASE, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-      if (!res.ok) throw new Error('Failed to create prompt');
+      await promptsApi.create(formData);
       setIsCreating(false);
       setFormData({ name: '', content: '', description: '', category: '', variables: [], isFavorite: false });
       fetchPrompts();
@@ -97,12 +91,7 @@ export default function PromptLibrary({
   // Update prompt
   const handleUpdate = async () => {
     try {
-      const res = await fetch(`${API_BASE}/${editingPrompt.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-      if (!res.ok) throw new Error('Failed to update prompt');
+      await promptsApi.update(editingPrompt.id, formData);
       setEditingPrompt(null);
       setFormData({ name: '', content: '', description: '', category: '', variables: [], isFavorite: false });
       fetchPrompts();
@@ -115,7 +104,7 @@ export default function PromptLibrary({
   const handleDelete = async (id) => {
     if (!confirm('Delete this prompt?')) return;
     try {
-      await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
+      await promptsApi.delete(id);
       fetchPrompts();
     } catch (error) {
       console.error('Error deleting prompt:', error);
@@ -125,11 +114,7 @@ export default function PromptLibrary({
   // Toggle favorite
   const handleToggleFavorite = async (prompt) => {
     try {
-      await fetch(`${API_BASE}/${prompt.id}/favorite`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isFavorite: !prompt.isFavorite })
-      });
+      await promptsApi.toggleFavorite(prompt.id, !prompt.isFavorite);
       fetchPrompts();
     } catch (error) {
       console.error('Error toggling favorite:', error);
@@ -139,12 +124,7 @@ export default function PromptLibrary({
   // Execute prompt with variables
   const handleExecute = async (prompt) => {
     try {
-      const res = await fetch(`${API_BASE}/${prompt.id}/execute`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ variables: executeVariables })
-      });
-      const data = await res.json();
+      const data = await promptsApi.execute(prompt.id, executeVariables);
       onExecutePrompt?.(data.interpolated, prompt);
       setExecutingPrompt(null);
       setExecuteVariables({});

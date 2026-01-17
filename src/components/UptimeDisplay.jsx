@@ -1,9 +1,12 @@
 /**
  * Uptime Display Component
  * Service uptime tracking and history
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { uptimeApi } from '../services/api.js';
 
 const STATUS_COLORS = {
   up: '#2ecc71',
@@ -184,11 +187,8 @@ export default function UptimeDisplay({ isOpen, onClose }) {
 
   const fetchServices = useCallback(async () => {
     try {
-      const response = await fetch('/api/uptime');
-      if (response.ok) {
-        const data = await response.json();
-        setServices(data.services || []);
-      }
+      const data = await uptimeApi.getServices();
+      setServices(data.services || []);
     } catch (error) {
       console.error('Failed to fetch uptime data:', error);
       // Demo data
@@ -327,11 +327,8 @@ export function UptimeWidget() {
   useEffect(() => {
     const fetchServices = async () => {
       try {
-        const response = await fetch('/api/uptime');
-        if (response.ok) {
-          const data = await response.json();
-          setServices(data.services || []);
-        }
+        const data = await uptimeApi.getServices();
+        setServices(data.services || []);
       } catch (error) {
         // Fallback
         setServices([

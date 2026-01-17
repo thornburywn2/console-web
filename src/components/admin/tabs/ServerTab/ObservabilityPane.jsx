@@ -2,9 +2,12 @@
  * ObservabilityPane Component
  * Jaeger, Loki, and Promtail management
  * Three internal tabs: Stack Status, Traces, Logs
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { observabilityApi } from '../../../../services/api.js';
 import {
   OTEL_TABS,
   StackStatusCards,
@@ -38,15 +41,10 @@ export function ObservabilityPane() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch('/api/observability/stack/status');
-      if (res.ok) {
-        const data = await res.json();
-        setStackStatus(data);
-      } else {
-        setError('Failed to fetch stack status');
-      }
+      const data = await observabilityApi.getStackStatus();
+      setStackStatus(data);
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || 'Failed to fetch stack status');
     } finally {
       setLoading(false);
     }
@@ -56,15 +54,10 @@ export function ObservabilityPane() {
   const handleStackAction = async (action) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/observability/stack/${action}`, { method: 'POST' });
-      if (res.ok) {
-        await fetchStackStatus();
-      } else {
-        const data = await res.json();
-        setError(data.error || `Failed to ${action} stack`);
-      }
+      await observabilityApi.stackAction(action);
+      await fetchStackStatus();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || `Failed to ${action} stack`);
     } finally {
       setLoading(false);
     }
@@ -73,13 +66,10 @@ export function ObservabilityPane() {
   // Fetch services from Jaeger
   const fetchServices = useCallback(async () => {
     try {
-      const res = await fetch('/api/observability/services');
-      if (res.ok) {
-        const data = await res.json();
-        setServices(data.data || []);
-      }
+      const data = await observabilityApi.getServices();
+      setServices(data.data || []);
     } catch (err) {
-      console.error('Failed to fetch services:', err);
+      console.error('Failed to fetch services:', err.getUserMessage?.() || err.message);
     }
   }, []);
 
@@ -87,13 +77,10 @@ export function ObservabilityPane() {
   const fetchOperations = useCallback(async (service) => {
     if (!service) return;
     try {
-      const res = await fetch(`/api/observability/operations/${encodeURIComponent(service)}`);
-      if (res.ok) {
-        const data = await res.json();
-        setOperations(data.data || []);
-      }
+      const data = await observabilityApi.getOperations(service);
+      setOperations(data.data || []);
     } catch (err) {
-      console.error('Failed to fetch operations:', err);
+      console.error('Failed to fetch operations:', err.getUserMessage?.() || err.message);
     }
   }, []);
 
@@ -102,19 +89,16 @@ export function ObservabilityPane() {
     if (!selectedService) return;
     try {
       setLoading(true);
-      const params = new URLSearchParams({
+      const params = {
         service: selectedService,
         limit: String(traceLimit),
-      });
-      if (selectedOperation) params.set('operation', selectedOperation);
+      };
+      if (selectedOperation) params.operation = selectedOperation;
 
-      const res = await fetch(`/api/observability/traces?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        setTraces(data.data || []);
-      }
+      const data = await observabilityApi.searchTraces(params);
+      setTraces(data.data || []);
     } catch (err) {
-      console.error('Failed to search traces:', err);
+      console.error('Failed to search traces:', err.getUserMessage?.() || err.message);
     } finally {
       setLoading(false);
     }
@@ -123,13 +107,10 @@ export function ObservabilityPane() {
   // Fetch labels from Loki
   const fetchLabels = useCallback(async () => {
     try {
-      const res = await fetch('/api/observability/loki/labels');
-      if (res.ok) {
-        const data = await res.json();
-        setLabels(data.data || []);
-      }
+      const data = await observabilityApi.getLabels();
+      setLabels(data.data || []);
     } catch (err) {
-      console.error('Failed to fetch labels:', err);
+      console.error('Failed to fetch labels:', err.getUserMessage?.() || err.message);
     }
   }, []);
 
@@ -138,29 +119,22 @@ export function ObservabilityPane() {
     if (!logQuery.trim()) return;
     try {
       setLoading(true);
-      const params = new URLSearchParams({
-        query: logQuery,
-        limit: String(logLimit),
-      });
-      const res = await fetch(`/api/observability/loki/query?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        const results = data.data?.result || [];
-        // Flatten log entries
-        const entries = [];
-        for (const stream of results) {
-          for (const [ts, line] of stream.values || []) {
-            entries.push({
-              timestamp: ts,
-              labels: stream.stream,
-              line,
-            });
-          }
+      const data = await observabilityApi.queryLogs(logQuery, logLimit);
+      const results = data.data?.result || [];
+      // Flatten log entries
+      const entries = [];
+      for (const stream of results) {
+        for (const [ts, line] of stream.values || []) {
+          entries.push({
+            timestamp: ts,
+            labels: stream.stream,
+            line,
+          });
         }
-        setLogResults(entries);
       }
+      setLogResults(entries);
     } catch (err) {
-      console.error('Failed to execute log query:', err);
+      console.error('Failed to execute log query:', err.getUserMessage?.() || err.message);
     } finally {
       setLoading(false);
     }

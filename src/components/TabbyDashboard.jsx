@@ -2,11 +2,14 @@
  * Tabby Dashboard Component
  * P2 Phase 2: Tabby Management Dashboard
  *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
+ *
  * Provides a comprehensive UI for managing Tabby AI code completion service.
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { API_URL, DEFAULT_CONFIG } from './tabby-dashboard';
+import { DEFAULT_CONFIG } from './tabby-dashboard';
+import { tabbyApi } from '../services/api.js';
 
 export function TabbyDashboard({ onClose }) {
   const [status, setStatus] = useState(null);
@@ -28,14 +31,11 @@ export function TabbyDashboard({ onClose }) {
 
   const fetchStatus = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/tabby/status`);
-      if (res.ok) {
-        const data = await res.json();
-        setStatus(data);
-        setError(null);
-      }
+      const data = await tabbyApi.getStatus();
+      setStatus(data);
+      setError(null);
     } catch (err) {
-      setError('Failed to fetch Tabby status');
+      setError(err.getUserMessage?.() || 'Failed to fetch Tabby status');
     } finally {
       setLoading(false);
     }
@@ -43,53 +43,41 @@ export function TabbyDashboard({ onClose }) {
 
   const fetchModels = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/tabby/models`);
-      if (res.ok) {
-        const data = await res.json();
-        setModels(data);
-      }
+      const data = await tabbyApi.getModels();
+      setModels(data);
     } catch (err) {
-      console.error('Failed to fetch models:', err);
+      console.error('Failed to fetch models:', err.getUserMessage?.() || err.message);
     }
   };
 
   const fetchConfig = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/tabby/config`);
-      if (res.ok) {
-        const data = await res.json();
-        setConfig({
-          model: data.model || 'StarCoder-1B',
-          useGpu: data.useGpu || false,
-          port: data.port || 8080
-        });
-      }
+      const data = await tabbyApi.getConfig();
+      setConfig({
+        model: data.model || 'StarCoder-1B',
+        useGpu: data.useGpu || false,
+        port: data.port || 8080
+      });
     } catch (err) {
-      console.error('Failed to fetch config:', err);
+      console.error('Failed to fetch config:', err.getUserMessage?.() || err.message);
     }
   };
 
   const fetchLogs = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/tabby/logs?tail=100`);
-      if (res.ok) {
-        const data = await res.json();
-        setLogs(data.logs || []);
-      }
+      const data = await tabbyApi.getLogs(100);
+      setLogs(data.logs || []);
     } catch (err) {
-      console.error('Failed to fetch logs:', err);
+      console.error('Failed to fetch logs:', err.getUserMessage?.() || err.message);
     }
   };
 
   const fetchIdeConfig = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/tabby/ide-config`);
-      if (res.ok) {
-        const data = await res.json();
-        setIdeConfig(data);
-      }
+      const data = await tabbyApi.getIdeConfig();
+      setIdeConfig(data);
     } catch (err) {
-      console.error('Failed to fetch IDE config:', err);
+      console.error('Failed to fetch IDE config:', err.getUserMessage?.() || err.message);
     }
   };
 
@@ -98,20 +86,10 @@ export function TabbyDashboard({ onClose }) {
     setError(null);
 
     try {
-      const res = await fetch(`${API_URL}/api/tabby/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config)
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to start Tabby');
-      }
-
+      await tabbyApi.start(config);
       await fetchStatus();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setActionLoading(null);
     }
@@ -122,18 +100,10 @@ export function TabbyDashboard({ onClose }) {
     setError(null);
 
     try {
-      const res = await fetch(`${API_URL}/api/tabby/stop`, {
-        method: 'POST'
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to stop Tabby');
-      }
-
+      await tabbyApi.stop();
       await fetchStatus();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setActionLoading(null);
     }
@@ -144,18 +114,10 @@ export function TabbyDashboard({ onClose }) {
     setError(null);
 
     try {
-      const res = await fetch(`${API_URL}/api/tabby/restart`, {
-        method: 'POST'
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to restart Tabby');
-      }
-
+      await tabbyApi.restart();
       await fetchStatus();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setActionLoading(null);
     }
@@ -166,20 +128,10 @@ export function TabbyDashboard({ onClose }) {
     setError(null);
 
     try {
-      const res = await fetch(`${API_URL}/api/tabby/pull`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ useGpu: config.useGpu })
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to pull image');
-      }
-
+      await tabbyApi.pull({ useGpu: config.useGpu });
       await fetchStatus();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setActionLoading(null);
     }
@@ -190,16 +142,10 @@ export function TabbyDashboard({ onClose }) {
     setTestResult(null);
 
     try {
-      const res = await fetch(`${API_URL}/api/tabby/test`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: 'def fibonacci(n):' })
-      });
-
-      const data = await res.json();
+      const data = await tabbyApi.test('def fibonacci(n):');
       setTestResult(data);
     } catch (err) {
-      setTestResult({ success: false, error: err.message });
+      setTestResult({ success: false, error: err.getUserMessage?.() || err.message });
     } finally {
       setActionLoading(null);
     }
@@ -209,13 +155,9 @@ export function TabbyDashboard({ onClose }) {
     setActionLoading('config');
 
     try {
-      await fetch(`${API_URL}/api/tabby/config`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config)
-      });
+      await tabbyApi.saveConfig(config);
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setActionLoading(null);
     }

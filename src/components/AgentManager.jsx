@@ -2,13 +2,16 @@
  * Agent Manager Component
  * Main UI for managing background agents - list + detail layout
  * Replaces WorkflowBuilder functionality
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import AgentBuilder from './AgentBuilder';
 import AgentExecutionLog from './AgentExecutionLog';
 import AgentOutputStream from './AgentOutputStream';
-import { API_BASE, AgentListItem } from './agent-manager';
+import { AgentListItem } from './agent-manager';
+import { agentsExtendedApi } from '../services/api.js';
 
 export default function AgentManager({ socket }) {
   const [agents, setAgents] = useState([]);
@@ -24,13 +27,12 @@ export default function AgentManager({ socket }) {
   // Fetch agents
   const fetchAgents = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/agents`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to fetch agents');
-      const data = await res.json();
+      const data = await agentsExtendedApi.list();
       setAgents(data);
       setError(null);
     } catch (err) {
-      setError(err.message);
+      const message = err.getUserMessage?.() || err.message;
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -39,11 +41,8 @@ export default function AgentManager({ socket }) {
   // Fetch runner status
   const fetchRunnerStatus = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/agents/status/runner`, { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json();
-        setRunnerStatus(data);
-      }
+      const data = await agentsExtendedApi.getRunnerStatus();
+      setRunnerStatus(data);
     } catch (err) {
       console.error('Failed to fetch runner status:', err);
     }
@@ -52,17 +51,15 @@ export default function AgentManager({ socket }) {
   // Fetch metadata
   const fetchMetadata = useCallback(async () => {
     try {
-      const [triggersRes, actionsRes] = await Promise.all([
-        fetch(`${API_BASE}/api/agents/meta/triggers`, { credentials: 'include' }),
-        fetch(`${API_BASE}/api/agents/meta/actions`, { credentials: 'include' })
+      const [triggersData, actionsData] = await Promise.all([
+        agentsExtendedApi.getTriggerTypes(),
+        agentsExtendedApi.getActionTypes()
       ]);
-      if (triggersRes.ok) {
-        const { triggers } = await triggersRes.json();
-        setTriggerTypes(triggers);
+      if (triggersData?.triggers) {
+        setTriggerTypes(triggersData.triggers);
       }
-      if (actionsRes.ok) {
-        const { actions } = await actionsRes.json();
-        setActionTypes(actions);
+      if (actionsData?.actions) {
+        setActionTypes(actionsData.actions);
       }
     } catch (err) {
       console.error('Failed to fetch metadata:', err);
@@ -111,67 +108,51 @@ export default function AgentManager({ socket }) {
   // Run agent
   const handleRunAgent = async (agentId) => {
     try {
-      const res = await fetch(`${API_BASE}/api/agents/${agentId}/run`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to run agent');
-      }
+      await agentsExtendedApi.run(agentId);
       fetchAgents();
     } catch (err) {
-      setError(err.message);
+      const message = err.getUserMessage?.() || err.message;
+      setError(message);
     }
   };
 
   // Stop agent
   const handleStopAgent = async (agentId) => {
     try {
-      const res = await fetch(`${API_BASE}/api/agents/${agentId}/stop`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-      if (!res.ok) throw new Error('Failed to stop agent');
+      await agentsExtendedApi.stop(agentId);
       fetchAgents();
     } catch (err) {
-      setError(err.message);
+      const message = err.getUserMessage?.() || err.message;
+      setError(message);
     }
   };
 
   // Toggle agent enabled
   const handleToggleAgent = async (agentId) => {
     try {
-      const res = await fetch(`${API_BASE}/api/agents/${agentId}/toggle`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-      if (!res.ok) throw new Error('Failed to toggle agent');
-      const updated = await res.json();
+      const updated = await agentsExtendedApi.toggle(agentId);
       setAgents(prev => prev.map(a => a.id === agentId ? updated : a));
       if (selectedAgent?.id === agentId) {
         setSelectedAgent(updated);
       }
     } catch (err) {
-      setError(err.message);
+      const message = err.getUserMessage?.() || err.message;
+      setError(message);
     }
   };
 
   // Delete agent
   const handleDeleteAgent = async (agentId) => {
     try {
-      const res = await fetch(`${API_BASE}/api/agents/${agentId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
-      if (!res.ok) throw new Error('Failed to delete agent');
+      await agentsExtendedApi.delete(agentId);
       setAgents(prev => prev.filter(a => a.id !== agentId));
       if (selectedAgent?.id === agentId) {
         setSelectedAgent(null);
       }
       setDeleteConfirm(null);
     } catch (err) {
-      setError(err.message);
+      const message = err.getUserMessage?.() || err.message;
+      setError(message);
     }
   };
 
@@ -179,24 +160,9 @@ export default function AgentManager({ socket }) {
   const handleSaveAgent = async (agentData) => {
     try {
       const isUpdate = !!agentData.id;
-      const url = isUpdate
-        ? `${API_BASE}/api/agents/${agentData.id}`
-        : `${API_BASE}/api/agents`;
-      const method = isUpdate ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(agentData)
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to save agent');
-      }
-
-      const saved = await res.json();
+      const saved = isUpdate
+        ? await agentsExtendedApi.update(agentData.id, agentData)
+        : await agentsExtendedApi.create(agentData);
 
       if (isUpdate) {
         setAgents(prev => prev.map(a => a.id === saved.id ? saved : a));
@@ -208,7 +174,8 @@ export default function AgentManager({ socket }) {
       setIsCreating(false);
       setError(null);
     } catch (err) {
-      setError(err.message);
+      const message = err.getUserMessage?.() || err.message;
+      setError(message);
     }
   };
 

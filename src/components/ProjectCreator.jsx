@@ -1,12 +1,13 @@
 /**
  * Project Creator Component
  * Multi-step wizard for creating new projects from templates
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import TemplateCard from './TemplateCard';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5275';
+import { projectTemplatesApi } from '../services/api.js';
 
 const STEPS = [
   { id: 1, title: 'Select Template', description: 'Choose a project type' },
@@ -43,12 +44,10 @@ export default function ProjectCreator({ isOpen, onClose, onProjectCreated }) {
   const fetchTemplates = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/api/project-templates`);
-      if (!response.ok) throw new Error('Failed to fetch templates');
-      const data = await response.json();
+      const data = await projectTemplatesApi.list();
       setTemplates(data.templates || []);
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setLoading(false);
     }
@@ -112,28 +111,18 @@ export default function ProjectCreator({ isOpen, onClose, onProjectCreated }) {
       setCreating(true);
       setError(null);
 
-      const response = await fetch(`${API_URL}/api/project-templates/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          templateId: selectedTemplate.id,
-          variables,
-          options
-        })
+      const data = await projectTemplatesApi.create({
+        templateId: selectedTemplate.id,
+        variables,
+        options
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create project');
-      }
 
       setResult(data);
       if (onProjectCreated) {
         onProjectCreated(data.project);
       }
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setCreating(false);
     }

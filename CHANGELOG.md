@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                             Console.web v1.0.15                              │
+│                             Console.web v1.0.18                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
 │  │  Terminal   │  │   Admin     │  │  Projects   │  │  Sidebars   │        │
@@ -151,6 +151,128 @@ npm run build && npm start
 | **Containers** | Dockerode |
 | **Observability** | OpenTelemetry, Jaeger, Loki, Prometheus, Grafana |
 | **Security** | Helmet, express-rate-limit, Zod, Sentry |
+
+---
+
+## [1.0.18] - 2026-01-17
+
+### Phase 5.4 Complete - Nonce-Based CSP & Zod Validation
+
+This release completes Phase 5.4 of the stability roadmap with nonce-based Content Security Policy implementation and comprehensive Zod response validation across all major API methods.
+
+#### Nonce-Based CSP
+- **Cryptographic Nonces**: Generated per-request using `crypto.randomBytes(16).toString('base64')`
+- **Nonce Middleware**: New `nonceMiddleware` attaches nonce to `res.locals.cspNonce`
+- **Dynamic Security Headers**: `securityHeaders` converted to function returning helmet middleware with dynamic nonce
+- **HTML Injection**: SPA fallback injects nonce into style tags and adds `<meta name="csp-nonce">` for frontend access
+- **CSP Hardening**: Removed `'unsafe-inline'` from script-src and style-src, replaced with `'nonce-{value}'`
+- **xterm.js Compatibility**: Kept `'unsafe-eval'` as required by xterm.js WebGL renderer
+
+#### Zod Response Validation (25+ Methods)
+- **systemApi**: getStats, getDashboard, getSettings
+- **dockerApi**: listContainers, listImages, listVolumes
+- **infraApi**: getServices, getProcesses
+- **firewallApi**: getStatus, getRules
+- **sessionsApi**: list
+- **foldersApi**: list
+- **tagsApi**: list
+- **promptsApi**: list
+- **snippetsApi**: list
+- **cloudflareApi**: getTunnelStatus
+- **agentsApi**: list, getMarketplace
+- **gitApi**: getStatus, getBranches, getLog
+- **githubApi**: getRepos
+- **aiderApi**: getStatus
+- **tabbyApi**: getStatus
+- **mcpServersApi**: list
+- **codePuppyApi**: getStatus
+- **aiApi**: getUsage
+
+#### Test Infrastructure Updates
+- **TokenUsageWidget.test.jsx**: Updated to mock `aiApi.getUsage` instead of `global.fetch`
+- **Error Handling Tests**: Fixed expectations for fallback mock data behavior
+- **All 165 Frontend Tests**: Passing
+- **All 148 Backend Tests**: Passing
+
+---
+
+## [1.0.17] - 2026-01-17
+
+### Phase 5.1 Complete - Full API Service Migration
+
+Final batch of Phase 5.1 migration, completing the transition of all frontend components from direct fetch() calls to the centralized API service. The codebase is now ready for Phase 5.2 Zod Response Validation.
+
+#### Final Batch Migration (10 Components)
+- **App.jsx**: Main app component migrated to use projectsApi, systemApi, notesApi, sessionsPersistedApi
+- **DiffViewer.jsx**: Git diff visualization using new diffApi module
+- **ContextPanel.jsx**: Project context management using projectContextsApi
+- **ResourceChart.jsx**: Resource metrics using metricsApi
+- **ScheduleManager.jsx**: Scheduled tasks using scheduledTasksApi
+- **AgentExecutionLog.jsx**: Agent execution history using agentExecutionsApi
+- **SettingsPanel.jsx**: Settings management using systemVersionApi, shortcutsApi, personasApi, authentikSettingsApi
+- **VoiceCommandPanel.jsx**: Voice commands using voiceApi
+- **ProjectContextMenu.jsx**: Project settings using projectContextApi, projectTagsApi
+- **GitHubProjectPanel.jsx**: GitHub integration using githubProjectsApi
+
+#### New API Modules (13 Added)
+- **diffApi**: Git diff visualization
+- **notesApi**: Session notes CRUD
+- **sessionsPersistedApi**: Persisted session management for auto-reconnect
+- **metricsApi**: Resource metrics (CPU, memory, disk)
+- **projectContextsApi**: Project context item management
+- **scheduledTasksApi**: Cron job scheduling
+- **agentExecutionsApi**: Agent execution history with pagination
+- **systemVersionApi**: System version and update management
+- **shortcutsApi**: Keyboard shortcuts management
+- **personasApi**: AI persona management
+- **voiceApi**: Voice command interface
+- **projectContextApi**: Project settings, notes, stats, clone
+- **githubProjectsApi**: GitHub project operations
+
+#### Migration Summary
+- **Total Components Migrated**: 70+
+- **Total API Modules**: 35+
+- **Direct fetch() Calls Remaining**: 2 (intentional)
+  - `useAuth.jsx`: Uses `/auth/me` (Authentik SSO endpoint)
+  - `OfflineMode.jsx`: Generic sync mechanism for queued actions
+
+---
+
+## [1.0.16] - 2026-01-17
+
+### Phase 5.1 - Centralized API Service Migration
+
+Major infrastructure improvement migrating frontend components from direct fetch() calls to a centralized API service layer. This provides consistent error handling, request tracing, retry logic, and Sentry integration across all API interactions.
+
+#### Centralized API Service
+- **Core Architecture**: New `src/services/api.js` with unified request handling
+- **Error Handling**: `ApiError` class with `getUserMessage()` for user-friendly errors
+- **Request Tracing**: X-Request-ID headers on all requests for end-to-end tracing
+- **Sentry Integration**: Breadcrumbs for HTTP requests, automatic capture of 5xx errors
+- **Retry Logic**: Configurable retry with exponential backoff for transient failures
+- **Request Cancellation**: `cancelRequest()` and `cancelAllRequests()` utilities
+
+#### Domain API Modules (8 New)
+- **authentikApi**: Authentik SSO user/group management (status, settings, users, groups)
+- **serverApi**: Server logs and services (journalctl integration)
+- **infraExtendedApi**: Network, packages, processes, security, scheduled tasks
+- **stackApi**: Sovereign Stack service health and management
+- **serverUsersApi**: Linux user/group management
+- **firewallExtendedApi**: UFW firewall rules, logs, project port sync
+- **adminApi**: Admin history, CLAUDE.md management
+- **aiApi**: Token usage tracking and cost estimation
+
+#### Components Migrated (15 Files, 68+ Fetch Calls)
+- **Hooks**: useSessionManagement.js (15 calls), useAiderVoice.js (6 calls)
+- **Admin Tabs**: AuthentikPane, LogsPane, NetworkPane, PackagesPane, ProcessesPane, StackPane, UsersPane, FirewallPane, Fail2banPane, HistoryTab, ScheduledPane
+- **Widgets**: DockerWidget, TokenUsageWidget
+
+#### Migration Benefits
+- Consistent error display with ApiError.getUserMessage()
+- Automatic request ID propagation for debugging
+- Sentry breadcrumbs for all API interactions
+- Centralized timeout and retry configuration
+- Easier unit testing with mockable API layer
 
 ---
 

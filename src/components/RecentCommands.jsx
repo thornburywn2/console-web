@@ -1,9 +1,12 @@
 /**
  * Recent Commands Component
  * Command history dropdown with quick execution
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { commandsApi } from '../services/api.js';
 
 function CommandItem({ command, onExecute, onCopy, onPin, isPinned, isFavorite }) {
   return (
@@ -88,11 +91,8 @@ export default function RecentCommands({
   useEffect(() => {
     const loadHistory = async () => {
       try {
-        const response = await fetch('/api/commands/history');
-        if (response.ok) {
-          const data = await response.json();
-          setCommands(data.commands || []);
-        }
+        const data = await commandsApi.getHistory();
+        setCommands(data.commands || []);
       } catch (error) {
         console.error('Failed to load command history:', error);
         // Load from localStorage as fallback

@@ -10,11 +10,13 @@
  * - Model/provider configuration
  * - Configuration system (puppy.cfg)
  * - Slash command reference
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { codePuppyApi } from '../services/api.js';
 import {
-  API_URL,
   TABS,
   StatusTab,
   SessionTab,
@@ -113,12 +115,9 @@ export function CodePuppyDashboard({ onClose, socket, projects = [] }) {
 
   const fetchStatus = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/code-puppy/status`);
-      if (res.ok) {
-        const data = await res.json();
-        setStatus(data);
-        setError(null);
-      }
+      const data = await codePuppyApi.getStatus();
+      setStatus(data);
+      setError(null);
     } catch (err) {
       setError('Failed to fetch Code Puppy status');
     } finally {
@@ -128,86 +127,65 @@ export function CodePuppyDashboard({ onClose, socket, projects = [] }) {
 
   const fetchSessions = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/code-puppy/sessions`);
-      if (res.ok) {
-        const data = await res.json();
-        setSessions(data.sessions || []);
-      }
+      const data = await codePuppyApi.getSessions();
+      setSessions(data.sessions || []);
     } catch (err) {
-      console.error('Failed to fetch sessions:', err);
+      console.error('Failed to fetch sessions:', err.getUserMessage?.() || err.message);
     }
   };
 
   const fetchAgents = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/code-puppy/agents`);
-      if (res.ok) {
-        const data = await res.json();
-        setAgents(data.agents || []);
-      }
+      const data = await codePuppyApi.getAgents();
+      setAgents(data.agents || []);
     } catch (err) {
-      console.error('Failed to fetch agents:', err);
+      console.error('Failed to fetch agents:', err.getUserMessage?.() || err.message);
     }
   };
 
   const fetchProviders = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/code-puppy/providers`);
-      if (res.ok) {
-        const data = await res.json();
-        setProviders(data.providers || {});
-        setAvailability(data.availability || {});
-      }
+      const data = await codePuppyApi.getProviders();
+      setProviders(data.providers || {});
+      setAvailability(data.availability || {});
     } catch (err) {
-      console.error('Failed to fetch providers:', err);
+      console.error('Failed to fetch providers:', err.getUserMessage?.() || err.message);
     }
   };
 
   const fetchTools = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/code-puppy/tools`);
-      if (res.ok) {
-        const data = await res.json();
-        setAvailableTools(data.tools || []);
-      }
+      const data = await codePuppyApi.getTools();
+      setAvailableTools(data.tools || []);
     } catch (err) {
-      console.error('Failed to fetch tools:', err);
+      console.error('Failed to fetch tools:', err.getUserMessage?.() || err.message);
     }
   };
 
   const fetchConfig = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/code-puppy/config`);
-      if (res.ok) {
-        const data = await res.json();
-        setConfig(data.config || {});
-      }
+      const data = await codePuppyApi.getConfig();
+      setConfig(data.config || {});
     } catch (err) {
-      console.error('Failed to fetch config:', err);
+      console.error('Failed to fetch config:', err.getUserMessage?.() || err.message);
     }
   };
 
   const fetchMcpServers = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/code-puppy/mcp`);
-      if (res.ok) {
-        const data = await res.json();
-        setMcpServers(data.servers || {});
-      }
+      const data = await codePuppyApi.getMcpServers();
+      setMcpServers(data.servers || {});
     } catch (err) {
-      console.error('Failed to fetch MCP servers:', err);
+      console.error('Failed to fetch MCP servers:', err.getUserMessage?.() || err.message);
     }
   };
 
   const fetchCommands = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/code-puppy/commands`);
-      if (res.ok) {
-        const data = await res.json();
-        setCommands(data);
-      }
+      const data = await codePuppyApi.getCommands();
+      setCommands(data);
     } catch (err) {
-      console.error('Failed to fetch commands:', err);
+      console.error('Failed to fetch commands:', err.getUserMessage?.() || err.message);
     }
   };
 
@@ -221,29 +199,19 @@ export function CodePuppyDashboard({ onClose, socket, projects = [] }) {
     setError(null);
 
     try {
-      const res = await fetch(`${API_URL}/api/code-puppy/sessions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectPath: newSessionProject,
-          model: selectedModel,
-          agent: selectedAgent,
-          enableDbos
-        })
+      const data = await codePuppyApi.createSession({
+        projectPath: newSessionProject,
+        model: selectedModel,
+        agent: selectedAgent,
+        enableDbos
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to create session');
-      }
-
-      const data = await res.json();
       await fetchSessions();
       setActiveSession(data.session.id);
       setSessionOutput([]);
       setActiveTab('session');
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setActionLoading(null);
     }
@@ -253,15 +221,13 @@ export function CodePuppyDashboard({ onClose, socket, projects = [] }) {
     setActionLoading(`stop-${sessionId}`);
 
     try {
-      await fetch(`${API_URL}/api/code-puppy/sessions/${sessionId}/stop`, {
-        method: 'POST'
-      });
+      await codePuppyApi.stopSession(sessionId);
       await fetchSessions();
       if (activeSession === sessionId) {
         setActiveSession(null);
       }
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setActionLoading(null);
     }
@@ -269,16 +235,14 @@ export function CodePuppyDashboard({ onClose, socket, projects = [] }) {
 
   const handleRemoveSession = async (sessionId) => {
     try {
-      await fetch(`${API_URL}/api/code-puppy/sessions/${sessionId}`, {
-        method: 'DELETE'
-      });
+      await codePuppyApi.deleteSession(sessionId);
       await fetchSessions();
       if (activeSession === sessionId) {
         setActiveSession(null);
         setSessionOutput([]);
       }
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     }
   };
 
@@ -291,13 +255,9 @@ export function CodePuppyDashboard({ onClose, socket, projects = [] }) {
     setSessionOutput(prev => [...prev, { type: 'input', data: input, time: Date.now() }]);
 
     try {
-      await fetch(`${API_URL}/api/code-puppy/sessions/${activeSession}/input`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input })
-      });
+      await codePuppyApi.sendInput(activeSession, input);
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     }
   };
 
@@ -305,21 +265,11 @@ export function CodePuppyDashboard({ onClose, socket, projects = [] }) {
     setActionLoading('create-agent');
 
     try {
-      const res = await fetch(`${API_URL}/api/code-puppy/agents`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(agentData)
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to create agent');
-      }
-
+      await codePuppyApi.createAgent(agentData);
       await fetchAgents();
       return true;
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
       return false;
     } finally {
       setActionLoading(null);
@@ -330,29 +280,20 @@ export function CodePuppyDashboard({ onClose, socket, projects = [] }) {
     if (!confirm(`Delete agent "${agentName}"?`)) return;
 
     try {
-      await fetch(`${API_URL}/api/code-puppy/agents/${agentName}`, {
-        method: 'DELETE'
-      });
+      await codePuppyApi.deleteAgent(agentName);
       await fetchAgents();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     }
   };
 
   const handleAddMcpServer = async (name, command, args) => {
     try {
-      const res = await fetch(`${API_URL}/api/code-puppy/mcp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, command, args })
-      });
-
-      if (!res.ok) throw new Error('Failed to add MCP server');
-
+      await codePuppyApi.addMcpServer(name, command, args);
       await fetchMcpServers();
       return true;
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
       return false;
     }
   };
@@ -361,27 +302,19 @@ export function CodePuppyDashboard({ onClose, socket, projects = [] }) {
     if (!confirm(`Remove MCP server "${name}"?`)) return;
 
     try {
-      await fetch(`${API_URL}/api/code-puppy/mcp/${name}`, {
-        method: 'DELETE'
-      });
+      await codePuppyApi.removeMcpServer(name);
       await fetchMcpServers();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     }
   };
 
   const handleSyncFromClaude = async () => {
     try {
-      const res = await fetch('/api/code-puppy/mcp/claude-config');
-      const data = await res.json();
+      const data = await codePuppyApi.getClaudeConfig();
       if (data.found) {
         if (confirm(`Found ${data.serverCount} MCP server(s) in Claude Code config.\n\nSync them to Code Puppy?`)) {
-          const syncRes = await fetch('/api/code-puppy/mcp/sync-claude', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mode: 'merge' })
-          });
-          const syncData = await syncRes.json();
+          const syncData = await codePuppyApi.syncFromClaude('merge');
           if (syncData.success) {
             alert(`Sync complete!\nAdded: ${syncData.results.added.length}\nUpdated: ${syncData.results.updated.length}\nSkipped: ${syncData.results.skipped.length}`);
             fetchMcpServers();
@@ -393,20 +326,16 @@ export function CodePuppyDashboard({ onClose, socket, projects = [] }) {
         alert('No Claude Code MCP configuration found.\n\nMake sure Claude Code is installed and has MCP servers configured.');
       }
     } catch (err) {
-      alert('Error: ' + err.message);
+      alert('Error: ' + (err.getUserMessage?.() || err.message));
     }
   };
 
   const handleUpdateConfig = async (key, value) => {
     try {
-      await fetch(`${API_URL}/api/code-puppy/config/${key}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value })
-      });
+      await codePuppyApi.updateConfig(key, value);
       await fetchConfig();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     }
   };
 

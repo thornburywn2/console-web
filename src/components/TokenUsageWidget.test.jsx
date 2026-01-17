@@ -1,10 +1,20 @@
 /**
  * TokenUsageWidget Component Tests
+ * Phase 5.2: Updated to mock centralized API service
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import TokenUsageWidget, { TokenUsageInline } from './TokenUsageWidget';
+
+// Mock the centralized API service
+vi.mock('../services/api.js', () => ({
+  aiApi: {
+    getUsage: vi.fn(),
+  },
+}));
+
+import { aiApi } from '../services/api.js';
 
 describe('TokenUsageWidget', () => {
   const mockUsageData = {
@@ -22,7 +32,6 @@ describe('TokenUsageWidget', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    global.fetch = vi.fn();
   });
 
   afterEach(() => {
@@ -30,7 +39,7 @@ describe('TokenUsageWidget', () => {
   });
 
   it('should show loading state initially', async () => {
-    global.fetch = vi.fn(() => new Promise(() => {})); // Never resolves
+    aiApi.getUsage.mockImplementation(() => new Promise(() => {})); // Never resolves
 
     render(<TokenUsageWidget />);
 
@@ -38,10 +47,7 @@ describe('TokenUsageWidget', () => {
   });
 
   it('should display token usage after loading', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockUsageData),
-    });
+    aiApi.getUsage.mockResolvedValue(mockUsageData);
 
     render(<TokenUsageWidget />);
 
@@ -55,10 +61,7 @@ describe('TokenUsageWidget', () => {
   });
 
   it('should display Token Usage header', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockUsageData),
-    });
+    aiApi.getUsage.mockResolvedValue(mockUsageData);
 
     render(<TokenUsageWidget />);
 
@@ -66,10 +69,7 @@ describe('TokenUsageWidget', () => {
   });
 
   it('should display input and output token breakdown', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockUsageData),
-    });
+    aiApi.getUsage.mockResolvedValue(mockUsageData);
 
     render(<TokenUsageWidget />);
 
@@ -84,10 +84,7 @@ describe('TokenUsageWidget', () => {
   });
 
   it('should display estimated cost', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockUsageData),
-    });
+    aiApi.getUsage.mockResolvedValue(mockUsageData);
 
     render(<TokenUsageWidget />);
 
@@ -102,10 +99,7 @@ describe('TokenUsageWidget', () => {
   });
 
   it('should display request count', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockUsageData),
-    });
+    aiApi.getUsage.mockResolvedValue(mockUsageData);
 
     render(<TokenUsageWidget />);
 
@@ -118,10 +112,7 @@ describe('TokenUsageWidget', () => {
   });
 
   it('should display model information', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockUsageData),
-    });
+    aiApi.getUsage.mockResolvedValue(mockUsageData);
 
     render(<TokenUsageWidget />);
 
@@ -134,10 +125,7 @@ describe('TokenUsageWidget', () => {
   });
 
   it('should display usage history when showDetails is true', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockUsageData),
-    });
+    aiApi.getUsage.mockResolvedValue(mockUsageData);
 
     render(<TokenUsageWidget showDetails={true} />);
 
@@ -149,10 +137,7 @@ describe('TokenUsageWidget', () => {
   });
 
   it('should not display usage history when showDetails is false', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockUsageData),
-    });
+    aiApi.getUsage.mockResolvedValue(mockUsageData);
 
     render(<TokenUsageWidget showDetails={false} />);
 
@@ -164,10 +149,7 @@ describe('TokenUsageWidget', () => {
   });
 
   it('should allow changing time range', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockUsageData),
-    });
+    aiApi.getUsage.mockResolvedValue(mockUsageData);
 
     render(<TokenUsageWidget />);
 
@@ -179,42 +161,33 @@ describe('TokenUsageWidget', () => {
 
     // Should fetch with new range
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('range=week'));
+      expect(aiApi.getUsage).toHaveBeenCalledWith(expect.objectContaining({ range: 'week' }));
     });
   });
 
   it('should include sessionId in API request when provided', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockUsageData),
-    });
+    aiApi.getUsage.mockResolvedValue(mockUsageData);
 
     render(<TokenUsageWidget sessionId="test-session-123" />);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('sessionId=test-session-123'));
+      expect(aiApi.getUsage).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'test-session-123' }));
     });
   });
 
   it('should include projectId in API request when provided', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockUsageData),
-    });
+    aiApi.getUsage.mockResolvedValue(mockUsageData);
 
     render(<TokenUsageWidget projectId="project-456" />);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('projectId=project-456'));
+      expect(aiApi.getUsage).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'project-456' }));
     });
   });
 
   it('should show usage percentage correctly', async () => {
     const lowUsageData = { ...mockUsageData, totalTokens: 100000 }; // 10% of 1M
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(lowUsageData),
-    });
+    aiApi.getUsage.mockResolvedValue(lowUsageData);
 
     render(<TokenUsageWidget />);
 
@@ -226,25 +199,22 @@ describe('TokenUsageWidget', () => {
   });
 
   it('should handle fetch error gracefully', async () => {
-    global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
+    aiApi.getUsage.mockRejectedValue(new Error('Network error'));
 
     render(<TokenUsageWidget />);
 
-    // Should still display fallback data after error
+    // Should show fallback mock data after error
     await waitFor(() => {
       expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     });
 
-    // Should show mock data
+    // Should show fallback mock data (57680 tokens = 57.7K)
     expect(screen.getByText('57.7K')).toBeInTheDocument();
   });
 
   describe('compact mode', () => {
     it('should render compact version when compact=true', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve(mockUsageData),
-      });
+      aiApi.getUsage.mockResolvedValue(mockUsageData);
 
       render(<TokenUsageWidget compact={true} />);
 

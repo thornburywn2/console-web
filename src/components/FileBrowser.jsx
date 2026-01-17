@@ -1,9 +1,12 @@
 /**
  * File Browser Component
  * Tree view navigation of project files
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { filesApi } from '../services/api.js';
 
 // File type icons
 const getFileIcon = (name, isDirectory) => {
@@ -93,15 +96,11 @@ export default function FileBrowser({
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/files/' + encodeURIComponent(path));
-      if (response.ok) {
-        const data = await response.json();
-        setFiles(data);
-      } else {
-        setError('Failed to load files');
-      }
+      const data = await filesApi.list(path);
+      setFiles(data);
     } catch (err) {
-      setError('Error: ' + err.message);
+      const message = err.getUserMessage?.() || 'Failed to load files';
+      setError(message);
     } finally {
       setLoading(false);
     }

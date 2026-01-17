@@ -1,9 +1,12 @@
 /**
  * Schedule Manager Component
  * Cron job scheduler UI for automated tasks
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { scheduledTasksApi } from '../services/api.js';
 
 // Common cron presets
 const CRON_PRESETS = [
@@ -239,13 +242,10 @@ export default function ScheduleManager({ isOpen, onClose, embedded = false }) {
   const fetchTasks = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/workflows/scheduled');
-      if (response.ok) {
-        const data = await response.json();
-        setTasks(data);
-      }
+      const data = await scheduledTasksApi.list();
+      setTasks(data);
     } catch (error) {
-      console.error('Failed to fetch tasks:', error);
+      console.error('Failed to fetch tasks:', error.getUserMessage?.() || error.message);
     } finally {
       setLoading(false);
     }
@@ -257,24 +257,16 @@ export default function ScheduleManager({ isOpen, onClose, embedded = false }) {
 
   const handleSaveTask = async (taskData) => {
     try {
-      const method = taskData.id ? 'PUT' : 'POST';
-      const url = taskData.id
-        ? '/api/workflows/scheduled/' + taskData.id
-        : '/api/workflows/scheduled';
-
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(taskData),
-      });
-
-      if (response.ok) {
-        await fetchTasks();
-        setShowEditor(false);
-        setEditingTask(null);
+      if (taskData.id) {
+        await scheduledTasksApi.update(taskData.id, taskData);
+      } else {
+        await scheduledTasksApi.create(taskData);
       }
+      await fetchTasks();
+      setShowEditor(false);
+      setEditingTask(null);
     } catch (error) {
-      console.error('Failed to save task:', error);
+      console.error('Failed to save task:', error.getUserMessage?.() || error.message);
     }
   };
 
@@ -287,19 +279,19 @@ export default function ScheduleManager({ isOpen, onClose, embedded = false }) {
 
   const handleDelete = async (id) => {
     try {
-      await fetch('/api/workflows/scheduled/' + id, { method: 'DELETE' });
+      await scheduledTasksApi.delete(id);
       await fetchTasks();
     } catch (error) {
-      console.error('Failed to delete task:', error);
+      console.error('Failed to delete task:', error.getUserMessage?.() || error.message);
     }
   };
 
   const handleRunNow = async (id) => {
     try {
-      await fetch('/api/workflows/scheduled/' + id + '/run', { method: 'POST' });
+      await scheduledTasksApi.run(id);
       await fetchTasks();
     } catch (error) {
-      console.error('Failed to run task:', error);
+      console.error('Failed to run task:', error.getUserMessage?.() || error.message);
     }
   };
 

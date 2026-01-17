@@ -1,9 +1,12 @@
 /**
  * Port Resolver Component
  * Detect port conflicts and suggest available ports
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { portsApi } from '../services/api.js';
 
 const COMMON_PORTS = [
   { port: 3000, service: 'Node.js/React Dev' },
@@ -170,21 +173,16 @@ export default function PortResolver({ isOpen, onClose }) {
   const fetchPorts = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/ports/status');
-      if (response.ok) {
-        const data = await response.json();
-        setPorts(data.ports || []);
-      } else {
-        // Generate mock data for common ports
-        setPorts(COMMON_PORTS.map(p => ({
-          ...p,
-          status: Math.random() > 0.7 ? 'in_use' : 'available',
-          process: Math.random() > 0.7 ? { name: 'node', pid: Math.floor(Math.random() * 10000) } : null
-        })));
-      }
+      const data = await portsApi.getStatus();
+      setPorts(data.ports || []);
     } catch (error) {
       console.error('Failed to fetch port status:', error);
-      setPorts(COMMON_PORTS.map(p => ({ ...p, status: 'unknown' })));
+      // Generate mock data for common ports on error
+      setPorts(COMMON_PORTS.map(p => ({
+        ...p,
+        status: Math.random() > 0.7 ? 'in_use' : 'available',
+        process: Math.random() > 0.7 ? { name: 'node', pid: Math.floor(Math.random() * 10000) } : null
+      })));
     } finally {
       setLoading(false);
     }
@@ -200,11 +198,8 @@ export default function PortResolver({ isOpen, onClose }) {
     setScanning(true);
     setScanResults(null);
     try {
-      const response = await fetch(`/api/ports/scan?start=${start}&end=${end}`);
-      if (response.ok) {
-        const data = await response.json();
-        setScanResults(data);
-      }
+      const data = await portsApi.scan(start, end);
+      setScanResults(data);
     } catch (error) {
       console.error('Failed to scan ports:', error);
     } finally {
@@ -215,20 +210,11 @@ export default function PortResolver({ isOpen, onClose }) {
   const handleSuggest = async (basePort) => {
     setSelectedPort(basePort);
     try {
-      const response = await fetch(`/api/ports/suggest?base=${basePort}`);
-      if (response.ok) {
-        const data = await response.json();
-        setSuggestions(data.suggestions);
-      } else {
-        // Generate local suggestions
-        const alts = [];
-        for (let i = 1; i <= 5; i++) {
-          alts.push(basePort + i);
-        }
-        setSuggestions(alts);
-      }
+      const data = await portsApi.suggest(basePort);
+      setSuggestions(data.suggestions);
     } catch (error) {
       console.error('Failed to get suggestions:', error);
+      // Generate local suggestions on error
       const alts = [];
       for (let i = 1; i <= 5; i++) {
         alts.push(basePort + i);
@@ -240,7 +226,7 @@ export default function PortResolver({ isOpen, onClose }) {
   const handleKill = async (pid) => {
     if (!confirm(`Kill process ${pid}?`)) return;
     try {
-      await fetch(`/api/ports/kill/${pid}`, { method: 'POST' });
+      await portsApi.kill(pid);
       fetchPorts();
     } catch (error) {
       console.error('Failed to kill process:', error);
@@ -252,11 +238,8 @@ export default function PortResolver({ isOpen, onClose }) {
     if (!port || port < 1 || port > 65535) return;
 
     try {
-      const response = await fetch(`/api/ports/check/${port}`);
-      if (response.ok) {
-        const data = await response.json();
-        alert(data.available ? `Port ${port} is available` : `Port ${port} is in use by ${data.process?.name || 'unknown'}`);
-      }
+      const data = await portsApi.check(port);
+      alert(data.available ? `Port ${port} is available` : `Port ${port} is in use by ${data.process?.name || 'unknown'}`);
     } catch (error) {
       console.error('Failed to check port:', error);
     }

@@ -2,11 +2,12 @@
  * Security Middleware
  *
  * Provides:
- * - Security headers via helmet
+ * - Security headers via helmet with nonce-based CSP (Phase 5.4)
  * - Rate limiting for API protection
  * - Global error handler
  */
 
+import crypto from 'crypto';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { createLogger } from '../services/logger.js';
@@ -14,46 +15,79 @@ import { createLogger } from '../services/logger.js';
 const log = createLogger('security');
 
 // =============================================================================
-// SECURITY HEADERS (Helmet)
+// NONCE GENERATION (Phase 5.4)
 // =============================================================================
 
 /**
- * Helmet middleware with CSP configured for xterm.js and Tailwind
+ * Generate a cryptographically secure nonce
+ * Used for CSP inline script/style allowlisting
  */
-export const securityHeaders = helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      // Scripts: self + inline/eval for xterm.js + Cloudflare Insights
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://static.cloudflareinsights.com"],
-      scriptSrcElem: ["'self'", "'unsafe-inline'", "https://static.cloudflareinsights.com"],
-      // Styles: self + inline for Tailwind + Google Fonts
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      styleSrcElem: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      imgSrc: ["'self'", "data:", "https:", "blob:"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://fonts.googleapis.com", "data:"],
-      connectSrc: ["'self'", "wss:", "ws:", "https:"],
-      frameSrc: ["'none'"],
-      objectSrc: ["'none'"],
-      baseUri: ["'self'"],
-      formAction: ["'self'"],
-      frameAncestors: ["'none'"],
-      upgradeInsecureRequests: [],
+export function generateNonce() {
+  return crypto.randomBytes(16).toString('base64');
+}
+
+/**
+ * Middleware to generate and attach a nonce to each request
+ * The nonce is stored in res.locals.cspNonce for use in templates
+ */
+export const nonceMiddleware = (req, res, next) => {
+  res.locals.cspNonce = generateNonce();
+  next();
+};
+
+// =============================================================================
+// SECURITY HEADERS (Helmet with Nonce-based CSP)
+// =============================================================================
+
+/**
+ * Create helmet middleware with dynamic nonce-based CSP
+ * Phase 5.4: Replaced 'unsafe-inline' with nonces for scripts and styles
+ *
+ * Note: 'unsafe-eval' is still required for xterm.js WebGL renderer
+ */
+export const securityHeaders = (req, res, next) => {
+  const nonce = res.locals.cspNonce || generateNonce();
+
+  // If nonce wasn't set by middleware, set it now
+  if (!res.locals.cspNonce) {
+    res.locals.cspNonce = nonce;
+  }
+
+  return helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        // Scripts: self + nonce + unsafe-eval (required for xterm.js) + Cloudflare Insights
+        scriptSrc: ["'self'", `'nonce-${nonce}'`, "'unsafe-eval'", "https://static.cloudflareinsights.com"],
+        scriptSrcElem: ["'self'", `'nonce-${nonce}'`, "https://static.cloudflareinsights.com"],
+        // Styles: self + nonce + Google Fonts
+        styleSrc: ["'self'", `'nonce-${nonce}'`, "https://fonts.googleapis.com"],
+        styleSrcElem: ["'self'", `'nonce-${nonce}'`, "https://fonts.googleapis.com"],
+        imgSrc: ["'self'", "data:", "https:", "blob:"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com", "https://fonts.googleapis.com", "data:"],
+        connectSrc: ["'self'", "wss:", "ws:", "https:"],
+        frameSrc: ["'none'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'none'"],
+        upgradeInsecureRequests: [],
+      },
     },
-  },
-  crossOriginEmbedderPolicy: false,  // Required for some integrations
-  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
-  crossOriginResourcePolicy: { policy: 'cross-origin' },  // Allow cross-origin for API
-  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-  hsts: {
-    maxAge: 31536000,  // 1 year
-    includeSubDomains: true,
-    preload: true,
-  },
-  noSniff: true,
-  xssFilter: true,
-  hidePoweredBy: true,
-});
+    crossOriginEmbedderPolicy: false,  // Required for some integrations
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+    crossOriginResourcePolicy: { policy: 'cross-origin' },  // Allow cross-origin for API
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    hsts: {
+      maxAge: 31536000,  // 1 year
+      includeSubDomains: true,
+      preload: true,
+    },
+    noSniff: true,
+    xssFilter: true,
+    hidePoweredBy: true,
+  })(req, res, next);
+};
 
 // =============================================================================
 // RATE LIMITING
@@ -269,6 +303,8 @@ function parseSize(size) {
 }
 
 export default {
+  generateNonce,
+  nonceMiddleware,
   securityHeaders,
   apiRateLimiter,
   strictRateLimiter,

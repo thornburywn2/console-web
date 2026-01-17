@@ -1,10 +1,13 @@
 /**
  * Fail2banPane Component
  * Fail2ban status and jail management
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { formatTime } from '../../utils';
+import { infraExtendedApi } from '../../../../services/api.js';
 
 export function Fail2banPane() {
   const [fail2banStatus, setFail2banStatus] = useState({ installed: false, jails: [] });
@@ -19,42 +22,27 @@ export function Fail2banPane() {
     try {
       setLoading(true);
       const [
-        fail2banRes,
-        sshSessionsRes,
-        sshFailedRes,
-        sshKeysRes,
-        openPortsRes,
-        lastLoginsRes
+        fail2banData,
+        sshSessionsData,
+        sshFailedData,
+        sshKeysData,
+        openPortsData,
+        lastLoginsData
       ] = await Promise.all([
-        fetch('/api/infra/security/fail2ban/status'),
-        fetch('/api/infra/security/ssh/sessions'),
-        fetch('/api/infra/security/ssh/failed'),
-        fetch('/api/infra/security/ssh/keys'),
-        fetch('/api/infra/security/ports'),
-        fetch('/api/infra/security/last-logins')
+        infraExtendedApi.getFail2banStatus(),
+        infraExtendedApi.getSshSessions(),
+        infraExtendedApi.getSshFailedAttempts(),
+        infraExtendedApi.getSshKeys(),
+        infraExtendedApi.getOpenPorts(),
+        infraExtendedApi.getLastLogins()
       ]);
 
-      if (fail2banRes.ok) setFail2banStatus(await fail2banRes.json());
-      if (sshSessionsRes.ok) {
-        const data = await sshSessionsRes.json();
-        setSshSessions(data.sessions || []);
-      }
-      if (sshFailedRes.ok) {
-        const data = await sshFailedRes.json();
-        setSshFailedAttempts(data.attempts || []);
-      }
-      if (sshKeysRes.ok) {
-        const data = await sshKeysRes.json();
-        setSshKeys(data.keys || []);
-      }
-      if (openPortsRes.ok) {
-        const data = await openPortsRes.json();
-        setOpenPorts(data.ports || []);
-      }
-      if (lastLoginsRes.ok) {
-        const data = await lastLoginsRes.json();
-        setLastLogins(data.logins || []);
-      }
+      setFail2banStatus(fail2banData);
+      setSshSessions(sshSessionsData.sessions || []);
+      setSshFailedAttempts(sshFailedData.attempts || []);
+      setSshKeys(sshKeysData.keys || []);
+      setOpenPorts(openPortsData.ports || []);
+      setLastLogins(lastLoginsData.logins || []);
     } catch (err) {
       console.error('Error fetching security data:', err);
     } finally {
@@ -65,14 +53,8 @@ export function Fail2banPane() {
   const unbanIP = useCallback(async (jail, ip) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/infra/security/fail2ban/${jail}/unban`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip })
-      });
-      if (res.ok) {
-        fetchSecurityData();
-      }
+      await infraExtendedApi.unbanIp(jail, ip);
+      fetchSecurityData();
     } catch (err) {
       console.error('Error unbanning IP:', err);
     } finally {
@@ -226,7 +208,7 @@ export function Fail2banPane() {
           {openPorts.slice(0, 20).map((port, idx) => (
             <div key={idx} className="p-2 bg-hacker-surface rounded border border-hacker-border text-xs font-mono">
               <div className="text-hacker-purple">{port.port}/{port.protocol}</div>
-              <div className="text-hacker-text-dim truncate">{port.process || port.service}</div>
+              <div className="text-hacker-text-dim truncate">{(typeof port.process === 'object' ? port.process?.name : port.process) || port.service || 'Unknown'}</div>
             </div>
           ))}
         </div>

@@ -1,9 +1,12 @@
 /**
  * PackagesPane Component
  * System package management (apt/dpkg)
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { infraExtendedApi } from '../../../../services/api.js';
 
 export function PackagesPane() {
   const [packages, setPackages] = useState({ packages: [], total: 0 });
@@ -15,11 +18,8 @@ export function PackagesPane() {
   const fetchPackages = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/infra/packages');
-      if (res.ok) {
-        const data = await res.json();
-        setPackages(data);
-      }
+      const data = await infraExtendedApi.getPackages();
+      setPackages(data);
     } catch (err) {
       console.error('Error fetching packages:', err);
     } finally {
@@ -29,11 +29,8 @@ export function PackagesPane() {
 
   const fetchPackageUpdates = useCallback(async () => {
     try {
-      const res = await fetch('/api/infra/packages/updates');
-      if (res.ok) {
-        const data = await res.json();
-        setPackageUpdates(data);
-      }
+      const data = await infraExtendedApi.getPackageUpdates();
+      setPackageUpdates(data);
     } catch (err) {
       console.error('Error fetching package updates:', err);
     }
@@ -43,11 +40,8 @@ export function PackagesPane() {
     if (!query.trim()) return;
     try {
       setLoading(true);
-      const res = await fetch(`/api/infra/packages/search?q=${encodeURIComponent(query)}`);
-      if (res.ok) {
-        const data = await res.json();
-        setPackageSearchResults(data.packages || []);
-      }
+      const data = await infraExtendedApi.searchPackages(query);
+      setPackageSearchResults(data.packages || []);
     } catch (err) {
       console.error('Error searching packages:', err);
     } finally {
@@ -58,15 +52,9 @@ export function PackagesPane() {
   const installPackage = useCallback(async (pkgName) => {
     try {
       setLoading(true);
-      const res = await fetch('/api/infra/packages/install', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ package: pkgName })
-      });
-      if (res.ok) {
-        fetchPackages();
-        setPackageSearchResults([]);
-      }
+      await infraExtendedApi.installPackage(pkgName);
+      fetchPackages();
+      setPackageSearchResults([]);
     } catch (err) {
       console.error('Error installing package:', err);
     } finally {
@@ -77,11 +65,9 @@ export function PackagesPane() {
   const upgradeAllPackages = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/infra/packages/upgrade-all', { method: 'POST' });
-      if (res.ok) {
-        fetchPackages();
-        fetchPackageUpdates();
-      }
+      await infraExtendedApi.upgradeAllPackages();
+      fetchPackages();
+      fetchPackageUpdates();
     } catch (err) {
       console.error('Error upgrading packages:', err);
     } finally {

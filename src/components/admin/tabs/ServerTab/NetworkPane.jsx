@@ -1,10 +1,13 @@
 /**
  * NetworkPane Component
  * Network diagnostics and interface management
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { formatBytes } from '../../utils';
+import { infraExtendedApi } from '../../../../services/api.js';
 
 export function NetworkPane() {
   const [interfaces, setInterfaces] = useState([]);
@@ -18,19 +21,13 @@ export function NetworkPane() {
   const fetchNetworkInterfaces = useCallback(async () => {
     try {
       setLoading(true);
-      const [ifaceRes, connRes] = await Promise.all([
-        fetch('/api/infra/network/interfaces'),
-        fetch('/api/infra/network/connections')
+      const [ifaceData, connData] = await Promise.all([
+        infraExtendedApi.getNetworkInterfaces(),
+        infraExtendedApi.getNetworkConnections()
       ]);
 
-      if (ifaceRes.ok) {
-        const data = await ifaceRes.json();
-        setInterfaces(data.interfaces || []);
-      }
-      if (connRes.ok) {
-        const data = await connRes.json();
-        setConnections(data.connections || []);
-      }
+      setInterfaces(ifaceData.interfaces || []);
+      setConnections(connData.connections || []);
     } catch (err) {
       console.error('Error fetching network data:', err);
     } finally {
@@ -43,15 +40,8 @@ export function NetworkPane() {
     try {
       setLoading(true);
       setPingResult(null);
-      const res = await fetch('/api/infra/network/ping', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ host: pingHost })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setPingResult(data);
-      }
+      const data = await infraExtendedApi.ping(pingHost);
+      setPingResult(data);
     } catch (err) {
       console.error('Error running ping:', err);
       setPingResult({ error: 'Ping failed' });
@@ -65,15 +55,8 @@ export function NetworkPane() {
     try {
       setLoading(true);
       setDnsResult(null);
-      const res = await fetch('/api/infra/network/dns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ host: dnsHost })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setDnsResult(data);
-      }
+      const data = await infraExtendedApi.dnsLookup(dnsHost);
+      setDnsResult(data);
     } catch (err) {
       console.error('Error running DNS lookup:', err);
       setDnsResult({ error: 'DNS lookup failed' });

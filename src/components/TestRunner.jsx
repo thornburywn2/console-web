@@ -1,9 +1,12 @@
 /**
  * Test Runner Component
  * Run and visualize test results
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useRef } from 'react';
+import { testsApi } from '../services/api.js';
 
 const STATUS_COLORS = {
   passed: '#2ecc71',
@@ -124,22 +127,12 @@ export default function TestRunner({ projectPath, isOpen, onClose, embedded = fa
     setResults(null);
 
     try {
-      const response = await fetch('/api/tests/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectPath }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setResults(data.results);
-        setOutput(data.output || '');
-        setStatus('completed');
-      } else {
-        setStatus('idle');
-      }
+      const data = await testsApi.run(projectPath);
+      setResults(data.results);
+      setOutput(data.output || '');
+      setStatus('completed');
     } catch (error) {
-      console.error('Failed to run tests:', error);
+      console.error('Failed to run tests:', error.getUserMessage?.() || error.message);
       setStatus('idle');
     }
   };
@@ -147,22 +140,14 @@ export default function TestRunner({ projectPath, isOpen, onClose, embedded = fa
   const runSingleTest = async (testName) => {
     setStatus('running');
     try {
-      const response = await fetch('/api/tests/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectPath, testName }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setResults(data.results);
-        setOutput(data.output || '');
-        setStatus('completed');
-      }
+      const data = await testsApi.run(projectPath, testName);
+      setResults(data.results);
+      setOutput(data.output || '');
+      setStatus('completed');
     } catch (error) {
-      console.error('Failed to run test:', error);
+      console.error('Failed to run test:', error.getUserMessage?.() || error.message);
+      setStatus('completed');
     }
-    setStatus('completed');
   };
 
   // Filter test suites

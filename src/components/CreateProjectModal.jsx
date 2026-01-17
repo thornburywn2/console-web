@@ -3,9 +3,12 @@
  * Multi-step wizard for creating new projects
  *
  * Refactored to use extracted components from ./create-project/
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect } from 'react';
+import { githubExtendedApi, cloudflareApi, firewallApi, projectsExtendedApi } from '../services/api.js';
 import {
   TEMPLATES,
   STEPS,
@@ -15,8 +18,6 @@ import {
   TemplateCard,
   SummaryItem,
 } from './create-project';
-
-const API_BASE = '';
 
 export default function CreateProjectModal({ onClose, onCreated }) {
   // Step state
@@ -50,22 +51,15 @@ export default function CreateProjectModal({ onClose, onCreated }) {
   useEffect(() => {
     const checkIntegrations = async () => {
       try {
-        const [ghRes, cfRes] = await Promise.all([
-          fetch(`${API_BASE}/api/github/settings`),
-          fetch(`${API_BASE}/api/cloudflare/settings`),
+        const [ghData, cfData] = await Promise.all([
+          githubExtendedApi.getSettings().catch(() => ({})),
+          cloudflareApi.getSettings().catch(() => ({})),
         ]);
 
-        if (ghRes.ok) {
-          const ghData = await ghRes.json();
-          setGithubAvailable(!!ghData.authenticated);
-        }
-
-        if (cfRes.ok) {
-          const cfData = await cfRes.json();
-          setCloudflareAvailable(!!cfData.configured);
-        }
+        setGithubAvailable(!!ghData.authenticated);
+        setCloudflareAvailable(!!cfData.configured);
       } catch (err) {
-        console.error('Error checking integrations:', err);
+        console.error('Error checking integrations:', err.getUserMessage?.() || err.message);
       }
     };
 
@@ -129,41 +123,28 @@ export default function CreateProjectModal({ onClose, onCreated }) {
     try {
       // Step 1: Create project
       setCreationStatus({ project: 'creating' });
-      const createRes = await fetch(`${API_BASE}/api/projects`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: projectName.trim(),
-          template: initGit ? 'git' : 'empty',
-          port: port.trim() || undefined,
-          description: projectDescription.trim(),
-        }),
+      const projectData = await projectsExtendedApi.create({
+        name: projectName.trim(),
+        template: initGit ? 'git' : 'empty',
+        port: port.trim() || undefined,
+        description: projectDescription.trim(),
       });
-
-      const projectData = await createRes.json();
-      if (!createRes.ok) {
-        throw new Error(projectData.error || 'Failed to create project');
-      }
       setCreationStatus(prev => ({ ...prev, project: 'done' }));
 
       // Step 2: Add firewall rule if enabled
       if (port.trim() && addToFirewall) {
         setCreationStatus(prev => ({ ...prev, firewall: 'creating' }));
         try {
-          await fetch(`${API_BASE}/api/admin-users/firewall/rules`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'allow',
-              port: port.trim(),
-              protocol: 'tcp',
-              from: 'any',
-              comment: `${projectName.trim()} project`,
-            }),
+          await firewallApi.addRule({
+            action: 'allow',
+            port: port.trim(),
+            protocol: 'tcp',
+            from: 'any',
+            comment: `${projectName.trim()} project`,
           });
           setCreationStatus(prev => ({ ...prev, firewall: 'done' }));
         } catch (err) {
-          console.warn('Firewall rule failed:', err);
+          console.warn('Firewall rule failed:', err.getUserMessage?.() || err.message);
           setCreationStatus(prev => ({ ...prev, firewall: 'failed' }));
         }
       }
@@ -172,31 +153,19 @@ export default function CreateProjectModal({ onClose, onCreated }) {
       if (createGitHubRepo && githubAvailable) {
         setCreationStatus(prev => ({ ...prev, github: 'creating' }));
         try {
-          const projectsRes = await fetch(`${API_BASE}/api/projects-extended`);
-          const projects = await projectsRes.json();
+          const projects = await projectsExtendedApi.list();
           const project = projects.find(p => p.name === projectName.trim());
 
           if (project) {
-            const ghRes = await fetch(`${API_BASE}/api/github/projects/${encodeURIComponent(project.name)}/create`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                name: projectName.trim(),
-                description: projectDescription.trim(),
-                isPrivate: repoVisibility === 'private',
-              }),
+            await projectsExtendedApi.createGitHubRepo(project.name, {
+              name: projectName.trim(),
+              description: projectDescription.trim(),
+              isPrivate: repoVisibility === 'private',
             });
-
-            if (ghRes.ok) {
-              setCreationStatus(prev => ({ ...prev, github: 'done' }));
-            } else {
-              const ghError = await ghRes.json();
-              console.warn('GitHub repo creation failed:', ghError);
-              setCreationStatus(prev => ({ ...prev, github: 'failed' }));
-            }
+            setCreationStatus(prev => ({ ...prev, github: 'done' }));
           }
         } catch (err) {
-          console.warn('GitHub repo creation failed:', err);
+          console.warn('GitHub repo creation failed:', err.getUserMessage?.() || err.message);
           setCreationStatus(prev => ({ ...prev, github: 'failed' }));
         }
       }
@@ -205,26 +174,15 @@ export default function CreateProjectModal({ onClose, onCreated }) {
       if (publishToCloudflare && cloudflareAvailable && port.trim()) {
         setCreationStatus(prev => ({ ...prev, cloudflare: 'creating' }));
         try {
-          const cfRes = await fetch(`${API_BASE}/api/cloudflare/publish`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              projectId: projectName.trim(),
-              subdomain: subdomain.trim(),
-              localPort: parseInt(port.trim()),
-              description: `Published from ${projectName.trim()}`
-            }),
+          await cloudflareApi.publish({
+            projectId: projectName.trim(),
+            subdomain: subdomain.trim(),
+            localPort: parseInt(port.trim()),
+            description: `Published from ${projectName.trim()}`
           });
-
-          if (cfRes.ok) {
-            setCreationStatus(prev => ({ ...prev, cloudflare: 'done' }));
-          } else {
-            const cfError = await cfRes.json();
-            console.warn('Cloudflare publish failed:', cfError);
-            setCreationStatus(prev => ({ ...prev, cloudflare: 'failed' }));
-          }
+          setCreationStatus(prev => ({ ...prev, cloudflare: 'done' }));
         } catch (err) {
-          console.warn('Cloudflare publish failed:', err);
+          console.warn('Cloudflare publish failed:', err.getUserMessage?.() || err.message);
           setCreationStatus(prev => ({ ...prev, cloudflare: 'failed' }));
         }
       }
@@ -239,7 +197,7 @@ export default function CreateProjectModal({ onClose, onCreated }) {
       }, 1500);
 
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
       setIsCreating(false);
     }
   };

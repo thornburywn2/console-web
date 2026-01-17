@@ -1,11 +1,12 @@
 /**
  * Session Management Hook
  * Manages folders, tags, and session organization state
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
-
-const API_BASE = '/api';
+import { foldersApi, tagsApi, sessionsApi } from '../services/api.js';
 
 export function useSessionManagement() {
   // Folders state
@@ -33,9 +34,7 @@ export function useSessionManagement() {
   const fetchFolders = useCallback(async () => {
     try {
       setFoldersLoading(true);
-      const res = await fetch(`${API_BASE}/folders`);
-      if (!res.ok) throw new Error('Failed to fetch folders');
-      const data = await res.json();
+      const data = await foldersApi.list();
       setFolders(data);
     } catch (error) {
       console.error('Error fetching folders:', error);
@@ -46,13 +45,7 @@ export function useSessionManagement() {
 
   const createFolder = useCallback(async (name, parentId = null) => {
     try {
-      const res = await fetch(`${API_BASE}/folders`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, parentId })
-      });
-      if (!res.ok) throw new Error('Failed to create folder');
-      const folder = await res.json();
+      const folder = await foldersApi.create(name, parentId);
       setFolders(prev => [...prev, folder]);
       return folder;
     } catch (error) {
@@ -63,13 +56,7 @@ export function useSessionManagement() {
 
   const renameFolder = useCallback(async (id, name) => {
     try {
-      const res = await fetch(`${API_BASE}/folders/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name })
-      });
-      if (!res.ok) throw new Error('Failed to rename folder');
-      const folder = await res.json();
+      const folder = await foldersApi.update(id, { name });
       setFolders(prev => prev.map(f => f.id === id ? folder : f));
       return folder;
     } catch (error) {
@@ -80,10 +67,7 @@ export function useSessionManagement() {
 
   const deleteFolder = useCallback(async (id) => {
     try {
-      const res = await fetch(`${API_BASE}/folders/${id}`, {
-        method: 'DELETE'
-      });
-      if (!res.ok) throw new Error('Failed to delete folder');
+      await foldersApi.delete(id);
       setFolders(prev => prev.filter(f => f.id !== id));
       if (selectedFolderId === id) {
         setSelectedFolderId(null);
@@ -101,9 +85,7 @@ export function useSessionManagement() {
   const fetchTags = useCallback(async () => {
     try {
       setTagsLoading(true);
-      const res = await fetch(`${API_BASE}/tags`);
-      if (!res.ok) throw new Error('Failed to fetch tags');
-      const data = await res.json();
+      const data = await tagsApi.list();
       setTags(data);
     } catch (error) {
       console.error('Error fetching tags:', error);
@@ -114,13 +96,7 @@ export function useSessionManagement() {
 
   const createTag = useCallback(async ({ name, color }) => {
     try {
-      const res = await fetch(`${API_BASE}/tags`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, color })
-      });
-      if (!res.ok) throw new Error('Failed to create tag');
-      const tag = await res.json();
+      const tag = await tagsApi.create({ name, color });
       setTags(prev => [...prev, tag]);
       return tag;
     } catch (error) {
@@ -131,13 +107,7 @@ export function useSessionManagement() {
 
   const updateTag = useCallback(async (id, updates) => {
     try {
-      const res = await fetch(`${API_BASE}/tags/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates)
-      });
-      if (!res.ok) throw new Error('Failed to update tag');
-      const tag = await res.json();
+      const tag = await tagsApi.update(id, updates);
       setTags(prev => prev.map(t => t.id === id ? { ...t, ...tag } : t));
       return tag;
     } catch (error) {
@@ -148,10 +118,7 @@ export function useSessionManagement() {
 
   const deleteTag = useCallback(async (id) => {
     try {
-      const res = await fetch(`${API_BASE}/tags/${id}`, {
-        method: 'DELETE'
-      });
-      if (!res.ok) throw new Error('Failed to delete tag');
+      await tagsApi.delete(id);
       setTags(prev => prev.filter(t => t.id !== id));
       setSelectedTags(prev => prev.filter(tagId => tagId !== id));
     } catch (error) {
@@ -201,13 +168,7 @@ export function useSessionManagement() {
 
   const moveSessionToFolder = useCallback(async (sessionId, folderId) => {
     try {
-      const res = await fetch(`${API_BASE}/sessions/${sessionId}/folder`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folderId })
-      });
-      if (!res.ok) throw new Error('Failed to move session');
-      return await res.json();
+      return await sessionsApi.setFolder(sessionId, folderId);
     } catch (error) {
       console.error('Error moving session:', error);
       throw error;
@@ -216,13 +177,7 @@ export function useSessionManagement() {
 
   const pinSession = useCallback(async (sessionId, isPinned = true) => {
     try {
-      const res = await fetch(`${API_BASE}/sessions/${sessionId}/pin`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isPinned })
-      });
-      if (!res.ok) throw new Error('Failed to pin session');
-      return await res.json();
+      return await sessionsApi.setPin(sessionId, isPinned);
     } catch (error) {
       console.error('Error pinning session:', error);
       throw error;
@@ -231,13 +186,7 @@ export function useSessionManagement() {
 
   const archiveSession = useCallback(async (sessionId, isArchived = true) => {
     try {
-      const res = await fetch(`${API_BASE}/sessions/${sessionId}/archive`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isArchived })
-      });
-      if (!res.ok) throw new Error('Failed to archive session');
-      return await res.json();
+      return await sessionsApi.setArchive(sessionId, isArchived);
     } catch (error) {
       console.error('Error archiving session:', error);
       throw error;
@@ -246,11 +195,7 @@ export function useSessionManagement() {
 
   const addTagToSession = useCallback(async (sessionId, tagId) => {
     try {
-      const res = await fetch(`${API_BASE}/sessions/${sessionId}/tags/${tagId}`, {
-        method: 'POST'
-      });
-      if (!res.ok) throw new Error('Failed to add tag');
-      return await res.json();
+      return await sessionsApi.addTag(sessionId, tagId);
     } catch (error) {
       console.error('Error adding tag:', error);
       throw error;
@@ -259,10 +204,7 @@ export function useSessionManagement() {
 
   const removeTagFromSession = useCallback(async (sessionId, tagId) => {
     try {
-      const res = await fetch(`${API_BASE}/sessions/${sessionId}/tags/${tagId}`, {
-        method: 'DELETE'
-      });
-      if (!res.ok) throw new Error('Failed to remove tag');
+      await sessionsApi.removeTag(sessionId, tagId);
     } catch (error) {
       console.error('Error removing tag:', error);
       throw error;
@@ -307,15 +249,7 @@ export function useSessionManagement() {
 
   const bulkDelete = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/sessions/bulk`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'delete',
-          sessionIds: Array.from(selectedSessions)
-        })
-      });
-      if (!res.ok) throw new Error('Failed to delete sessions');
+      await sessionsApi.bulk('delete', Array.from(selectedSessions));
       clearSelection();
     } catch (error) {
       console.error('Error bulk deleting:', error);

@@ -1,9 +1,12 @@
 /**
  * Handoff Modal Component
  * Transfer session ownership to another team member
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect } from 'react';
+import { teamApi, sessionHandoffApi } from '../services/api.js';
 
 const HANDOFF_REASONS = [
   { id: 'shift_end', label: 'End of Shift', icon: '🕐' },
@@ -37,11 +40,8 @@ export default function HandoffModal({
 
   const fetchTeamMembers = async () => {
     try {
-      const response = await fetch('/api/team/members');
-      if (response.ok) {
-        const data = await response.json();
-        setTeamMembers(data.members || []);
-      }
+      const data = await teamApi.listMembers();
+      setTeamMembers(data.members || []);
     } catch (error) {
       console.error('Failed to fetch team members:', error);
       // Demo data for development
@@ -58,24 +58,16 @@ export default function HandoffModal({
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/sessions/${session.id}/handoff`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          toUserId: selectedMember,
-          reason,
-          notes,
-          includeContext,
-        }),
+      const data = await sessionHandoffApi.handoff(session.id, {
+        toUserId: selectedMember,
+        reason,
+        notes,
+        includeContext,
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (onHandoff) {
-          onHandoff(data);
-        }
-        onClose();
+      if (onHandoff) {
+        onHandoff(data);
       }
+      onClose();
     } catch (error) {
       console.error('Failed to hand off session:', error);
     } finally {

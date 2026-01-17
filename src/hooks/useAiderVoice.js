@@ -3,11 +3,12 @@
  * P1 Phase 2: Voice command routing for Aider
  *
  * Bridges voice commands with Aider session management.
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useCallback, useRef } from 'react';
-
-const API_URL = import.meta.env.VITE_API_URL || '';
+import { aiderApi } from '../services/api.js';
 
 export function useAiderVoice(options = {}) {
   const {
@@ -30,21 +31,7 @@ export function useAiderVoice(options = {}) {
     setError(null);
 
     try {
-      const res = await fetch(`${API_URL}/api/aider/sessions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectPath,
-          ...sessionOptions
-        })
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to start Aider session');
-      }
-
-      const data = await res.json();
+      const data = await aiderApi.createSession(projectPath, sessionOptions);
       setAiderSession(data.session);
       lastSessionRef.current = data.session;
 
@@ -64,7 +51,8 @@ export function useAiderVoice(options = {}) {
 
       return data.session;
     } catch (err) {
-      setError(err.message);
+      const message = err.getUserMessage?.() || err.message;
+      setError(message);
       throw err;
     } finally {
       setLoading(false);
@@ -79,9 +67,7 @@ export function useAiderVoice(options = {}) {
 
     setLoading(true);
     try {
-      await fetch(`${API_URL}/api/aider/sessions/${aiderSession.id}`, {
-        method: 'DELETE'
-      });
+      await aiderApi.deleteSession(aiderSession.id);
 
       // Clean up socket listeners
       if (socket && aiderSession.id) {
@@ -92,7 +78,8 @@ export function useAiderVoice(options = {}) {
       setAiderSession(null);
       setAiderVoiceActive(false);
     } catch (err) {
-      setError(err.message);
+      const message = err.getUserMessage?.() || err.message;
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -108,12 +95,11 @@ export function useAiderVoice(options = {}) {
     }
 
     try {
-      await fetch(`${API_URL}/api/aider/sessions/${aiderSession.id}/voice/start`, {
-        method: 'POST'
-      });
+      await aiderApi.startVoice(aiderSession.id);
       setAiderVoiceActive(true);
     } catch (err) {
-      setError(err.message);
+      const message = err.getUserMessage?.() || err.message;
+      setError(message);
     }
   }, [aiderSession]);
 
@@ -124,12 +110,11 @@ export function useAiderVoice(options = {}) {
     if (!aiderSession) return;
 
     try {
-      await fetch(`${API_URL}/api/aider/sessions/${aiderSession.id}/voice/stop`, {
-        method: 'POST'
-      });
+      await aiderApi.stopVoice(aiderSession.id);
       setAiderVoiceActive(false);
     } catch (err) {
-      setError(err.message);
+      const message = err.getUserMessage?.() || err.message;
+      setError(message);
     }
   }, [aiderSession]);
 
@@ -143,14 +128,11 @@ export function useAiderVoice(options = {}) {
     }
 
     try {
-      await fetch(`${API_URL}/api/aider/sessions/${aiderSession.id}/input`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input })
-      });
+      await aiderApi.sendInput(aiderSession.id, input);
       onAiderCommand?.({ type: 'input', input });
     } catch (err) {
-      setError(err.message);
+      const message = err.getUserMessage?.() || err.message;
+      setError(message);
     }
   }, [aiderSession, onAiderCommand]);
 
@@ -237,14 +219,11 @@ export function useAiderVoice(options = {}) {
    */
   const getAiderStatus = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/api/aider/status`);
-      if (res.ok) {
-        return await res.json();
-      }
+      return await aiderApi.getStatus();
     } catch (err) {
       console.error('Failed to get Aider status:', err);
+      return null;
     }
-    return null;
   }, []);
 
   return {

@@ -1,9 +1,12 @@
 /**
  * Status Page Component
  * Public service status display
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { statusApi } from '../services/api.js';
 
 const STATUS_LEVELS = {
   operational: { label: 'Operational', color: '#2ecc71', icon: '✓' },
@@ -157,13 +160,10 @@ export default function StatusPage({ isPublic = false }) {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const response = await fetch('/api/status');
-      if (response.ok) {
-        const data = await response.json();
-        setServices(data.services || []);
-        setIncidents(data.incidents || []);
-        setLastUpdate(new Date());
-      }
+      const data = await statusApi.getStatus();
+      setServices(data.services || []);
+      setIncidents(data.incidents || []);
+      setLastUpdate(new Date());
     } catch (error) {
       console.error('Failed to fetch status:', error);
       // Mock data fallback
@@ -269,16 +269,13 @@ export function StatusWidget() {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const response = await fetch('/api/status');
-        if (response.ok) {
-          const data = await response.json();
-          setServiceCount(data.services?.length || 0);
-          const statuses = data.services?.map(s => s.status) || [];
-          if (statuses.includes('major')) setStatus('major');
-          else if (statuses.includes('partial')) setStatus('partial');
-          else if (statuses.includes('degraded')) setStatus('degraded');
-          else setStatus('operational');
-        }
+        const data = await statusApi.getStatus();
+        setServiceCount(data.services?.length || 0);
+        const statuses = data.services?.map(s => s.status) || [];
+        if (statuses.includes('major')) setStatus('major');
+        else if (statuses.includes('partial')) setStatus('partial');
+        else if (statuses.includes('degraded')) setStatus('degraded');
+        else setStatus('operational');
       } catch {
         setStatus('operational');
       }

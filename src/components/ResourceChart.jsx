@@ -1,9 +1,12 @@
 /**
  * Resource Chart Component
  * Historical CPU/memory/disk time-series charts
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { metricsApi } from '../services/api.js';
 
 const CHART_COLORS = {
   cpu: '#3498db',
@@ -247,18 +250,13 @@ export default function ResourceChart({
   const fetchData = useCallback(async () => {
     try {
       const range = TIME_RANGES.find(r => r.value === timeRange);
-      const response = await fetch(
-        `/api/metrics/${metric}?minutes=${range?.minutes || 60}`
-      );
-      if (response.ok) {
-        const result = await response.json();
-        setData(result.data || []);
-        if (result.data?.length > 0) {
-          setCurrentValue(result.data[result.data.length - 1].value);
-        }
+      const result = await metricsApi.get(metric, range?.minutes || 60);
+      setData(result.data || []);
+      if (result.data?.length > 0) {
+        setCurrentValue(result.data[result.data.length - 1].value);
       }
     } catch (error) {
-      console.error('Failed to fetch metrics:', error);
+      console.error('Failed to fetch metrics:', error.getUserMessage?.() || error.message);
     } finally {
       setLoading(false);
     }

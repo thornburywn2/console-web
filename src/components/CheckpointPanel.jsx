@@ -1,10 +1,13 @@
 /**
  * Checkpoint Panel Component
  * Session and project state snapshots for rollback capability
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { CHECKPOINT_TYPES, formatSize, formatRelativeTime } from './checkpoint-panel';
+import { checkpointsApi } from '../services/api.js';
 
 export default function CheckpointPanel({
   projectId,
@@ -32,13 +35,10 @@ export default function CheckpointPanel({
     if (!projectId) return;
     setLoading(true);
     try {
-      const response = await fetch(`/api/checkpoints/project/${projectId}?limit=50`);
-      if (response.ok) {
-        const data = await response.json();
-        setCheckpoints(data);
-      }
+      const data = await checkpointsApi.getByProject(projectId);
+      setCheckpoints(data);
     } catch (err) {
-      console.error('Failed to fetch checkpoints:', err);
+      console.error('Failed to fetch checkpoints:', err.getUserMessage?.() || err.message);
     } finally {
       setLoading(false);
     }
@@ -48,13 +48,10 @@ export default function CheckpointPanel({
   const fetchStats = useCallback(async () => {
     if (!projectId) return;
     try {
-      const response = await fetch(`/api/checkpoints/project/${projectId}/stats`);
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
-      }
+      const data = await checkpointsApi.getStats(projectId);
+      setStats(data);
     } catch (err) {
-      console.error('Failed to fetch checkpoint stats:', err);
+      console.error('Failed to fetch checkpoint stats:', err.getUserMessage?.() || err.message);
     }
   }, [projectId]);
 
@@ -69,31 +66,25 @@ export default function CheckpointPanel({
   const createCheckpoint = async () => {
     setCreating(true);
     try {
-      const response = await fetch('/api/checkpoints', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId,
-          sessionId,
-          name: checkpointName || undefined,
-          description: checkpointDescription || undefined,
-          type: 'MANUAL',
-          includeGit,
-          includeFiles,
-          filePaths: includeFiles ? filePaths.split('\n').filter(p => p.trim()) : [],
-        }),
+      await checkpointsApi.create({
+        projectId,
+        sessionId,
+        name: checkpointName || undefined,
+        description: checkpointDescription || undefined,
+        type: 'MANUAL',
+        includeGit,
+        includeFiles,
+        filePaths: includeFiles ? filePaths.split('\n').filter(p => p.trim()) : [],
       });
 
-      if (response.ok) {
-        setCheckpointName('');
-        setCheckpointDescription('');
-        setIncludeFiles(false);
-        setFilePaths('');
-        await fetchCheckpoints();
-        await fetchStats();
-      }
+      setCheckpointName('');
+      setCheckpointDescription('');
+      setIncludeFiles(false);
+      setFilePaths('');
+      await fetchCheckpoints();
+      await fetchStats();
     } catch (err) {
-      console.error('Failed to create checkpoint:', err);
+      console.error('Failed to create checkpoint:', err.getUserMessage?.() || err.message);
     } finally {
       setCreating(false);
     }
@@ -107,26 +98,19 @@ export default function CheckpointPanel({
 
     setRestoring(id);
     try {
-      const response = await fetch(`/api/checkpoints/${id}/restore`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          restoreGit: true,
-          restoreFiles: true,
-        }),
+      const result = await checkpointsApi.restore(id, {
+        restoreGit: true,
+        restoreFiles: true,
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        const warnings = result.results.warnings || [];
-        if (warnings.length > 0) {
-          alert('Restored with warnings:\n' + warnings.join('\n'));
-        } else {
-          alert('Checkpoint restored successfully!');
-        }
+      const warnings = result.results?.warnings || [];
+      if (warnings.length > 0) {
+        alert('Restored with warnings:\n' + warnings.join('\n'));
+      } else {
+        alert('Checkpoint restored successfully!');
       }
     } catch (err) {
-      console.error('Failed to restore checkpoint:', err);
+      console.error('Failed to restore checkpoint:', err.getUserMessage?.() || err.message);
       alert('Failed to restore checkpoint');
     } finally {
       setRestoring(null);
@@ -136,14 +120,10 @@ export default function CheckpointPanel({
   // Toggle pin
   const togglePin = async (checkpoint) => {
     try {
-      await fetch(`/api/checkpoints/${checkpoint.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isPinned: !checkpoint.isPinned }),
-      });
+      await checkpointsApi.update(checkpoint.id, { isPinned: !checkpoint.isPinned });
       await fetchCheckpoints();
     } catch (err) {
-      console.error('Failed to toggle pin:', err);
+      console.error('Failed to toggle pin:', err.getUserMessage?.() || err.message);
     }
   };
 
@@ -152,13 +132,11 @@ export default function CheckpointPanel({
     if (!confirm('Delete this checkpoint?')) return;
 
     try {
-      await fetch(`/api/checkpoints/${id}`, {
-        method: 'DELETE',
-      });
+      await checkpointsApi.delete(id);
       await fetchCheckpoints();
       await fetchStats();
     } catch (err) {
-      console.error('Failed to delete checkpoint:', err);
+      console.error('Failed to delete checkpoint:', err.getUserMessage?.() || err.message);
     }
   };
 
@@ -167,17 +145,12 @@ export default function CheckpointPanel({
     if (!confirm('Delete all expired checkpoints?')) return;
 
     try {
-      const response = await fetch('/api/checkpoints/cleanup', {
-        method: 'POST',
-      });
-      if (response.ok) {
-        const result = await response.json();
-        alert(`Cleaned up ${result.deleted} expired checkpoints`);
-        await fetchCheckpoints();
-        await fetchStats();
-      }
+      const result = await checkpointsApi.cleanup();
+      alert(`Cleaned up ${result.deleted} expired checkpoints`);
+      await fetchCheckpoints();
+      await fetchStats();
     } catch (err) {
-      console.error('Failed to cleanup checkpoints:', err);
+      console.error('Failed to cleanup checkpoints:', err.getUserMessage?.() || err.message);
     }
   };
 

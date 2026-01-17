@@ -4,11 +4,14 @@
  * Categories: Code Quality, Git Workflow, Security, Testing, Documentation, DevOps, Productivity
  *
  * Uses hacker theme to match Console.web styling
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import AgentCard from './AgentCard';
 import AgentConfigModal from './AgentConfigModal';
+import { marketplaceApi } from '../services/api.js';
 
 // Category icons using Lucide-style SVGs
 const CATEGORY_ICONS = {
@@ -78,28 +81,17 @@ export default function AgentMarketplace({ onInstall, onClose, projects = [] }) 
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [agentsRes, categoriesRes, statsRes] = await Promise.all([
-          fetch('/api/marketplace/agents'),
-          fetch('/api/marketplace/categories'),
-          fetch('/api/marketplace/stats')
+        const [agentsData, categoriesData, statsData] = await Promise.all([
+          marketplaceApi.getAgents(),
+          marketplaceApi.getCategories(),
+          marketplaceApi.getStats()
         ]);
-
-        if (agentsRes.ok) {
-          const data = await agentsRes.json();
-          setAgents(data);
-        }
-
-        if (categoriesRes.ok) {
-          const data = await categoriesRes.json();
-          setCategories(data);
-        }
-
-        if (statsRes.ok) {
-          const data = await statsRes.json();
-          setStats(data);
-        }
+        setAgents(agentsData || []);
+        setCategories(categoriesData || []);
+        setStats(statsData || null);
       } catch (err) {
-        setError('Failed to load marketplace');
+        const message = err.getUserMessage?.() || 'Failed to load marketplace';
+        setError(message);
         console.error(err);
       } finally {
         setLoading(false);
@@ -125,26 +117,16 @@ export default function AgentMarketplace({ onInstall, onClose, projects = [] }) 
     setError(null);
 
     try {
-      const response = await fetch(`/api/marketplace/agents/${agent.id}/install`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        // Update local state to show as installed
-        setAgents(prev => prev.map(a =>
-          a.id === agent.id ? { ...a, isInstalled: true } : a
-        ));
-        setSelectedAgent(null);
-        if (onInstall) onInstall(result.agent);
-      } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to install agent');
-      }
+      const result = await marketplaceApi.installAgent(agent.id, config);
+      // Update local state to show as installed
+      setAgents(prev => prev.map(a =>
+        a.id === agent.id ? { ...a, isInstalled: true } : a
+      ));
+      setSelectedAgent(null);
+      if (onInstall) onInstall(result.agent);
     } catch (err) {
-      setError('Failed to install agent');
+      const message = err.getUserMessage?.() || 'Failed to install agent';
+      setError(message);
       console.error(err);
     } finally {
       setInstalling(null);
@@ -154,15 +136,10 @@ export default function AgentMarketplace({ onInstall, onClose, projects = [] }) 
   // Uninstall an agent
   const handleUninstall = async (agentId) => {
     try {
-      const response = await fetch(`/api/marketplace/agents/${agentId}/uninstall`, {
-        method: 'DELETE'
-      });
-
-      if (response.ok) {
-        setAgents(prev => prev.map(a =>
-          a.id === agentId ? { ...a, isInstalled: false } : a
-        ));
-      }
+      await marketplaceApi.uninstallAgent(agentId);
+      setAgents(prev => prev.map(a =>
+        a.id === agentId ? { ...a, isInstalled: false } : a
+      ));
     } catch (err) {
       console.error('Failed to uninstall agent:', err);
     }

@@ -1,9 +1,12 @@
 /**
  * Global Search Component
  * Universal search across projects, sessions, commands, and more
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { searchApi } from '../services/api.js';
 
 const SEARCH_CATEGORIES = [
   { id: 'all', label: 'All', icon: null },
@@ -124,17 +127,8 @@ export default function GlobalSearch({
 
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        q: searchQuery,
-        category: searchCategory,
-        limit: '20'
-      });
-
-      const response = await fetch(`/api/search/global?${params}`);
-      if (response.ok) {
-        const data = await response.json();
-        setResults(data.results || []);
-      }
+      const data = await searchApi.globalSearch(searchQuery, searchCategory, 20);
+      setResults(data.results || []);
     } catch (error) {
       console.error('Search failed:', error);
       // Fallback mock results

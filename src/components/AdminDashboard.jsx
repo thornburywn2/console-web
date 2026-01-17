@@ -716,7 +716,7 @@ function AdminDashboard({ onClose, initialTab = null, currentProject = null }) {
       <footer className="relative z-10 px-6 py-3 border-t border-hacker-green/10 bg-hacker-surface/50 font-mono text-xs text-hacker-text-dim flex items-center justify-between">
         <div className="flex items-center gap-4">
           <span className="text-hacker-green">CP://SYSTEM</span>
-          <span>v1.0.15</span>
+          <span>v1.0.18</span>
         </div>
         <div className="flex items-center gap-4">
           <span>TAB: {activeTab.toUpperCase()}</span>

@@ -1,5 +1,12 @@
+/**
+ * Main Application Component
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
+ */
+
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { io } from 'socket.io-client';
+import { projectsApi, systemApi, notesApi, sessionsPersistedApi } from './services/api.js';
 
 // Core components (always loaded - essential for initial render)
 import LeftSidebar from './components/LeftSidebar';
@@ -191,13 +198,10 @@ function App() {
 
       // No current project - check database for last active session
       try {
-        const [settingsRes, sessionsRes] = await Promise.all([
-          fetch('/api/settings'),
-          fetch('/api/sessions/persisted')
+        const [settings, sessions] = await Promise.all([
+          systemApi.getSettings().catch(() => ({ autoReconnect: true })),
+          sessionsPersistedApi.list().catch(() => [])
         ]);
-
-        const settings = settingsRes.ok ? await settingsRes.json() : { autoReconnect: true };
-        const sessions = sessionsRes.ok ? await sessionsRes.json() : [];
 
         // Check if auto-reconnect is enabled (default to true)
         if (settings.autoReconnect === false) {
@@ -308,15 +312,11 @@ function App() {
   const fetchProjects = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/projects');
-      if (!response.ok) {
-        throw new Error('Failed to fetch projects');
-      }
-      const data = await response.json();
+      const data = await projectsApi.list();
       setProjects(data);
       setError(null);
     } catch (err) {
-      console.error('Error fetching projects:', err);
+      console.error('Error fetching projects:', err.getUserMessage?.() || err.message);
       setError('Failed to load projects');
     } finally {
       setIsLoading(false);
@@ -334,16 +334,13 @@ function App() {
   useEffect(() => {
     const loadAppSettings = async () => {
       try {
-        const res = await fetch('/api/settings');
-        if (res.ok) {
-          const settings = await res.json();
-          if (settings.appName) {
-            setAppName(settings.appName);
-            document.title = settings.appName;
-          }
+        const settings = await systemApi.getSettings();
+        if (settings.appName) {
+          setAppName(settings.appName);
+          document.title = settings.appName;
         }
       } catch (err) {
-        console.error('Error loading app settings:', err);
+        console.error('Error loading app settings:', err.getUserMessage?.() || err.message);
       }
     };
     loadAppSettings();
@@ -607,48 +604,35 @@ function App() {
   // Handle note save
   const handleSaveNote = useCallback(async (sessionId, content, noteId) => {
     try {
-      const url = noteId
-        ? `/api/notes/${noteId}`
-        : '/api/notes';
-      const method = noteId ? 'PUT' : 'POST';
+      const note = noteId
+        ? await notesApi.update(noteId, sessionId, content)
+        : await notesApi.create(sessionId, content);
 
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, content }),
+      setSessionNotes(prev => {
+        if (noteId) {
+          return prev.map(n => n.id === noteId ? note : n);
+        }
+        return [...prev, note];
       });
-
-      if (res.ok) {
-        const note = await res.json();
-        setSessionNotes(prev => {
-          if (noteId) {
-            return prev.map(n => n.id === noteId ? note : n);
-          }
-          return [...prev, note];
-        });
-      }
     } catch (err) {
-      console.error('Failed to save note:', err);
+      console.error('Failed to save note:', err.getUserMessage?.() || err.message);
     }
   }, []);
 
   // Handle note delete
   const handleDeleteNote = useCallback(async (noteId) => {
     try {
-      const res = await fetch(`/api/notes/${noteId}`, { method: 'DELETE' });
-      if (res.ok) {
-        setSessionNotes(prev => prev.filter(n => n.id !== noteId));
-      }
+      await notesApi.delete(noteId);
+      setSessionNotes(prev => prev.filter(n => n.id !== noteId));
     } catch (err) {
-      console.error('Failed to delete note:', err);
+      console.error('Failed to delete note:', err.getUserMessage?.() || err.message);
     }
   }, []);
 
   // Fetch notes when session changes
   useEffect(() => {
     if (selectedProject) {
-      fetch(`/api/notes?projectPath=${encodeURIComponent(selectedProject.path)}`)
-        .then(res => res.ok ? res.json() : [])
+      notesApi.list(selectedProject.path)
         .then(notes => setSessionNotes(notes))
         .catch(() => setSessionNotes([]));
     }
@@ -755,7 +739,7 @@ function App() {
                 style={{ color: 'var(--text-muted)', background: 'var(--bg-glass)' }}
                 title="About Console.web"
               >
-                v1.0.15
+                v1.0.18
               </button>
             </div>
             {selectedProject && (

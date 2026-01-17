@@ -1,9 +1,12 @@
 /**
  * UsersPane Component
  * Server (Linux) user management
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { serverUsersApi } from '../../../../services/api.js';
 
 export function UsersPane() {
   const [users, setUsers] = useState([]);
@@ -19,11 +22,8 @@ export function UsersPane() {
   const fetchServerUsers = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/admin-users/server/users');
-      if (res.ok) {
-        const data = await res.json();
-        setUsers(data.users || []);
-      }
+      const data = await serverUsersApi.listUsers();
+      setUsers(data.users || []);
     } catch (err) {
       console.error('Error fetching server users:', err);
     } finally {
@@ -33,11 +33,8 @@ export function UsersPane() {
 
   const fetchServerGroups = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin-users/server/groups');
-      if (res.ok) {
-        const data = await res.json();
-        setGroups(data.groups || []);
-      }
+      const data = await serverUsersApi.listGroups();
+      setGroups(data.groups || []);
     } catch (err) {
       console.error('Error fetching server groups:', err);
     }
@@ -45,11 +42,8 @@ export function UsersPane() {
 
   const fetchShells = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin-users/server/shells');
-      if (res.ok) {
-        const data = await res.json();
-        setShells(data.shells || ['/bin/bash', '/bin/sh', '/bin/zsh']);
-      }
+      const data = await serverUsersApi.listShells();
+      setShells(data.shells || ['/bin/bash', '/bin/sh', '/bin/zsh']);
     } catch (err) {
       setShells(['/bin/bash', '/bin/sh', '/bin/zsh', '/usr/bin/fish']);
     }
@@ -59,20 +53,13 @@ export function UsersPane() {
     try {
       setLoading(true);
       setError('');
-      const res = await fetch('/api/admin-users/server/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newUser)
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to create user');
-      }
+      await serverUsersApi.createUser(newUser);
       setShowAddUser(false);
       setNewUser({ username: '', fullName: '', shell: '/bin/bash', groups: [] });
       fetchServerUsers();
     } catch (err) {
-      setError(err.message);
+      const message = err.getUserMessage?.() || err.message;
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -82,15 +69,12 @@ export function UsersPane() {
     if (!confirm(`Delete user ${username}? This action cannot be undone.`)) return;
     try {
       setLoading(true);
-      const res = await fetch(`/api/admin-users/server/users/${username}`, { method: 'DELETE' });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to delete user');
-      }
+      await serverUsersApi.deleteUser(username);
       fetchServerUsers();
       setSelectedUser(null);
     } catch (err) {
-      setError(err.message);
+      const message = err.getUserMessage?.() || err.message;
+      setError(message);
     } finally {
       setLoading(false);
     }

@@ -1,11 +1,12 @@
 /**
  * Agent Status Dashboard Component
  * Compact visual status display for running agents with progress indicators
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
+import { agentsApi } from '../services/api.js';
 
 // Status configurations
 const STATUS_CONFIG = {
@@ -193,13 +194,11 @@ export default function AgentStatusDashboard({ socket, onOpenAgentManager }) {
   // Fetch agents
   const fetchAgents = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/agents`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to fetch agents');
-      const data = await res.json();
+      const data = await agentsApi.list();
       setAgents(data);
       setError(null);
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setLoading(false);
     }
@@ -208,13 +207,10 @@ export default function AgentStatusDashboard({ socket, onOpenAgentManager }) {
   // Fetch runner status
   const fetchRunnerStatus = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/agents/status/runner`, { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json();
-        setRunnerStatus(data);
-      }
+      const data = await agentsApi.getRunnerStatus();
+      setRunnerStatus(data);
     } catch (err) {
-      console.error('Failed to fetch runner status:', err);
+      console.error('Failed to fetch runner status:', err.getUserMessage?.() || err.message);
     }
   }, []);
 
@@ -270,31 +266,20 @@ export default function AgentStatusDashboard({ socket, onOpenAgentManager }) {
   // Run agent
   const handleRunAgent = async (agentId) => {
     try {
-      const res = await fetch(`${API_BASE}/api/agents/${agentId}/run`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to run agent');
-      }
+      await agentsApi.run(agentId);
       fetchAgents();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     }
   };
 
   // Stop agent
   const handleStopAgent = async (agentId) => {
     try {
-      const res = await fetch(`${API_BASE}/api/agents/${agentId}/stop`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-      if (!res.ok) throw new Error('Failed to stop agent');
+      await agentsApi.stop(agentId);
       fetchAgents();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     }
   };
 

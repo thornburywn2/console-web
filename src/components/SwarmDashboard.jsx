@@ -2,11 +2,14 @@
  * Swarm Dashboard Component
  * P3 Phase 2: Claude Flow Multi-Agent Swarm Management
  *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
+ *
  * Provides a comprehensive UI for managing Claude Flow swarms.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { API_URL, DEFAULT_SWARM_CONFIG } from './swarm-dashboard';
+import { DEFAULT_SWARM_CONFIG } from './swarm-dashboard';
+import { claudeFlowApi } from '../services/api.js';
 
 export function SwarmDashboard({ projectPath, socket, onClose }) {
   const [status, setStatus] = useState(null);
@@ -78,14 +81,11 @@ export function SwarmDashboard({ projectPath, socket, onClose }) {
 
   const fetchStatus = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/claude-flow/status`);
-      if (res.ok) {
-        const data = await res.json();
-        setStatus(data);
-        setError(null);
-      }
+      const data = await claudeFlowApi.getStatus();
+      setStatus(data);
+      setError(null);
     } catch (err) {
-      setError('Failed to fetch Claude Flow status');
+      setError(err.getUserMessage?.() || 'Failed to fetch Claude Flow status');
     } finally {
       setLoading(false);
     }
@@ -93,37 +93,28 @@ export function SwarmDashboard({ projectPath, socket, onClose }) {
 
   const fetchRoles = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/claude-flow/roles`);
-      if (res.ok) {
-        const data = await res.json();
-        setRoles(data);
-      }
+      const data = await claudeFlowApi.getRoles();
+      setRoles(data);
     } catch (err) {
-      console.error('Failed to fetch roles:', err);
+      console.error('Failed to fetch roles:', err.getUserMessage?.() || err.message);
     }
   };
 
   const fetchTemplates = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/claude-flow/templates`);
-      if (res.ok) {
-        const data = await res.json();
-        setTemplates(data);
-      }
+      const data = await claudeFlowApi.getTemplates();
+      setTemplates(data);
     } catch (err) {
-      console.error('Failed to fetch templates:', err);
+      console.error('Failed to fetch templates:', err.getUserMessage?.() || err.message);
     }
   };
 
   const fetchSwarms = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/claude-flow/swarms`);
-      if (res.ok) {
-        const data = await res.json();
-        setSwarms(data);
-      }
+      const data = await claudeFlowApi.getSwarms();
+      setSwarms(data);
     } catch (err) {
-      console.error('Failed to fetch swarms:', err);
+      console.error('Failed to fetch swarms:', err.getUserMessage?.() || err.message);
     }
   };
 
@@ -132,20 +123,10 @@ export function SwarmDashboard({ projectPath, socket, onClose }) {
     setError(null);
 
     try {
-      const res = await fetch(`${API_URL}/api/claude-flow/install`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ global: true })
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to install');
-      }
-
+      await claudeFlowApi.install({ global: true });
       await fetchStatus();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setActionLoading(null);
     }
@@ -162,27 +143,17 @@ export function SwarmDashboard({ projectPath, socket, onClose }) {
     setOutput([]);
 
     try {
-      const res = await fetch(`${API_URL}/api/claude-flow/swarms`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectPath,
-          ...newSwarmConfig
-        })
+      const data = await claudeFlowApi.createSwarm({
+        projectPath,
+        ...newSwarmConfig
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to create swarm');
-      }
-
-      const data = await res.json();
       setSwarms(prev => [...prev, data.swarm]);
       setActiveSwarm(data.swarm.id);
       setShowNewSwarm(false);
       setOutput([{ type: 'info', content: `Swarm ${data.swarm.id} started`, timestamp: Date.now() }]);
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setActionLoading(null);
     }
@@ -192,9 +163,7 @@ export function SwarmDashboard({ projectPath, socket, onClose }) {
     setActionLoading(swarmId);
 
     try {
-      await fetch(`${API_URL}/api/claude-flow/swarms/${swarmId}`, {
-        method: 'DELETE'
-      });
+      await claudeFlowApi.deleteSwarm(swarmId);
 
       setSwarms(prev => prev.map(s =>
         s.id === swarmId ? { ...s, status: 'stopped' } : s
@@ -204,7 +173,7 @@ export function SwarmDashboard({ projectPath, socket, onClose }) {
         setOutput(prev => [...prev, { type: 'info', content: 'Swarm stopped', timestamp: Date.now() }]);
       }
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setActionLoading(null);
     }
@@ -214,16 +183,12 @@ export function SwarmDashboard({ projectPath, socket, onClose }) {
     if (!activeSwarm || !taskInput.trim()) return;
 
     try {
-      await fetch(`${API_URL}/api/claude-flow/swarms/${activeSwarm}/task`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ task: taskInput })
-      });
+      await claudeFlowApi.sendTask(activeSwarm, taskInput);
 
       setOutput(prev => [...prev, { type: 'input', content: `> ${taskInput}`, timestamp: Date.now() }]);
       setTaskInput('');
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     }
   };
 

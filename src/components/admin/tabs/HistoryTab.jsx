@@ -1,11 +1,14 @@
 /**
  * HistoryTab Component
  * Session history browser
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { TabContainer } from '../shared';
 import { formatTime } from '../utils';
+import { adminApi } from '../../../services/api.js';
 
 export function HistoryTab() {
   const [history, setHistory] = useState({ total: 0, entries: [] });
@@ -14,11 +17,8 @@ export function HistoryTab() {
   const fetchHistory = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/admin/history?limit=50');
-      if (res.ok) {
-        const data = await res.json();
-        setHistory(data);
-      }
+      const data = await adminApi.getHistory(50);
+      setHistory(data);
     } catch (err) {
       console.error('Error fetching history:', err);
     } finally {

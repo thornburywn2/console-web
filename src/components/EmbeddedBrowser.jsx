@@ -1,9 +1,12 @@
 /**
  * EmbeddedBrowser Component
  * Browser preview for agent UI inspection and debugging
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { browserApi } from '../services/api.js';
 
 // Default viewport sizes
 const VIEWPORT_PRESETS = [
@@ -39,28 +42,18 @@ export default function EmbeddedBrowser({ projectId, sessionId, initialUrl = '',
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch('/api/browser', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId,
-          sessionId,
-          url: targetUrl,
-          viewport: { width: viewport.width, height: viewport.height }
-        })
+      const session = await browserApi.createSession({
+        projectId,
+        sessionId,
+        url: targetUrl,
+        viewport: { width: viewport.width, height: viewport.height }
       });
 
-      if (response.ok) {
-        const session = await response.json();
-        setBrowserSession(session);
-        setUrl(targetUrl);
-        setInputUrl(targetUrl);
-      } else {
-        const data = await response.json();
-        setError(data.error);
-      }
+      setBrowserSession(session);
+      setUrl(targetUrl);
+      setInputUrl(targetUrl);
     } catch (err) {
-      setError('Failed to create browser session');
+      setError(err.getUserMessage?.() || 'Failed to create browser session');
     } finally {
       setIsLoading(false);
     }
@@ -78,14 +71,10 @@ export default function EmbeddedBrowser({ projectId, sessionId, initialUrl = '',
 
     if (browserSession) {
       try {
-        await fetch(`/api/browser/${browserSession.id}/navigate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: targetUrl })
-        });
+        await browserApi.navigate(browserSession.id, targetUrl);
         setUrl(targetUrl);
       } catch (err) {
-        console.error('Navigation error:', err);
+        console.error('Navigation error:', err.getUserMessage?.() || err.message);
       }
     } else {
       createSession(targetUrl);
@@ -99,21 +88,14 @@ export default function EmbeddedBrowser({ projectId, sessionId, initialUrl = '',
     try {
       // For security reasons, we can't directly capture iframe content
       // Instead, we'll save the URL and timestamp as a "screenshot"
-      const response = await fetch(`/api/browser/${browserSession.id}/screenshots`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url,
-          dataUrl: `screenshot-placeholder-${Date.now()}`,
-          annotation: `Screenshot at ${new Date().toLocaleTimeString()}`
-        })
+      await browserApi.saveScreenshot(browserSession.id, {
+        url,
+        dataUrl: `screenshot-placeholder-${Date.now()}`,
+        annotation: `Screenshot at ${new Date().toLocaleTimeString()}`
       });
-
-      if (response.ok) {
-        fetchScreenshots();
-      }
+      fetchScreenshots();
     } catch (err) {
-      console.error('Screenshot error:', err);
+      console.error('Screenshot error:', err.getUserMessage?.() || err.message);
     }
   };
 
@@ -122,13 +104,10 @@ export default function EmbeddedBrowser({ projectId, sessionId, initialUrl = '',
     if (!browserSession) return;
 
     try {
-      const response = await fetch(`/api/browser/${browserSession.id}/screenshots`);
-      if (response.ok) {
-        const data = await response.json();
-        setScreenshots(data.screenshots);
-      }
+      const data = await browserApi.getScreenshots(browserSession.id);
+      setScreenshots(data.screenshots);
     } catch (err) {
-      console.error('Error fetching screenshots:', err);
+      console.error('Error fetching screenshots:', err.getUserMessage?.() || err.message);
     }
   };
 
@@ -140,11 +119,7 @@ export default function EmbeddedBrowser({ projectId, sessionId, initialUrl = '',
         // Try to get the title (may fail due to CORS)
         const title = iframeRef.current.contentDocument?.title;
         if (title && browserSession) {
-          fetch(`/api/browser/${browserSession.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title })
-          });
+          browserApi.updateSession(browserSession.id, { title }).catch(() => {});
         }
       } catch (e) {
         // CORS restriction, expected
@@ -162,11 +137,7 @@ export default function EmbeddedBrowser({ projectId, sessionId, initialUrl = '',
     setConsoleLogs(prev => [...prev, log].slice(-100));
 
     if (browserSession) {
-      fetch(`/api/browser/${browserSession.id}/console`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ logs: [log] })
-      });
+      browserApi.saveConsoleLogs(browserSession.id, [log]).catch(() => {});
     }
   };
 
@@ -203,7 +174,7 @@ export default function EmbeddedBrowser({ projectId, sessionId, initialUrl = '',
   // Close session
   const handleClose = async () => {
     if (browserSession) {
-      await fetch(`/api/browser/${browserSession.id}/close`, { method: 'POST' });
+      await browserApi.closeSession(browserSession.id).catch(() => {});
     }
     if (onClose) onClose();
   };

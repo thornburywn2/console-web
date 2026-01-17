@@ -1,10 +1,13 @@
 /**
  * MemoryBankPanel Component
  * Manages layered context persistence (Session, Project, Global)
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { MEMORY_TYPES, SCOPE_COLORS, MemoryCard } from './memory-bank';
+import { memoryApi } from '../services/api.js';
 
 export default function MemoryBankPanel({ projectId, sessionId, onClose }) {
   const [memories, setMemories] = useState([]);
@@ -36,26 +39,20 @@ export default function MemoryBankPanel({ projectId, sessionId, onClose }) {
       if (sessionId) params.set('sessionId', sessionId);
       if (searchQuery) params.set('search', searchQuery);
 
-      const response = await fetch(`/api/memory?${params}`);
-      if (response.ok) {
-        const data = await response.json();
-        setMemories(data.memories);
-      }
+      const data = await memoryApi.list(params);
+      setMemories(data.memories);
     } catch (err) {
-      console.error('Error fetching memories:', err);
+      console.error('Error fetching memories:', err.getUserMessage?.() || err.message);
     }
   }, [activeScope, projectId, sessionId, searchQuery]);
 
   // Fetch stats
   const fetchStats = useCallback(async () => {
     try {
-      const params = projectId ? `?projectId=${projectId}` : '';
-      const response = await fetch(`/api/memory/stats/overview${params}`);
-      if (response.ok) {
-        setStats(await response.json());
-      }
+      const data = await memoryApi.getStats(projectId);
+      setStats(data);
     } catch (err) {
-      console.error('Error fetching stats:', err);
+      console.error('Error fetching stats:', err.getUserMessage?.() || err.message);
     }
   }, [projectId]);
 
@@ -74,28 +71,19 @@ export default function MemoryBankPanel({ projectId, sessionId, onClose }) {
     setError(null);
 
     try {
-      const response = await fetch('/api/memory', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          projectId: formData.scope === 'GLOBAL' ? null : projectId,
-          sessionId: formData.scope === 'SESSION' ? sessionId : null,
-          tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : []
-        })
+      await memoryApi.create({
+        ...formData,
+        projectId: formData.scope === 'GLOBAL' ? null : projectId,
+        sessionId: formData.scope === 'SESSION' ? sessionId : null,
+        tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : []
       });
 
-      if (response.ok) {
-        setIsCreating(false);
-        setFormData({ title: '', content: '', type: 'CONTEXT', scope: 'PROJECT', importance: 5, tags: '', category: '' });
-        fetchMemories();
-        fetchStats();
-      } else {
-        const data = await response.json();
-        setError(data.error);
-      }
+      setIsCreating(false);
+      setFormData({ title: '', content: '', type: 'CONTEXT', scope: 'PROJECT', importance: 5, tags: '', category: '' });
+      fetchMemories();
+      fetchStats();
     } catch (err) {
-      setError('Failed to create memory');
+      setError(err.getUserMessage?.() || 'Failed to create memory');
     }
   };
 
@@ -104,21 +92,15 @@ export default function MemoryBankPanel({ projectId, sessionId, onClose }) {
     if (!selectedMemory) return;
 
     try {
-      const response = await fetch(`/api/memory/${selectedMemory.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : []
-        })
+      await memoryApi.update(selectedMemory.id, {
+        ...formData,
+        tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : []
       });
 
-      if (response.ok) {
-        setSelectedMemory(null);
-        fetchMemories();
-      }
+      setSelectedMemory(null);
+      fetchMemories();
     } catch (err) {
-      console.error('Error updating memory:', err);
+      console.error('Error updating memory:', err.getUserMessage?.() || err.message);
     }
   };
 
@@ -127,28 +109,22 @@ export default function MemoryBankPanel({ projectId, sessionId, onClose }) {
     if (!confirm('Delete this memory?')) return;
 
     try {
-      const response = await fetch(`/api/memory/${id}`, { method: 'DELETE' });
-      if (response.ok) {
-        fetchMemories();
-        fetchStats();
-        if (selectedMemory?.id === id) setSelectedMemory(null);
-      }
+      await memoryApi.delete(id);
+      fetchMemories();
+      fetchStats();
+      if (selectedMemory?.id === id) setSelectedMemory(null);
     } catch (err) {
-      console.error('Error deleting memory:', err);
+      console.error('Error deleting memory:', err.getUserMessage?.() || err.message);
     }
   };
 
   // Toggle pin
   const handleTogglePin = async (memory) => {
     try {
-      await fetch(`/api/memory/${memory.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pinned: !memory.pinned })
-      });
+      await memoryApi.update(memory.id, { pinned: !memory.pinned });
       fetchMemories();
     } catch (err) {
-      console.error('Error toggling pin:', err);
+      console.error('Error toggling pin:', err.getUserMessage?.() || err.message);
     }
   };
 

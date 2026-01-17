@@ -2,9 +2,12 @@
  * ContextPanel Component
  * Right sidebar panel for managing project context
  * Displays files, snippets, and context items for the current session
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { projectContextsApi } from '../services/api.js';
 
 export default function ContextPanel({
   projectPath,
@@ -31,17 +34,8 @@ export default function ContextPanel({
     setError(null);
 
     try {
-      // Fetch project contexts from API
-      const response = await fetch(`/api/projects/${encodeURIComponent(projectName)}/contexts`);
-      if (response.ok) {
-        const data = await response.json();
-        setContexts(data);
-      } else if (response.status === 404) {
-        // No contexts yet - that's fine
-        setContexts([]);
-      } else {
-        throw new Error('Failed to fetch contexts');
-      }
+      const data = await projectContextsApi.list(projectName);
+      setContexts(data);
     } catch (err) {
       // Silently fail - context API may not be fully implemented yet
       setContexts([]);
@@ -65,35 +59,25 @@ export default function ContextPanel({
     if (!newContextValue.trim()) return;
 
     try {
-      const response = await fetch(`/api/projects/${encodeURIComponent(projectName)}/contexts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: newContextType,
-          value: newContextValue.trim(),
-          label: newContextValue.split('/').pop() || newContextValue.trim()
-        })
+      const newContext = await projectContextsApi.create(projectName, {
+        type: newContextType,
+        value: newContextValue.trim(),
+        label: newContextValue.split('/').pop() || newContextValue.trim()
       });
-
-      if (response.ok) {
-        const newContext = await response.json();
-        setContexts(prev => [...prev, newContext]);
-        setNewContextValue('');
-        setAddingContext(false);
-      }
+      setContexts(prev => [...prev, newContext]);
+      setNewContextValue('');
+      setAddingContext(false);
     } catch (err) {
-      console.error('Failed to add context:', err);
+      console.error('Failed to add context:', err.getUserMessage?.() || err.message);
     }
   };
 
   const removeContext = async (contextId) => {
     try {
-      await fetch(`/api/projects/${encodeURIComponent(projectName)}/contexts/${contextId}`, {
-        method: 'DELETE'
-      });
+      await projectContextsApi.delete(projectName, contextId);
       setContexts(prev => prev.filter(c => c.id !== contextId));
     } catch (err) {
-      console.error('Failed to remove context:', err);
+      console.error('Failed to remove context:', err.getUserMessage?.() || err.message);
     }
   };
 

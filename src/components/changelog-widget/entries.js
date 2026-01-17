@@ -4,6 +4,65 @@
 
 export const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.18',
+    date: '2026-01-17',
+    type: 'major',
+    title: 'Phase 5.4 Complete - Nonce-Based CSP & Zod Validation',
+    highlights: [
+      'Nonce-based Content Security Policy replaces unsafe-inline',
+      '25+ API methods wrapped with Zod response validation',
+      'Test infrastructure updated for centralized API mocking',
+      'Security headers dynamically generated per-request',
+    ],
+    features: [
+      { title: 'Nonce-Based CSP', description: 'Cryptographic nonces generated per-request using crypto.randomBytes(16), injected into style tags and meta tag for frontend access' },
+      { title: 'CSP Header Updates', description: 'Removed unsafe-inline from script-src and style-src, replaced with nonce-{value} directives while keeping unsafe-eval for xterm.js WebGL' },
+      { title: 'Zod Response Validation', description: '25+ API methods wrapped with validated() function providing non-breaking schema validation with console warnings' },
+      { title: 'API Validation Coverage', description: 'systemApi, dockerApi, infraApi, firewallApi, sessionsApi, foldersApi, tagsApi, promptsApi, snippetsApi, agentsApi, gitApi, and more validated' },
+      { title: 'Test Mocking Updates', description: 'TokenUsageWidget and other tests updated to mock centralized aiApi instead of global.fetch' },
+      { title: 'Security Middleware Refactor', description: 'securityHeaders converted to function returning helmet middleware with dynamic nonce support' },
+    ],
+  },
+  {
+    version: '1.0.17',
+    date: '2026-01-17',
+    type: 'major',
+    title: 'Phase 5.1 Complete - Full API Service Migration',
+    highlights: [
+      'All 70+ components migrated to centralized API service',
+      '35+ domain-specific API modules in api.js',
+      'Zero direct fetch() calls remaining in components',
+      'Ready for Phase 5.2 Zod Response Validation',
+    ],
+    features: [
+      { title: 'Final Batch Migration', description: 'App.jsx, DiffViewer, ContextPanel, ResourceChart, ScheduleManager, AgentExecutionLog, SettingsPanel, VoiceCommandPanel, ProjectContextMenu, GitHubProjectPanel all migrated' },
+      { title: 'New API Modules', description: 'Added diffApi, notesApi, sessionsPersistedApi, metricsApi, projectContextsApi, scheduledTasksApi, agentExecutionsApi, voiceApi, projectContextApi, githubProjectsApi' },
+      { title: 'App.jsx Cleanup', description: 'Main app component now uses projectsApi, systemApi, notesApi, sessionsPersistedApi for all data fetching' },
+      { title: 'Consistent Error Handling', description: 'All components use ApiError.getUserMessage() for user-friendly error messages' },
+      { title: 'Intentional Exceptions', description: 'useAuth.jsx (/auth/me) and OfflineMode.jsx (generic sync) remain as direct fetch by design' },
+    ],
+  },
+  {
+    version: '1.0.16',
+    date: '2026-01-17',
+    type: 'major',
+    title: 'Phase 5.1 - Centralized API Service Migration',
+    highlights: [
+      'Migrated 68+ fetch() calls to centralized API service',
+      '8 new domain-specific API modules with error handling',
+      'X-Request-ID tracing and Sentry integration on all API calls',
+      'ApiError class with user-friendly error messages',
+    ],
+    features: [
+      { title: 'API Service Architecture', description: 'Centralized api.js with consistent error handling, request tracing, retry logic, and cancellation support' },
+      { title: 'Domain APIs', description: 'New authentikApi, serverApi, infraExtendedApi, stackApi, serverUsersApi, firewallExtendedApi, adminApi, and aiApi modules' },
+      { title: 'Hooks Migration', description: 'useSessionManagement and useAiderVoice migrated from direct fetch() to centralized API with 21 calls updated' },
+      { title: 'Admin Tab Migration', description: '11 admin tab components migrated: Authentik, Logs, Network, Packages, Processes, Stack, Users, Firewall, Fail2ban, History, Scheduled' },
+      { title: 'Widget Migration', description: 'DockerWidget and TokenUsageWidget now use centralized dockerApi and aiApi services' },
+      { title: 'Error Handling', description: 'All migrated components use ApiError.getUserMessage() for user-friendly error display' },
+    ],
+  },
+  {
     version: '1.0.15',
     date: '2026-01-17',
     type: 'major',

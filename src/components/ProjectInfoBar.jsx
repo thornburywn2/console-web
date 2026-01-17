@@ -1,9 +1,12 @@
 /**
  * Project Info Bar Component
  * Displays project metadata, tags, and quick stats between header and terminal
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { projectTagsApi } from '../services/api.js';
 import { ProjectTagChip } from './ProjectContextMenu';
 
 // Predefined colors for tags (matching TagManager)
@@ -30,20 +33,15 @@ export default function ProjectInfoBar({ project, onRefresh }) {
     if (!encodedPath) return;
 
     try {
-      const [allTagsRes, projectTagsRes] = await Promise.all([
-        fetch('/api/project-tags'),
-        fetch(`/api/projects/by-path/${encodedPath}/tags`)
+      const [allTagsData, projectTagsData] = await Promise.all([
+        projectTagsApi.list(),
+        projectTagsApi.getProjectTags(encodedPath)
       ]);
 
-      if (allTagsRes.ok) {
-        setAllTags(await allTagsRes.json());
-      }
-
-      if (projectTagsRes.ok) {
-        setTags(await projectTagsRes.json());
-      }
+      setAllTags(allTagsData);
+      setTags(projectTagsData);
     } catch (err) {
-      console.error('Failed to fetch tags:', err);
+      console.error('Failed to fetch tags:', err.getUserMessage?.() || err.message);
     }
   }, [encodedPath]);
 
@@ -79,18 +77,15 @@ export default function ProjectInfoBar({ project, onRefresh }) {
 
     try {
       if (hasTag) {
-        await fetch(`/api/projects/by-path/${encodedPath}/tags/${tagId}`, { method: 'DELETE' });
+        await projectTagsApi.removeFromProject(encodedPath, tagId);
         setTags(prev => prev.filter(t => t.id !== tagId));
       } else {
-        const res = await fetch(`/api/projects/by-path/${encodedPath}/tags/${tagId}`, { method: 'POST' });
-        if (res.ok) {
-          const { tag } = await res.json();
-          setTags(prev => [...prev, tag]);
-        }
+        const { tag } = await projectTagsApi.addToProject(encodedPath, tagId);
+        setTags(prev => [...prev, tag]);
       }
       onRefresh?.();
     } catch (err) {
-      console.error('Failed to toggle tag:', err);
+      console.error('Failed to toggle tag:', err.getUserMessage?.() || err.message);
     } finally {
       setIsLoading(false);
     }
@@ -101,11 +96,11 @@ export default function ProjectInfoBar({ project, onRefresh }) {
     if (!encodedPath) return;
 
     try {
-      await fetch(`/api/projects/by-path/${encodedPath}/tags/${tagId}`, { method: 'DELETE' });
+      await projectTagsApi.removeFromProject(encodedPath, tagId);
       setTags(prev => prev.filter(t => t.id !== tagId));
       onRefresh?.();
     } catch (err) {
-      console.error('Failed to remove tag:', err);
+      console.error('Failed to remove tag:', err.getUserMessage?.() || err.message);
     }
   };
 
@@ -115,30 +110,23 @@ export default function ProjectInfoBar({ project, onRefresh }) {
 
     setIsLoading(true);
     try {
-      const res = await fetch('/api/project-tags', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newTagName.trim(),
-          color: newTagColor
-        })
+      const tag = await projectTagsApi.create({
+        name: newTagName.trim(),
+        color: newTagColor
       });
 
-      if (res.ok) {
-        const tag = await res.json();
-        setAllTags(prev => [...prev, tag]);
-        // Auto-assign to current project
-        if (encodedPath) {
-          await fetch(`/api/projects/by-path/${encodedPath}/tags/${tag.id}`, { method: 'POST' });
-          setTags(prev => [...prev, tag]);
-        }
-        setNewTagName('');
-        setNewTagColor(TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)]);
-        setIsCreatingTag(false);
-        onRefresh?.();
+      setAllTags(prev => [...prev, tag]);
+      // Auto-assign to current project
+      if (encodedPath) {
+        await projectTagsApi.addToProject(encodedPath, tag.id);
+        setTags(prev => [...prev, tag]);
       }
+      setNewTagName('');
+      setNewTagColor(TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)]);
+      setIsCreatingTag(false);
+      onRefresh?.();
     } catch (err) {
-      console.error('Failed to create tag:', err);
+      console.error('Failed to create tag:', err.getUserMessage?.() || err.message);
     } finally {
       setIsLoading(false);
     }

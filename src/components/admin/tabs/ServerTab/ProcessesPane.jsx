@@ -1,10 +1,13 @@
 /**
  * ProcessesPane Component
  * System process management
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { formatBytes } from '../../utils';
+import { infraExtendedApi } from '../../../../services/api.js';
 
 export function ProcessesPane() {
   const [processes, setProcesses] = useState([]);
@@ -16,11 +19,8 @@ export function ProcessesPane() {
   const fetchProcesses = useCallback(async (sortBy) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/infra/processes?sort=${sortBy}`);
-      if (res.ok) {
-        const data = await res.json();
-        setProcesses(data.processes || []);
-      }
+      const data = await infraExtendedApi.getProcesses(sortBy);
+      setProcesses(data.processes || []);
     } catch (err) {
       console.error('Error fetching processes:', err);
     } finally {
@@ -32,15 +32,9 @@ export function ProcessesPane() {
     if (!confirm(`Kill process ${pid}?`)) return;
     try {
       setLoading(true);
-      const res = await fetch(`/api/infra/processes/${pid}/kill`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signal })
-      });
-      if (res.ok) {
-        fetchProcesses(processSort);
-        setSelectedProcess(null);
-      }
+      await infraExtendedApi.killProcess(pid, signal);
+      fetchProcesses(processSort);
+      setSelectedProcess(null);
     } catch (err) {
       console.error('Error killing process:', err);
     } finally {

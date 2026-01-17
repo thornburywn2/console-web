@@ -1,9 +1,12 @@
 /**
  * Cost Dashboard Component
  * API cost tracking and analytics
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { aiCostsApi } from '../services/api.js';
 
 const PROVIDER_COLORS = {
   anthropic: '#d4a27f',
@@ -165,11 +168,8 @@ export default function CostDashboard({ isOpen, onClose }) {
 
   const fetchData = useCallback(async () => {
     try {
-      const response = await fetch(`/api/ai/costs?range=${timeRange}`);
-      if (response.ok) {
-        const result = await response.json();
-        setData(result);
-      }
+      const result = await aiCostsApi.getCosts(timeRange);
+      setData(result);
     } catch (error) {
       console.error('Failed to fetch cost data:', error);
       // Demo data
@@ -360,11 +360,8 @@ export function CostWidget() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch('/api/ai/costs?range=7d');
-        if (response.ok) {
-          const result = await response.json();
-          setData(result);
-        }
+        const result = await aiCostsApi.getCosts('7d');
+        setData(result);
       } catch (error) {
         // Fallback
         setData({ totalCost: 12.45, totalTokens: 1250000 });

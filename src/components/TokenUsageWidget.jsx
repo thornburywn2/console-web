@@ -1,9 +1,12 @@
 /**
  * Token Usage Widget Component
  * Track and display API token usage per session
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useMemo } from 'react';
+import { aiApi } from '../services/api.js';
 
 // Format large numbers
 const formatNumber = (num) => {
@@ -51,16 +54,8 @@ export default function TokenUsageWidget({
     const fetchUsage = async () => {
       setLoading(true);
       try {
-        const params = new URLSearchParams();
-        if (sessionId) params.set('sessionId', sessionId);
-        if (projectId) params.set('projectId', projectId);
-        params.set('range', timeRange);
-
-        const response = await fetch(`/api/ai/usage?${params}`);
-        if (response.ok) {
-          const data = await response.json();
-          setUsage(data);
-        }
+        const data = await aiApi.getUsage({ sessionId, projectId, range: timeRange });
+        setUsage(data);
       } catch (error) {
         console.error('Failed to fetch usage:', error);
         // Use mock data for display

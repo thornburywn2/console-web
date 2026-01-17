@@ -4,10 +4,13 @@
  * Categories: Official, Cloud, Database, Developer, Productivity, Search
  *
  * Uses hacker theme to match Console.web styling
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect } from 'react';
 import { CATEGORY_ICONS, ServerCard, ConfigModal } from './mcp-catalog';
+import { mcpCatalogApi } from '../services/api.js';
 
 export default function MCPServerCatalog({ onInstall, onClose }) {
   const [catalog, setCatalog] = useState({ categories: [], servers: [] });
@@ -25,22 +28,15 @@ export default function MCPServerCatalog({ onInstall, onClose }) {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [catalogRes, installedRes] = await Promise.all([
-          fetch('/api/mcp/catalog'),
-          fetch('/api/mcp/catalog/installed')
+        const [catalogData, installedData] = await Promise.all([
+          mcpCatalogApi.getCatalog(),
+          mcpCatalogApi.getInstalled()
         ]);
-
-        if (catalogRes.ok) {
-          const data = await catalogRes.json();
-          setCatalog(data);
-        }
-
-        if (installedRes.ok) {
-          const data = await installedRes.json();
-          setInstalled(data);
-        }
+        setCatalog(catalogData || { categories: [], servers: [] });
+        setInstalled(installedData || {});
       } catch (err) {
-        setError('Failed to load catalog');
+        const message = err.getUserMessage?.() || 'Failed to load catalog';
+        setError(message);
         console.error(err);
       } finally {
         setLoading(false);
@@ -95,36 +91,26 @@ export default function MCPServerCatalog({ onInstall, onClose }) {
         }
       }
 
-      const response = await fetch(`/api/mcp/catalog/install/${server.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          config,
-          isGlobal: true,
-          autoStart: true
-        })
+      const newServer = await mcpCatalogApi.install(server.id, {
+        config,
+        isGlobal: true,
+        autoStart: true
       });
-
-      if (response.ok) {
-        const newServer = await response.json();
-        setInstalled(prev => ({
-          ...prev,
-          [server.id]: {
-            installed: true,
-            serverId: newServer.id,
-            status: newServer.status,
-            enabled: true
-          }
-        }));
-        setSelectedServer(null);
-        setConfigValues({});
-        if (onInstall) onInstall(newServer);
-      } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to install server');
-      }
+      setInstalled(prev => ({
+        ...prev,
+        [server.id]: {
+          installed: true,
+          serverId: newServer.id,
+          status: newServer.status,
+          enabled: true
+        }
+      }));
+      setSelectedServer(null);
+      setConfigValues({});
+      if (onInstall) onInstall(newServer);
     } catch (err) {
-      setError('Failed to install server');
+      const message = err.getUserMessage?.() || 'Failed to install server';
+      setError(message);
       console.error(err);
     } finally {
       setInstalling(null);

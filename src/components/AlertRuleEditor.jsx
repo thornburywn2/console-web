@@ -1,10 +1,13 @@
 /**
  * Alert Rule Editor Component
  * Create and manage custom threshold alerts
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect } from 'react';
 import { ALERT_TYPES, PRESETS, RuleCard, RuleEditor } from './alert-rule-editor';
+import { alertsApi } from '../services/api.js';
 
 export default function AlertRuleEditor({ isOpen, onClose, embedded = false }) {
   const [rules, setRules] = useState([]);
@@ -20,13 +23,10 @@ export default function AlertRuleEditor({ isOpen, onClose, embedded = false }) {
 
   const fetchRules = async () => {
     try {
-      const response = await fetch('/api/alerts');
-      if (response.ok) {
-        const data = await response.json();
-        setRules(data.rules || []);
-      }
+      const data = await alertsApi.list();
+      setRules(data.rules || []);
     } catch (error) {
-      console.error('Failed to fetch alert rules:', error);
+      console.error('Failed to fetch alert rules:', error.getUserMessage?.() || error.message);
     } finally {
       setLoading(false);
     }
@@ -34,21 +34,15 @@ export default function AlertRuleEditor({ isOpen, onClose, embedded = false }) {
 
   const handleSave = async (rule) => {
     try {
-      const method = rule.id ? 'PUT' : 'POST';
-      const url = rule.id ? `/api/alerts/${rule.id}` : '/api/alerts';
-
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(rule),
-      });
-
-      if (response.ok) {
-        fetchRules();
-        setEditingRule(null);
+      if (rule.id) {
+        await alertsApi.update(rule.id, rule);
+      } else {
+        await alertsApi.create(rule);
       }
+      fetchRules();
+      setEditingRule(null);
     } catch (error) {
-      console.error('Failed to save alert:', error);
+      console.error('Failed to save alert:', error.getUserMessage?.() || error.message);
     }
   };
 
@@ -56,10 +50,10 @@ export default function AlertRuleEditor({ isOpen, onClose, embedded = false }) {
     if (!confirm('Delete this alert rule?')) return;
 
     try {
-      await fetch(`/api/alerts/${id}`, { method: 'DELETE' });
+      await alertsApi.delete(id);
       fetchRules();
     } catch (error) {
-      console.error('Failed to delete alert:', error);
+      console.error('Failed to delete alert:', error.getUserMessage?.() || error.message);
     }
   };
 

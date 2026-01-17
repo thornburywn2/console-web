@@ -1,9 +1,12 @@
 /**
  * Backup Manager Component
  * Automated project backup scheduling and management
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { backupsApi } from '../services/api.js';
 
 const BACKUP_STRATEGIES = [
   { id: 'full', name: 'Full Backup', description: 'Complete project copy', icon: '📦' },
@@ -45,12 +48,9 @@ export default function BackupManager({
     if (!projectPath) return;
     setLoading(true);
     try {
-      const response = await fetch('/api/backups/' + encodeURIComponent(projectPath));
-      if (response.ok) {
-        const data = await response.json();
-        setBackups(data.backups || []);
-        setSchedules(data.schedules || []);
-      }
+      const data = await backupsApi.list(projectPath);
+      setBackups(data.backups || []);
+      setSchedules(data.schedules || []);
     } catch (err) {
       console.error('Failed to fetch backups:', err);
     } finally {
@@ -66,20 +66,13 @@ export default function BackupManager({
   const createBackup = async () => {
     setCreating(true);
     try {
-      const response = await fetch('/api/backups/' + encodeURIComponent(projectPath), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: backupName || 'Backup ' + new Date().toISOString().slice(0, 10),
-          strategy,
-          destination: destination || undefined,
-        }),
+      await backupsApi.create(projectPath, {
+        name: backupName || 'Backup ' + new Date().toISOString().slice(0, 10),
+        strategy,
+        destination: destination || undefined,
       });
-
-      if (response.ok) {
-        setBackupName('');
-        await fetchBackups();
-      }
+      setBackupName('');
+      await fetchBackups();
     } catch (err) {
       console.error('Failed to create backup:', err);
     } finally {
@@ -94,13 +87,8 @@ export default function BackupManager({
     }
 
     try {
-      const response = await fetch('/api/backups/' + encodeURIComponent(projectPath) + '/' + backupId + '/restore', {
-        method: 'POST',
-      });
-
-      if (response.ok) {
-        alert('Backup restored successfully');
-      }
+      await backupsApi.restore(projectPath, backupId);
+      alert('Backup restored successfully');
     } catch (err) {
       console.error('Failed to restore backup:', err);
     }
@@ -111,9 +99,7 @@ export default function BackupManager({
     if (!confirm('Delete this backup?')) return;
 
     try {
-      await fetch('/api/backups/' + encodeURIComponent(projectPath) + '/' + backupId, {
-        method: 'DELETE',
-      });
+      await backupsApi.delete(projectPath, backupId);
       await fetchBackups();
     } catch (err) {
       console.error('Failed to delete backup:', err);
@@ -123,15 +109,11 @@ export default function BackupManager({
   // Save schedule
   const saveSchedule = async () => {
     try {
-      await fetch('/api/backups/' + encodeURIComponent(projectPath) + '/schedule', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          enabled: scheduleEnabled,
-          cron: scheduleCron,
-          strategy,
-          retentionDays,
-        }),
+      await backupsApi.saveSchedule(projectPath, {
+        enabled: scheduleEnabled,
+        cron: scheduleCron,
+        strategy,
+        retentionDays,
       });
       await fetchBackups();
       setShowScheduler(false);

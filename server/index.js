@@ -40,6 +40,7 @@ import { authentikAuth, createAuthRouter } from './middleware/authentik.js';
 
 // Import security middleware
 import {
+  nonceMiddleware,
   securityHeaders,
   apiRateLimiter,
   strictRateLimiter,
@@ -392,7 +393,10 @@ const SOVEREIGN_SERVICES = {
 // SECURITY MIDDLEWARE
 // =============================================================================
 
-// Security headers (helmet) - applied first for all responses
+// Nonce generation middleware - generates unique nonce per request (Phase 5.4)
+app.use(nonceMiddleware);
+
+// Security headers (helmet with nonce-based CSP) - applied first for all responses
 app.use(securityHeaders);
 
 // CORS configuration
@@ -4210,13 +4214,35 @@ if (process.env.NODE_ENV === 'production') {
     res.redirect(301, '/favicon.svg');
   });
 
-  // SPA fallback - serve index.html for all routes
+  // SPA fallback - serve index.html with nonce injection for CSP (Phase 5.4)
   app.get('*', (req, res) => {
     log.debug({ path: req.path }, 'serving index.html');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.sendFile(join(process.cwd(), 'dist', 'index.html'));
+
+    // Read and inject nonce into HTML for CSP compliance
+    const htmlPath = join(process.cwd(), 'dist', 'index.html');
+    try {
+      let html = readFileSync(htmlPath, 'utf8');
+      const nonce = res.locals.cspNonce;
+
+      // Inject nonce into inline style tag (for FOUC prevention)
+      // <style> becomes <style nonce="...">
+      html = html.replace(/<style>/g, `<style nonce="${nonce}">`);
+
+      // Add nonce meta tag for frontend access if needed
+      html = html.replace(
+        '</head>',
+        `  <meta name="csp-nonce" content="${nonce}">\n  </head>`
+      );
+
+      res.setHeader('Content-Type', 'text/html');
+      res.send(html);
+    } catch (error) {
+      log.error({ error: error.message }, 'failed to read index.html');
+      res.sendFile(htmlPath);
+    }
   });
 
   log.info('serving static files from dist/ (production mode)');

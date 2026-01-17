@@ -1,11 +1,12 @@
 /**
  * Compliance Checker Component
  * Display and manage project compliance status
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect } from 'react';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5275';
+import { projectTemplatesApi } from '../services/api.js';
 
 // Status colors and labels
 const STATUS_CONFIG = {
@@ -53,20 +54,11 @@ export default function ComplianceChecker({ projectPath, projectName, isOpen, on
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`${API_URL}/api/project-templates/check-path`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectPath })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to check compliance');
-      }
-
-      const data = await response.json();
+      const data = await projectTemplatesApi.checkPath(projectPath);
       setCompliance(data);
     } catch (err) {
-      setError(err.message);
+      const message = err.getUserMessage?.() || err.message || 'Failed to check compliance';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -77,20 +69,7 @@ export default function ComplianceChecker({ projectPath, projectName, isOpen, on
       setMigrating(true);
       setError(null);
 
-      const response = await fetch(`${API_URL}/api/project-templates/migrate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectPath,
-          options: migrateOptions
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to migrate project');
-      }
-
-      const data = await response.json();
+      const data = await projectTemplatesApi.migrate(projectPath, migrateOptions);
 
       // Refresh compliance after migration
       await checkCompliance();
@@ -99,7 +78,8 @@ export default function ComplianceChecker({ projectPath, projectName, isOpen, on
         onMigrate(data);
       }
     } catch (err) {
-      setError(err.message);
+      const message = err.getUserMessage?.() || err.message || 'Failed to migrate project';
+      setError(message);
     } finally {
       setMigrating(false);
     }

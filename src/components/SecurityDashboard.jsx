@@ -1,5 +1,13 @@
+/**
+ * Security Dashboard Component
+ * Security scanning and compliance tools management
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 import { ToolStatus, SECURITY_TOOLS, SCAN_TYPES } from './security-dashboard';
+import { projectsApi, lifecycleApi } from '../services/api.js';
 
 export default function SecurityDashboard({ selectedProject, embedded = false }) {
   const [toolStatuses, setToolStatuses] = useState({});
@@ -13,8 +21,7 @@ export default function SecurityDashboard({ selectedProject, embedded = false })
 
   // Fetch projects for dropdown
   useEffect(() => {
-    fetch('/api/projects')
-      .then(res => res.json())
+    projectsApi.list()
       .then(data => {
         // API returns array directly, not { projects: [...] }
         const projectList = Array.isArray(data) ? data : (data.projects || []);
@@ -39,11 +46,8 @@ export default function SecurityDashboard({ selectedProject, embedded = false })
     setToolStatuses(statuses);
 
     try {
-      const response = await fetch('/api/lifecycle/tools/status');
-      if (response.ok) {
-        const data = await response.json();
-        setToolStatuses(data.tools || {});
-      }
+      const data = await lifecycleApi.getToolsStatus();
+      setToolStatuses(data.tools || {});
     } catch (error) {
       console.error('Failed to check tool statuses:', error);
       // Mark all as unknown
@@ -67,17 +71,7 @@ export default function SecurityDashboard({ selectedProject, embedded = false })
     setLogs([`Starting ${scanType.name} for ${targetProject}...`]);
 
     try {
-      const response = await fetch('/api/lifecycle/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agent: scanType.agent,
-          command: scanType.command,
-          project: targetProject
-        })
-      });
-
-      const data = await response.json();
+      const data = await lifecycleApi.runScan(scanType.agent, scanType.command, targetProject);
 
       if (data.output) {
         // Parse output into log lines
@@ -107,12 +101,13 @@ export default function SecurityDashboard({ selectedProject, embedded = false })
 
     } catch (error) {
       console.error('Scan failed:', error);
-      setLogs(prev => [...prev, `Error: ${error.message}`]);
+      const message = error.getUserMessage?.() || error.message;
+      setLogs(prev => [...prev, `Error: ${message}`]);
       setScanResults(prev => ({
         ...prev,
         [scanType.id]: {
           success: false,
-          error: error.message,
+          error: message,
           timestamp: new Date().toISOString()
         }
       }));
@@ -127,13 +122,7 @@ export default function SecurityDashboard({ selectedProject, embedded = false })
     setLogs(prev => [...prev, `Installing ${tool.name}...`, `Command: ${tool.installCmd}`]);
 
     try {
-      const response = await fetch('/api/lifecycle/tools/install', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tool: tool.id, command: tool.installCmd })
-      });
-
-      const data = await response.json();
+      const data = await lifecycleApi.installTool(tool.id, tool.installCmd);
 
       if (data.success) {
         setToolStatuses(prev => ({ ...prev, [tool.id]: ToolStatus.INSTALLED }));
@@ -144,7 +133,8 @@ export default function SecurityDashboard({ selectedProject, embedded = false })
       }
     } catch (error) {
       setToolStatuses(prev => ({ ...prev, [tool.id]: ToolStatus.ERROR }));
-      setLogs(prev => [...prev, `Installation error: ${error.message}`]);
+      const message = error.getUserMessage?.() || error.message;
+      setLogs(prev => [...prev, `Installation error: ${message}`]);
     }
   };
 
@@ -391,23 +381,14 @@ export function SecurityWidget({ project }) {
     setScanning(true);
 
     try {
-      const response = await fetch('/api/lifecycle/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agent: 'AGENT-018-SECURITY',
-          command: 'scan',
-          project
-        })
-      });
-
-      const data = await response.json();
+      const data = await lifecycleApi.runScan('AGENT-018-SECURITY', 'scan', project);
       setLastScan({
         success: data.success,
         timestamp: new Date().toISOString()
       });
     } catch (error) {
-      setLastScan({ success: false, error: error.message });
+      const message = error.getUserMessage?.() || error.message;
+      setLastScan({ success: false, error: message });
     } finally {
       setScanning(false);
     }

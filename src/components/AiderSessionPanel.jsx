@@ -2,12 +2,13 @@
  * Aider Session Panel
  * P1 Phase 1: Aider AI Coding Assistant Integration
  *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
+ *
  * Provides a UI for managing Aider sessions within Console.web.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-
-const API_URL = import.meta.env.VITE_API_URL || '';
+import { aiderApi } from '../services/api.js';
 
 export function AiderSessionPanel({ projectPath, socket, onModeChange }) {
   const [status, setStatus] = useState(null);
@@ -74,12 +75,10 @@ export function AiderSessionPanel({ projectPath, socket, onModeChange }) {
   const checkStatus = async () => {
     setError(null);
     try {
-      const res = await fetch(`${API_URL}/api/aider/status`);
-      if (!res.ok) throw new Error('Failed to check Aider status');
-      const data = await res.json();
+      const data = await aiderApi.getStatus();
       setStatus(data);
     } catch (err) {
-      console.error('Failed to check Aider status:', err);
+      console.error('Failed to check Aider status:', err.getUserMessage?.() || err.message);
       setError('Failed to check Aider status');
     }
   };
@@ -87,12 +86,10 @@ export function AiderSessionPanel({ projectPath, socket, onModeChange }) {
   const loadModels = async () => {
     setError(null);
     try {
-      const res = await fetch(`${API_URL}/api/aider/models`);
-      if (!res.ok) throw new Error('Failed to load models');
-      const data = await res.json();
+      const data = await aiderApi.getModels();
       setModels(data);
     } catch (err) {
-      console.error('Failed to load models:', err);
+      console.error('Failed to load models:', err.getUserMessage?.() || err.message);
       setError('Failed to load models');
     }
   };
@@ -100,14 +97,12 @@ export function AiderSessionPanel({ projectPath, socket, onModeChange }) {
   const loadConfig = async () => {
     setError(null);
     try {
-      const res = await fetch(`${API_URL}/api/aider/config`);
-      if (!res.ok) throw new Error('Failed to load config');
-      const data = await res.json();
+      const data = await aiderApi.getConfig();
       setConfig(data);
       if (data.defaultModel) setSelectedModel(data.defaultModel);
       if (data.defaultProvider) setSelectedProvider(data.defaultProvider);
     } catch (err) {
-      console.error('Failed to load config:', err);
+      console.error('Failed to load config:', err.getUserMessage?.() || err.message);
       setError('Failed to load configuration');
     }
   };
@@ -123,27 +118,17 @@ export function AiderSessionPanel({ projectPath, socket, onModeChange }) {
     setOutput([]);
 
     try {
-      const res = await fetch(`${API_URL}/api/aider/sessions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectPath,
-          model: selectedModel,
-          provider: selectedProvider,
-          options: {}
-        })
+      const data = await aiderApi.createSession({
+        projectPath,
+        model: selectedModel,
+        provider: selectedProvider,
+        options: {}
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to start session');
-      }
-
-      const data = await res.json();
       setSession(data.session);
       setOutput([{ type: 'info', content: `Session started with ${selectedModel}`, timestamp: Date.now() }]);
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setLoading(false);
     }
@@ -155,14 +140,11 @@ export function AiderSessionPanel({ projectPath, socket, onModeChange }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_URL}/api/aider/sessions/${session.id}`, {
-        method: 'DELETE'
-      });
-      if (!res.ok) throw new Error('Failed to stop session');
+      await aiderApi.deleteSession(session.id);
       setSession(null);
       setOutput(prev => [...prev, { type: 'info', content: 'Session stopped', timestamp: Date.now() }]);
     } catch (err) {
-      setError('Failed to stop session');
+      setError(err.getUserMessage?.() || 'Failed to stop session');
     } finally {
       setLoading(false);
     }
@@ -177,14 +159,9 @@ export function AiderSessionPanel({ projectPath, socket, onModeChange }) {
     setError(null);
 
     try {
-      const res = await fetch(`${API_URL}/api/aider/sessions/${session.id}/input`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: message })
-      });
-      if (!res.ok) throw new Error('Failed to send input');
+      await aiderApi.sendInput(session.id, message);
     } catch (err) {
-      setError('Failed to send input');
+      setError(err.getUserMessage?.() || 'Failed to send input');
     }
   };
 
@@ -192,14 +169,11 @@ export function AiderSessionPanel({ projectPath, socket, onModeChange }) {
     if (!session) return;
 
     setError(null);
-    const endpoint = session.voiceActive ? 'stop' : 'start';
+    const action = session.voiceActive ? 'stop' : 'start';
     try {
-      const res = await fetch(`${API_URL}/api/aider/sessions/${session.id}/voice/${endpoint}`, {
-        method: 'POST'
-      });
-      if (!res.ok) throw new Error('Failed to toggle voice');
+      await aiderApi.toggleVoice(session.id, action);
     } catch (err) {
-      setError('Failed to toggle voice');
+      setError(err.getUserMessage?.() || 'Failed to toggle voice');
     }
   };
 

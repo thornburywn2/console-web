@@ -1,9 +1,12 @@
 /**
  * Share Modal Component
  * Generate shareable session links
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useCallback } from 'react';
+import { shareApi } from '../services/api.js';
 
 const SHARE_OPTIONS = [
   { id: 'view', name: 'View Only', description: 'Read-only access to session transcript', icon: '👁️' },
@@ -35,21 +38,13 @@ export default function ShareModal({
   const createShareLink = async () => {
     setCreating(true);
     try {
-      const response = await fetch('/api/share/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: session.id,
-          type: shareType,
-          expiryHours: expiryHours || null,
-          password: usePassword ? password : null,
-        }),
+      const data = await shareApi.createSession({
+        sessionId: session.id,
+        type: shareType,
+        expiryHours: expiryHours || null,
+        password: usePassword ? password : null,
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setShareUrl(data.url);
-      }
+      setShareUrl(data.url);
     } catch (error) {
       console.error('Failed to create share link:', error);
     } finally {
@@ -69,9 +64,8 @@ export default function ShareModal({
 
   const revokeLink = async () => {
     try {
-      await fetch('/api/share/session/' + encodeURIComponent(shareUrl.split('/').pop()), {
-        method: 'DELETE',
-      });
+      const shareId = shareUrl.split('/').pop();
+      await shareApi.revokeSession(shareId);
       setShareUrl('');
     } catch (error) {
       console.error('Failed to revoke link:', error);

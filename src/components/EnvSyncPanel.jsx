@@ -1,9 +1,12 @@
 /**
  * Environment Sync Panel Component
  * Manage and sync .env files across environments
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { envApi } from '../services/api.js';
 import { EnvFileCard, VariableRow, DiffView } from './env-sync';
 
 export default function EnvSyncPanel({ projectPath, isOpen, onClose }) {
@@ -22,16 +25,13 @@ export default function EnvSyncPanel({ projectPath, isOpen, onClose }) {
   const fetchEnvFiles = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/env/files/${encodeURIComponent(projectPath || '')}`);
-      if (response.ok) {
-        const data = await response.json();
-        setFiles(data.files || []);
-        if (data.files?.length > 0) {
-          setSelectedFile(data.files[0]);
-        }
+      const data = await envApi.getFiles(projectPath);
+      setFiles(data.files || []);
+      if (data.files?.length > 0) {
+        setSelectedFile(data.files[0]);
       }
     } catch (error) {
-      console.error('Failed to fetch env files:', error);
+      console.error('Failed to fetch env files:', error.getUserMessage?.() || error.message);
     } finally {
       setLoading(false);
     }
@@ -40,15 +40,10 @@ export default function EnvSyncPanel({ projectPath, isOpen, onClose }) {
   const fetchVariables = useCallback(async () => {
     if (!selectedFile) return;
     try {
-      const response = await fetch(
-        `/api/env/variables/${encodeURIComponent(projectPath || '')}/${encodeURIComponent(selectedFile.name)}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setVariables(data.variables || []);
-      }
+      const data = await envApi.getVariables(projectPath, selectedFile.name);
+      setVariables(data.variables || []);
     } catch (error) {
-      console.error('Failed to fetch variables:', error);
+      console.error('Failed to fetch variables:', error.getUserMessage?.() || error.message);
     }
   }, [projectPath, selectedFile]);
 
@@ -67,29 +62,20 @@ export default function EnvSyncPanel({ projectPath, isOpen, onClose }) {
   const handleCompare = async () => {
     if (!selectedFile || !compareTarget) return;
     try {
-      const response = await fetch(
-        `/api/env/compare/${encodeURIComponent(projectPath || '')}?source=${encodeURIComponent(selectedFile.name)}&target=${encodeURIComponent(compareTarget)}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setDifferences(data);
-      }
+      const data = await envApi.compare(projectPath, selectedFile.name, compareTarget);
+      setDifferences(data);
     } catch (error) {
-      console.error('Failed to compare files:', error);
+      console.error('Failed to compare files:', error.getUserMessage?.() || error.message);
     }
   };
 
   const handleSave = async () => {
     if (!selectedFile) return;
     try {
-      await fetch(`/api/env/save/${encodeURIComponent(projectPath || '')}/${encodeURIComponent(selectedFile.name)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ variables })
-      });
+      await envApi.save(projectPath, selectedFile.name, variables);
       fetchEnvFiles();
     } catch (error) {
-      console.error('Failed to save env file:', error);
+      console.error('Failed to save env file:', error.getUserMessage?.() || error.message);
     }
   };
 
@@ -108,32 +94,23 @@ export default function EnvSyncPanel({ projectPath, isOpen, onClose }) {
   const handleSync = async (direction) => {
     if (!selectedFile || !compareTarget) return;
     try {
-      await fetch(`/api/env/sync/${encodeURIComponent(projectPath || '')}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          source: direction === 'forward' ? selectedFile.name : compareTarget,
-          target: direction === 'forward' ? compareTarget : selectedFile.name
-        })
-      });
+      const source = direction === 'forward' ? selectedFile.name : compareTarget;
+      const target = direction === 'forward' ? compareTarget : selectedFile.name;
+      await envApi.sync(projectPath, source, target);
       fetchEnvFiles();
       handleCompare();
     } catch (error) {
-      console.error('Failed to sync files:', error);
+      console.error('Failed to sync files:', error.getUserMessage?.() || error.message);
     }
   };
 
   const handleGenerateExample = async () => {
     if (!selectedFile) return;
     try {
-      await fetch(`/api/env/generate-example/${encodeURIComponent(projectPath || '')}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source: selectedFile.name })
-      });
+      await envApi.generateExample(projectPath, selectedFile.name);
       fetchEnvFiles();
     } catch (error) {
-      console.error('Failed to generate example:', error);
+      console.error('Failed to generate example:', error.getUserMessage?.() || error.message);
     }
   };
 

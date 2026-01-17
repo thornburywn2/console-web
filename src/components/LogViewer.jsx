@@ -1,9 +1,12 @@
 /**
  * Log Viewer Component
  * Real-time log tail with filtering
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { logsApi } from '../services/api.js';
 
 // Log level colors
 const LOG_LEVELS = {
@@ -82,16 +85,13 @@ export default function LogViewer({
     setLoading(true);
     try {
       const path = logFile || projectPath;
-      const response = await fetch('/api/logs/' + encodeURIComponent(path) + '?lines=' + maxLines);
-      if (response.ok) {
-        const data = await response.json();
-        const parsed = (data.lines || []).map((line, i) => ({
-          id: i,
-          raw: line,
-          ...parseLogLine(line),
-        }));
-        setLogs(parsed);
-      }
+      const data = await logsApi.get(path, maxLines);
+      const parsed = (data.lines || []).map((line, i) => ({
+        id: i,
+        raw: line,
+        ...parseLogLine(line),
+      }));
+      setLogs(parsed);
     } catch (err) {
       console.error('Failed to fetch logs:', err);
     } finally {

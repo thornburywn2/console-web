@@ -1,9 +1,12 @@
 /**
  * Diff Viewer Component
  * Git diff visualization with syntax highlighting
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { diffApi } from '../services/api.js';
 
 // Parse unified diff format
 const parseDiff = (diffText) => {
@@ -234,24 +237,16 @@ export default function DiffViewer({
     setLoading(true);
     setError(null);
     try {
-      const url = commitHash
-        ? '/api/diff/' + encodeURIComponent(projectPath) + '?commit=' + commitHash
-        : '/api/diff/' + encodeURIComponent(projectPath);
-      const response = await fetch(url);
-      if (response.ok) {
-        const data = await response.json();
-        setDiff(data.diff || '');
-        const parsed = parseDiff(data.diff);
-        setFiles(parsed);
-        // Expand first file by default
-        if (parsed.length > 0) {
-          setExpandedFiles(new Set([parsed[0].newPath]));
-        }
-      } else {
-        setError('Failed to load diff');
+      const data = await diffApi.get(projectPath, commitHash);
+      setDiff(data.diff || '');
+      const parsed = parseDiff(data.diff);
+      setFiles(parsed);
+      // Expand first file by default
+      if (parsed.length > 0) {
+        setExpandedFiles(new Set([parsed[0].newPath]));
       }
     } catch (err) {
-      setError('Error: ' + err.message);
+      setError('Error: ' + (err.getUserMessage?.() || err.message));
     } finally {
       setLoading(false);
     }

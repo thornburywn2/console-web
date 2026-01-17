@@ -1,9 +1,12 @@
 /**
  * Session Replay Component
  * Playback terminal history with controls
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { sessionHistoryApi } from '../services/api.js';
 
 export default function SessionReplay({
   sessionId,
@@ -30,11 +33,8 @@ export default function SessionReplay({
 
   const fetchHistory = async () => {
     try {
-      const response = await fetch('/api/sessions/' + sessionId + '/history');
-      if (response.ok) {
-        const data = await response.json();
-        setEvents(data.events || []);
-      }
+      const data = await sessionHistoryApi.getHistory(sessionId);
+      setEvents(data.events || []);
     } catch (error) {
       console.error('Failed to fetch history:', error);
     }

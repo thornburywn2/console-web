@@ -1,9 +1,12 @@
 /**
  * Container Metrics Component
  * Per-container usage statistics and charts
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { dockerStatsApi } from '../services/api.js';
 
 const METRIC_COLORS = {
   cpu: '#3498db',
@@ -260,13 +263,10 @@ export default function ContainerMetrics({ isOpen, onClose }) {
 
   const fetchContainers = useCallback(async () => {
     try {
-      const response = await fetch('/api/docker/containers/stats');
-      if (response.ok) {
-        const data = await response.json();
-        setContainers(data.containers || []);
-      }
+      const data = await dockerStatsApi.getContainerStats();
+      setContainers(data.containers || []);
     } catch (error) {
-      console.error('Failed to fetch containers:', error);
+      console.error('Failed to fetch containers:', error.getUserMessage?.() || error.message);
     } finally {
       setLoading(false);
     }
@@ -415,13 +415,10 @@ export function ContainerMetricsWidget() {
   useEffect(() => {
     const fetchContainers = async () => {
       try {
-        const response = await fetch('/api/docker/containers/stats');
-        if (response.ok) {
-          const data = await response.json();
-          setContainers(data.containers || []);
-        }
+        const data = await dockerStatsApi.getContainerStats();
+        setContainers(data.containers || []);
       } catch (error) {
-        console.error('Failed to fetch containers:', error);
+        console.error('Failed to fetch containers:', error.getUserMessage?.() || error.message);
       }
     };
 

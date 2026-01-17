@@ -1,9 +1,12 @@
 /**
  * Dependency Dashboard Component
  * View and manage project dependencies
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { dependenciesApi } from '../services/api.js';
 
 const SEVERITY_COLORS = {
   critical: '#e74c3c',
@@ -123,14 +126,12 @@ export default function DependencyDashboard({ projectPath, isOpen, onClose, embe
   const [activeTab, setActiveTab] = useState('packages');
 
   const fetchDependencies = useCallback(async () => {
+    if (!projectPath) return;
     setLoading(true);
     try {
-      const response = await fetch(`/api/dependencies/${encodeURIComponent(projectPath || '')}`);
-      if (response.ok) {
-        const data = await response.json();
-        setPackages(data.packages || []);
-        setVulnerabilities(data.vulnerabilities || []);
-      }
+      const data = await dependenciesApi.list(projectPath);
+      setPackages(data.packages || []);
+      setVulnerabilities(data.vulnerabilities || []);
     } catch (error) {
       console.error('Failed to fetch dependencies:', error);
     } finally {
@@ -146,11 +147,7 @@ export default function DependencyDashboard({ projectPath, isOpen, onClose, embe
 
   const handleUpdate = async (packageName, version) => {
     try {
-      await fetch('/api/dependencies/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectPath, packageName, version }),
-      });
+      await dependenciesApi.update(projectPath, packageName);
       fetchDependencies();
     } catch (error) {
       console.error('Failed to update package:', error);
@@ -160,11 +157,7 @@ export default function DependencyDashboard({ projectPath, isOpen, onClose, embe
   const handleUpdateAll = async () => {
     if (!confirm('Update all outdated packages? This may cause breaking changes.')) return;
     try {
-      await fetch('/api/dependencies/update-all', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectPath }),
-      });
+      await dependenciesApi.updateAll(projectPath);
       fetchDependencies();
     } catch (error) {
       console.error('Failed to update packages:', error);
@@ -173,11 +166,7 @@ export default function DependencyDashboard({ projectPath, isOpen, onClose, embe
 
   const handleAuditFix = async () => {
     try {
-      await fetch('/api/dependencies/audit-fix', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectPath }),
-      });
+      await dependenciesApi.auditFix(projectPath);
       fetchDependencies();
     } catch (error) {
       console.error('Failed to fix vulnerabilities:', error);

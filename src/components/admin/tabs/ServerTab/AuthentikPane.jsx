@@ -1,9 +1,12 @@
 /**
  * AuthentikPane Component
  * Authentik SSO user and group management
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { authentikApi } from '../../../../services/api.js';
 
 export function AuthentikPane() {
   const [authentikStatus, setAuthentikStatus] = useState(null);
@@ -21,11 +24,8 @@ export function AuthentikPane() {
 
   const fetchAuthentikStatus = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin-users/authentik/status');
-      if (res.ok) {
-        const data = await res.json();
-        setAuthentikStatus(data);
-      }
+      const data = await authentikApi.getStatus();
+      setAuthentikStatus(data);
     } catch (err) {
       console.error('Error fetching Authentik status:', err);
     }
@@ -33,11 +33,8 @@ export function AuthentikPane() {
 
   const fetchAuthentikSettings = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin-users/authentik/settings');
-      if (res.ok) {
-        const data = await res.json();
-        setAuthentikSettings(data);
-      }
+      const data = await authentikApi.getSettings();
+      setAuthentikSettings(data);
     } catch (err) {
       console.error('Error fetching Authentik settings:', err);
     }
@@ -46,14 +43,8 @@ export function AuthentikPane() {
   const fetchAuthentikUsers = useCallback(async (searchQuery = '') => {
     try {
       setLoading(true);
-      const params = new URLSearchParams();
-      if (searchQuery) params.append('search', searchQuery);
-
-      const res = await fetch(`/api/admin-users/authentik/users?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        setAuthentikUsers(data);
-      }
+      const data = await authentikApi.listUsers(searchQuery);
+      setAuthentikUsers(data);
     } catch (err) {
       console.error('Error fetching Authentik users:', err);
     } finally {
@@ -63,11 +54,8 @@ export function AuthentikPane() {
 
   const fetchAuthentikGroups = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin-users/authentik/groups');
-      if (res.ok) {
-        const data = await res.json();
-        setAuthentikGroups(data.groups || []);
-      }
+      const data = await authentikApi.listGroups();
+      setAuthentikGroups(data.groups || []);
     } catch (err) {
       console.error('Error fetching Authentik groups:', err);
     }
@@ -76,17 +64,11 @@ export function AuthentikPane() {
   const saveAuthentikToken = useCallback(async () => {
     try {
       setAuthentikSaving(true);
-      const res = await fetch('/api/admin-users/authentik/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiToken: authentikTokenInput })
-      });
-      if (res.ok) {
-        setAuthentikTokenInput('');
-        fetchAuthentikSettings();
-        fetchAuthentikStatus();
-        fetchAuthentikUsers(search);
-      }
+      await authentikApi.saveSettings({ apiToken: authentikTokenInput });
+      setAuthentikTokenInput('');
+      fetchAuthentikSettings();
+      fetchAuthentikStatus();
+      fetchAuthentikUsers(search);
     } catch (err) {
       console.error('Error saving Authentik token:', err);
     } finally {
@@ -98,20 +80,13 @@ export function AuthentikPane() {
     try {
       setLoading(true);
       setError('');
-      const res = await fetch('/api/admin-users/authentik/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newUser)
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to create user');
-      }
+      await authentikApi.createUser(newUser);
       setShowAddUser(false);
       setNewUser({ username: '', name: '', email: '', password: '', groups: [] });
       fetchAuthentikUsers(search);
     } catch (err) {
-      setError(err.message);
+      const message = err.getUserMessage?.() || err.message;
+      setError(message);
     } finally {
       setLoading(false);
     }

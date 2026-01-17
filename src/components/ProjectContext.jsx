@@ -1,4 +1,12 @@
+/**
+ * Project Context Component
+ * Display project health and tech stack information
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
+ */
+
 import { useState, useEffect } from 'react';
+import { projectsApi } from '../services/api.js';
 
 // Tech stack detection patterns
 const TECH_PATTERNS = {
@@ -29,13 +37,11 @@ function ProjectContext({ project }) {
 
       setIsLoading(true);
       try {
-        const response = await fetch('/api/admin/projects-extended');
-        if (!response.ok) throw new Error('Failed to fetch project data');
-        const data = await response.json();
+        const data = await projectsApi.getExtended();
         const found = data.find((p) => p.name === project.name);
         setProjectData(found || null);
       } catch (err) {
-        console.error('Error fetching project data:', err);
+        console.error('Error fetching project data:', err.getUserMessage?.() || err.message);
         setProjectData(null);
       } finally {
         setIsLoading(false);

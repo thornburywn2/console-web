@@ -2,6 +2,8 @@
  * MCPServerManager Component
  * Main UI for managing MCP servers - list, create, edit, and monitor
  * Includes catalog for one-click installation of popular servers
+ *
+ * Phase 5.1: Migrated from direct fetch() to centralized API service
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -10,6 +12,7 @@ import MCPToolBrowser from './MCPToolBrowser';
 import MCPStatusIndicator from './MCPStatusIndicator';
 import MCPServerCatalog from './MCPServerCatalog';
 import { TRANSPORT_LABELS, TRANSPORT_ICONS } from './mcp-server-manager';
+import { mcpServersApi } from '../services/api.js';
 
 export default function MCPServerManager({ socket }) {
   const [servers, setServers] = useState([]);
@@ -24,13 +27,11 @@ export default function MCPServerManager({ socket }) {
 
   const fetchServers = useCallback(async () => {
     try {
-      const response = await fetch('/api/mcp');
-      if (!response.ok) throw new Error('Failed to fetch MCP servers');
-      const data = await response.json();
+      const data = await mcpServersApi.list();
       setServers(data);
       setError(null);
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setLoading(false);
     }
@@ -69,16 +70,10 @@ export default function MCPServerManager({ socket }) {
   const handleAction = async (serverId, action) => {
     setActionLoading(`${serverId}-${action}`);
     try {
-      const response = await fetch(`/api/mcp/${serverId}/${action}`, {
-        method: 'POST'
-      });
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || `Failed to ${action} server`);
-      }
+      await mcpServersApi.action(serverId, action);
       await fetchServers();
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setActionLoading(null);
     }
@@ -87,10 +82,7 @@ export default function MCPServerManager({ socket }) {
   const handleDelete = async (serverId) => {
     setActionLoading(`${serverId}-delete`);
     try {
-      const response = await fetch(`/api/mcp/${serverId}`, {
-        method: 'DELETE'
-      });
-      if (!response.ok) throw new Error('Failed to delete server');
+      await mcpServersApi.delete(serverId);
 
       setServers(prev => prev.filter(s => s.id !== serverId));
       if (selectedServer?.id === serverId) {
@@ -98,7 +90,7 @@ export default function MCPServerManager({ socket }) {
       }
       setDeleteConfirm(null);
     } catch (err) {
-      setError(err.message);
+      setError(err.getUserMessage?.() || err.message);
     } finally {
       setActionLoading(null);
     }
@@ -107,18 +99,10 @@ export default function MCPServerManager({ socket }) {
   const handleSaveServer = async (serverData) => {
     try {
       const isEdit = !!editingServer;
-      const url = isEdit ? `/api/mcp/${editingServer.id}` : '/api/mcp';
-      const method = isEdit ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(serverData)
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to save server');
+      if (isEdit) {
+        await mcpServersApi.update(editingServer.id, serverData);
+      } else {
+        await mcpServersApi.create(serverData);
       }
 
       await fetchServers();
