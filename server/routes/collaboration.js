@@ -6,6 +6,15 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import { createLogger } from '../services/logger.js';
+import { validateBody } from '../middleware/validate.js';
+import {
+  shareCreateSchema,
+  commentSchema,
+  handoffInitSchema,
+  teamMemberSchema,
+  activityCreateSchema,
+} from '../validation/schemas.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('collaboration');
 
@@ -16,13 +25,9 @@ export function createShareRouter(prisma) {
   const router = Router();
 
   // Create a share link for a session
-  router.post('/session', async (req, res) => {
+  router.post('/session', validateBody(shareCreateSchema), async (req, res) => {
     try {
-      const { sessionId, type, expiryHours, password } = req.body;
-
-      if (!sessionId) {
-        return res.status(400).json({ error: 'Session ID is required' });
-      }
+      const { sessionId, type, expiryHours, password } = req.validatedBody;
 
       // Generate unique token
       const token = crypto.randomBytes(16).toString('hex');
@@ -59,8 +64,11 @@ export function createShareRouter(prisma) {
         type,
       });
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.body.sessionId, requestId: req.id }, 'failed to create share link');
-      res.status(500).json({ error: 'Failed to create share link' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create share link',
+        operation: 'create share link',
+        requestId: req.id,
+      });
     }
   });
 
@@ -107,8 +115,11 @@ export function createShareRouter(prisma) {
         viewCount: share.viewCount + 1,
       });
     } catch (error) {
-      log.error({ error: error.message, token: req.params.token, requestId: req.id }, 'failed to get shared session');
-      res.status(500).json({ error: 'Failed to get shared session' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get shared session',
+        operation: 'get shared session',
+        requestId: req.id,
+      });
     }
   });
 
@@ -123,8 +134,11 @@ export function createShareRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, shareId: req.params.id, requestId: req.id }, 'failed to revoke share');
-      res.status(500).json({ error: 'Failed to revoke share' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to revoke share',
+        operation: 'revoke share',
+        requestId: req.id,
+      });
     }
   });
 
@@ -140,8 +154,11 @@ export function createShareRouter(prisma) {
 
       res.json({ shares });
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.sessionId, requestId: req.id }, 'failed to list shares');
-      res.status(500).json({ error: 'Failed to list shares' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list shares',
+        operation: 'list shares',
+        requestId: req.id,
+      });
     }
   });
 
@@ -185,9 +202,9 @@ export function createActivityRouter(prisma) {
   });
 
   // Log a new activity
-  router.post('/', async (req, res) => {
+  router.post('/', validateBody(activityCreateSchema), async (req, res) => {
     try {
-      const { type, actor, target, message, project, metadata } = req.body;
+      const { type, actor, target, message, project, metadata } = req.validatedBody;
 
       const activity = await prisma.activity.create({
         data: {
@@ -203,8 +220,11 @@ export function createActivityRouter(prisma) {
 
       res.json({ activity });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to log activity');
-      res.status(500).json({ error: 'Failed to log activity' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to log activity',
+        operation: 'log activity',
+        requestId: req.id,
+      });
     }
   });
 
@@ -305,14 +325,11 @@ export function createCommentsRouter(prisma) {
   });
 
   // Add a comment
-  router.post('/:sessionId/comments', async (req, res) => {
+  router.post('/:sessionId/comments', validateBody(commentSchema), async (req, res) => {
     try {
       const { sessionId } = req.params;
-      const { lineNumber, content, authorName } = req.body;
-
-      if (!content?.trim()) {
-        return res.status(400).json({ error: 'Comment content is required' });
-      }
+      const { content, parentId } = req.validatedBody;
+      const { lineNumber, authorName } = req.body; // Optional fields not in schema
 
       const comment = await prisma.sessionComment.create({
         data: {
@@ -340,8 +357,11 @@ export function createCommentsRouter(prisma) {
 
       res.json({ comment });
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.sessionId, requestId: req.id }, 'failed to add comment');
-      res.status(500).json({ error: 'Failed to add comment' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to add comment',
+        operation: 'add comment',
+        requestId: req.id,
+      });
     }
   });
 
@@ -356,8 +376,11 @@ export function createCommentsRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, commentId: req.params.commentId, requestId: req.id }, 'failed to delete comment');
-      res.status(500).json({ error: 'Failed to delete comment' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to delete comment',
+        operation: 'delete comment',
+        requestId: req.id,
+      });
     }
   });
 
@@ -379,8 +402,7 @@ export function createTeamRouter(prisma) {
 
       res.json({ members });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch team members');
-      // Return demo data for development
+      // Return demo data for graceful degradation
       res.json({
         members: [
           { id: '1', name: 'Current User', email: 'user@example.com', status: 'online' },
@@ -390,13 +412,9 @@ export function createTeamRouter(prisma) {
   });
 
   // Add team member
-  router.post('/members', async (req, res) => {
+  router.post('/members', validateBody(teamMemberSchema), async (req, res) => {
     try {
-      const { name, email, role } = req.body;
-
-      if (!name || !email) {
-        return res.status(400).json({ error: 'Name and email are required' });
-      }
+      const { name, email, role } = req.validatedBody;
 
       const member = await prisma.teamMember.create({
         data: {
@@ -409,8 +427,11 @@ export function createTeamRouter(prisma) {
 
       res.json({ member });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to add team member');
-      res.status(500).json({ error: 'Failed to add team member' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to add team member',
+        operation: 'add team member',
+        requestId: req.id,
+      });
     }
   });
 
@@ -427,8 +448,11 @@ export function createTeamRouter(prisma) {
 
       res.json({ member });
     } catch (error) {
-      log.error({ error: error.message, memberId: req.params.memberId, requestId: req.id }, 'failed to update member status');
-      res.status(500).json({ error: 'Failed to update status' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update status',
+        operation: 'update member status',
+        requestId: req.id,
+      });
     }
   });
 
@@ -443,8 +467,12 @@ export function createTeamRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, memberId: req.params.memberId, requestId: req.id }, 'failed to remove team member');
-      res.status(500).json({ error: 'Failed to remove member' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to remove team member',
+        operation: 'remove team member',
+        requestId: req.id,
+        context: { memberId: req.params.id },
+      });
     }
   });
 
@@ -458,14 +486,10 @@ export function createHandoffRouter(prisma) {
   const router = Router();
 
   // Initiate session handoff
-  router.post('/:sessionId/handoff', async (req, res) => {
+  router.post('/:sessionId/handoff', validateBody(handoffInitSchema), async (req, res) => {
     try {
       const { sessionId } = req.params;
-      const { toUserId, reason, notes, includeContext } = req.body;
-
-      if (!toUserId) {
-        return res.status(400).json({ error: 'Target user ID is required' });
-      }
+      const { toUserId, reason, notes, includeContext } = req.validatedBody;
 
       // Create handoff record
       const handoff = await prisma.sessionHandoff.create({
@@ -496,8 +520,12 @@ export function createHandoffRouter(prisma) {
 
       res.json({ handoff });
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.sessionId, requestId: req.id }, 'failed to initiate handoff');
-      res.status(500).json({ error: 'Failed to initiate handoff' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to initiate handoff',
+        operation: 'initiate handoff',
+        requestId: req.id,
+        context: { sessionId: req.params.sessionId },
+      });
     }
   });
 
@@ -526,8 +554,12 @@ export function createHandoffRouter(prisma) {
 
       res.json({ handoff, success: true });
     } catch (error) {
-      log.error({ error: error.message, handoffId: req.params.handoffId, requestId: req.id }, 'failed to accept handoff');
-      res.status(500).json({ error: 'Failed to accept handoff' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to accept handoff',
+        operation: 'accept handoff',
+        requestId: req.id,
+        context: { handoffId: req.params.handoffId },
+      });
     }
   });
 
@@ -547,8 +579,12 @@ export function createHandoffRouter(prisma) {
 
       res.json({ handoff, success: true });
     } catch (error) {
-      log.error({ error: error.message, handoffId: req.params.handoffId, requestId: req.id }, 'failed to decline handoff');
-      res.status(500).json({ error: 'Failed to decline handoff' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to decline handoff',
+        operation: 'decline handoff',
+        requestId: req.id,
+        context: { handoffId: req.params.handoffId },
+      });
     }
   });
 

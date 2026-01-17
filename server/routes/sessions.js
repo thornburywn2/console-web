@@ -5,6 +5,14 @@
 
 import { Router } from 'express';
 import { createLogger } from '../services/logger.js';
+import { validateBody } from '../middleware/validate.js';
+import {
+  sessionMetadataUpdateSchema,
+  sessionBulkActionSchema,
+  sessionImportSchema,
+  tagAssignmentsSchema,
+} from '../validation/schemas.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('sessions');
 
@@ -129,8 +137,11 @@ export function createSessionsRouter(prisma) {
 
       res.json(sessions);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch sessions');
-      res.status(500).json({ error: 'Failed to fetch sessions' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch sessions',
+        operation: 'fetch sessions',
+        requestId: req.id,
+      });
     }
   });
 
@@ -154,15 +165,19 @@ export function createSessionsRouter(prisma) {
 
       res.json(session);
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to fetch session');
-      res.status(500).json({ error: 'Failed to fetch session' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch session',
+        operation: 'fetch session',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
   /**
    * Update session metadata
    */
-  router.patch('/:id', async (req, res) => {
+  router.patch('/:id', validateBody(sessionMetadataUpdateSchema), async (req, res) => {
     try {
       const { displayName, folderId, isPinned, isTemporary } = req.body;
 
@@ -182,8 +197,12 @@ export function createSessionsRouter(prisma) {
 
       res.json(session);
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to update session');
-      res.status(500).json({ error: 'Failed to update session' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update session',
+        operation: 'update session',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -207,8 +226,12 @@ export function createSessionsRouter(prisma) {
 
       res.json(updated);
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to toggle pin');
-      res.status(500).json({ error: 'Failed to toggle pin' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to toggle pin',
+        operation: 'toggle session pin',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -227,8 +250,12 @@ export function createSessionsRouter(prisma) {
 
       res.json(session);
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to archive session');
-      res.status(500).json({ error: 'Failed to archive session' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to archive session',
+        operation: 'archive session',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -247,21 +274,21 @@ export function createSessionsRouter(prisma) {
 
       res.json(session);
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to restore session');
-      res.status(500).json({ error: 'Failed to restore session' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to restore session',
+        operation: 'restore session',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
   /**
    * Add tags to a session
    */
-  router.post('/:id/tags', async (req, res) => {
+  router.post('/:id/tags', validateBody(tagAssignmentsSchema), async (req, res) => {
     try {
-      const { tagIds } = req.body;
-
-      if (!Array.isArray(tagIds)) {
-        return res.status(400).json({ error: 'tagIds must be an array' });
-      }
+      const { tagIds } = req.validatedBody;
 
       // Create tag assignments
       await prisma.sessionTagAssignment.createMany({
@@ -281,8 +308,12 @@ export function createSessionsRouter(prisma) {
 
       res.json(session);
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to add tags');
-      res.status(500).json({ error: 'Failed to add tags' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to add tags',
+        operation: 'add tags to session',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -307,21 +338,21 @@ export function createSessionsRouter(prisma) {
 
       res.json(session);
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to remove tag');
-      res.status(500).json({ error: 'Failed to remove tag' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to remove tag',
+        operation: 'remove tag from session',
+        requestId: req.id,
+        context: { sessionId: req.params.id, tagId: req.params.tagId },
+      });
     }
   });
 
   /**
    * Bulk actions on sessions
    */
-  router.post('/bulk', async (req, res) => {
+  router.post('/bulk', validateBody(sessionBulkActionSchema), async (req, res) => {
     try {
-      const { sessionIds, action, data } = req.body;
-
-      if (!Array.isArray(sessionIds) || sessionIds.length === 0) {
-        return res.status(400).json({ error: 'sessionIds must be a non-empty array' });
-      }
+      const { sessionIds, action, folderId } = req.validatedBody;
 
       let result;
 
@@ -355,27 +386,29 @@ export function createSessionsRouter(prisma) {
           break;
 
         case 'move':
-          if (!data?.folderId) {
+          if (!folderId) {
             return res.status(400).json({ error: 'folderId required for move action' });
           }
           result = await prisma.session.updateMany({
             where: { id: { in: sessionIds } },
-            data: { folderId: data.folderId }
+            data: { folderId }
           });
           break;
 
-        case 'addTag':
-          if (!data?.tagId) {
+        case 'addTag': {
+          const { tagId } = req.validatedBody;
+          if (!tagId) {
             return res.status(400).json({ error: 'tagId required for addTag action' });
           }
           result = await prisma.sessionTagAssignment.createMany({
             data: sessionIds.map(sessionId => ({
               sessionId,
-              tagId: data.tagId
+              tagId
             })),
             skipDuplicates: true
           });
           break;
+        }
 
         case 'delete':
           result = await prisma.session.deleteMany({
@@ -389,8 +422,11 @@ export function createSessionsRouter(prisma) {
 
       res.json({ success: true, affected: result.count });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to perform bulk action');
-      res.status(500).json({ error: 'Failed to perform bulk action' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to perform bulk action',
+        operation: 'bulk session action',
+        requestId: req.id,
+      });
     }
   });
 
@@ -484,8 +520,12 @@ export function createSessionsRouter(prisma) {
       res.setHeader('Content-Disposition', `attachment; filename="session-${session.sessionName}-export.json"`);
       res.json(exportData);
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to export session');
-      res.status(500).json({ error: 'Failed to export session' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to export session',
+        operation: 'export session',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -493,13 +533,9 @@ export function createSessionsRouter(prisma) {
    * Import session from exported JSON
    * Creates a new session with imported data
    */
-  router.post('/import', async (req, res) => {
+  router.post('/import', validateBody(sessionImportSchema), async (req, res) => {
     try {
-      const { exportData, targetProjectId, createNotes = true, importHistory = false } = req.body;
-
-      if (!exportData || !exportData.session) {
-        return res.status(400).json({ error: 'Invalid export data format' });
-      }
+      const { exportData, targetProjectId, createNotes, importHistory } = req.validatedBody;
 
       // Verify target project exists
       const project = await prisma.project.findUnique({
@@ -629,8 +665,11 @@ ${exportData.context?.notes?.map(n => `- ${n.title || 'Note'}: ${n.content.subst
         }
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to import session');
-      res.status(500).json({ error: 'Failed to import session' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to import session',
+        operation: 'import session',
+        requestId: req.id,
+      });
     }
   });
 
@@ -672,8 +711,12 @@ ${exportData.context?.notes?.map(n => `- ${n.title || 'Note'}: ${n.content.subst
 
       res.status(201).json(forked);
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to fork session');
-      res.status(500).json({ error: 'Failed to fork session' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fork session',
+        operation: 'fork session',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 

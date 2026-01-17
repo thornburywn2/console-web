@@ -6,6 +6,9 @@
 
 import { Router } from 'express';
 import { createLogger } from '../services/logger.js';
+import { validateBody } from '../middleware/validate.js';
+import { agentSchema, agentUpdateSchema } from '../validation/schemas.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('agents');
 
@@ -70,8 +73,11 @@ export function createAgentsRouter(prisma, agentRunner) {
 
       res.json(agentsWithStatus);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch agents');
-      res.status(500).json({ error: 'Failed to fetch agents' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch agents',
+        operation: 'fetch agents',
+        requestId: req.id,
+      });
     }
   });
 
@@ -125,40 +131,21 @@ export function createAgentsRouter(prisma, agentRunner) {
         }
       });
     } catch (error) {
-      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to fetch agent');
-      res.status(500).json({ error: 'Failed to fetch agent' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch agent',
+        operation: 'fetch agent',
+        requestId: req.id,
+        context: { agentId: req.params.id },
+      });
     }
   });
 
   /**
    * Create a new agent
    */
-  router.post('/', async (req, res) => {
+  router.post('/', validateBody(agentSchema), async (req, res) => {
     try {
-      const { name, description, triggerType, triggerConfig, actions, enabled, projectId } = req.body;
-
-      // Validation
-      if (!name?.trim()) {
-        return res.status(400).json({ error: 'Agent name is required' });
-      }
-
-      if (!triggerType) {
-        return res.status(400).json({ error: 'Trigger type is required' });
-      }
-
-      if (!actions || !Array.isArray(actions) || actions.length === 0) {
-        return res.status(400).json({ error: 'Agent must have at least one action' });
-      }
-
-      // Validate actions
-      for (const action of actions) {
-        if (!action.type || !['shell', 'api', 'mcp'].includes(action.type)) {
-          return res.status(400).json({ error: `Invalid action type: ${action.type}` });
-        }
-        if (!action.config) {
-          return res.status(400).json({ error: 'Action config is required' });
-        }
-      }
+      const { name, description, triggerType, triggerConfig, actions, enabled, projectId } = req.validatedBody;
 
       // Verify project exists if specified
       if (projectId) {
@@ -192,44 +179,26 @@ export function createAgentsRouter(prisma, agentRunner) {
 
       res.status(201).json(agent);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to create agent');
-      res.status(500).json({ error: 'Failed to create agent' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create agent',
+        operation: 'create agent',
+        requestId: req.id,
+      });
     }
   });
 
   /**
    * Update an agent
    */
-  router.put('/:id', async (req, res) => {
+  router.put('/:id', validateBody(agentUpdateSchema), async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, description, triggerType, triggerConfig, actions, enabled, projectId } = req.body;
+      const { name, description, triggerType, triggerConfig, actions, enabled, projectId } = req.validatedBody;
 
       // Check agent exists
       const existing = await prisma.agent.findUnique({ where: { id } });
       if (!existing) {
         return res.status(404).json({ error: 'Agent not found' });
-      }
-
-      // Validation
-      if (name !== undefined && !name?.trim()) {
-        return res.status(400).json({ error: 'Agent name cannot be empty' });
-      }
-
-      if (actions !== undefined && (!Array.isArray(actions) || actions.length === 0)) {
-        return res.status(400).json({ error: 'Agent must have at least one action' });
-      }
-
-      // Validate actions if provided
-      if (actions) {
-        for (const action of actions) {
-          if (!action.type || !['shell', 'api', 'mcp'].includes(action.type)) {
-            return res.status(400).json({ error: `Invalid action type: ${action.type}` });
-          }
-          if (!action.config) {
-            return res.status(400).json({ error: 'Action config is required' });
-          }
-        }
       }
 
       // Verify project exists if specified
@@ -264,8 +233,12 @@ export function createAgentsRouter(prisma, agentRunner) {
 
       res.json(agent);
     } catch (error) {
-      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to update agent');
-      res.status(500).json({ error: 'Failed to update agent' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update agent',
+        operation: 'update agent',
+        requestId: req.id,
+        context: { agentId: req.params.id },
+      });
     }
   });
 
@@ -293,8 +266,12 @@ export function createAgentsRouter(prisma, agentRunner) {
 
       res.json({ success: true, id });
     } catch (error) {
-      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to delete agent');
-      res.status(500).json({ error: 'Failed to delete agent' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to delete agent',
+        operation: 'delete agent',
+        requestId: req.id,
+        context: { agentId: req.params.id },
+      });
     }
   });
 
@@ -331,8 +308,12 @@ export function createAgentsRouter(prisma, agentRunner) {
         status: 'RUNNING'
       });
     } catch (error) {
-      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to run agent');
-      res.status(500).json({ error: error.message || 'Failed to run agent' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to run agent',
+        operation: 'run agent',
+        requestId: req.id,
+        context: { agentId: req.params.id },
+      });
     }
   });
 
@@ -351,8 +332,12 @@ export function createAgentsRouter(prisma, agentRunner) {
 
       res.json({ success: true, status: 'CANCELLED' });
     } catch (error) {
-      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to stop agent');
-      res.status(500).json({ error: 'Failed to stop agent' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to stop agent',
+        operation: 'stop agent',
+        requestId: req.id,
+        context: { agentId: req.params.id },
+      });
     }
   });
 
@@ -383,8 +368,12 @@ export function createAgentsRouter(prisma, agentRunner) {
 
       res.json(updated);
     } catch (error) {
-      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to toggle agent');
-      res.status(500).json({ error: 'Failed to toggle agent' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to toggle agent',
+        operation: 'toggle agent',
+        requestId: req.id,
+        context: { agentId: req.params.id },
+      });
     }
   });
 
@@ -414,8 +403,12 @@ export function createAgentsRouter(prisma, agentRunner) {
 
       res.json(execution);
     } catch (error) {
-      log.error({ error: error.message, executionId: req.params.executionId, requestId: req.id }, 'failed to fetch execution');
-      res.status(500).json({ error: 'Failed to fetch execution' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch execution',
+        operation: 'fetch execution',
+        requestId: req.id,
+        context: { executionId: req.params.executionId },
+      });
     }
   });
 
@@ -440,8 +433,11 @@ export function createAgentsRouter(prisma, agentRunner) {
         cutoffDate: cutoff
       });
     } catch (error) {
-      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to clean up executions');
-      res.status(500).json({ error: 'Failed to clean up executions' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to clean up executions',
+        operation: 'clean up executions',
+        requestId: req.id,
+      });
     }
   });
 
@@ -457,8 +453,11 @@ export function createAgentsRouter(prisma, agentRunner) {
       const status = agentRunner.getStatus();
       res.json(status);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch runner status');
-      res.status(500).json({ error: 'Failed to fetch runner status' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch runner status',
+        operation: 'fetch runner status',
+        requestId: req.id,
+      });
     }
   });
 

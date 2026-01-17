@@ -5,6 +5,14 @@
 
 import { Router } from 'express';
 import { createLogger } from '../services/logger.js';
+import { validateBody } from '../middleware/validate.js';
+import {
+  noteCreateSchema,
+  noteUpdateSchema,
+  noteMoveSchema,
+  notePinSchema,
+} from '../validation/schemas.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('notes');
 
@@ -28,8 +36,11 @@ export function createNotesRouter(prisma) {
 
       res.json(notes);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch notes');
-      res.status(500).json({ error: 'Failed to fetch notes' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch notes',
+        operation: 'fetch session notes',
+        requestId: req.id,
+      });
     }
   });
 
@@ -78,8 +89,11 @@ export function createNotesRouter(prisma) {
 
       res.json({ notes, total, limit: parseInt(limit), offset: parseInt(offset) });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch notes');
-      res.status(500).json({ error: 'Failed to fetch notes' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch notes',
+        operation: 'fetch notes',
+        requestId: req.id,
+      });
     }
   });
 
@@ -110,25 +124,21 @@ export function createNotesRouter(prisma) {
 
       res.json(note);
     } catch (error) {
-      log.error({ error: error.message, noteId: req.params.id, requestId: req.id }, 'failed to fetch note');
-      res.status(500).json({ error: 'Failed to fetch note' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch note',
+        operation: 'fetch note',
+        requestId: req.id,
+        context: { noteId: req.params.id },
+      });
     }
   });
 
   /**
    * Create a new note
    */
-  router.post('/', async (req, res) => {
+  router.post('/', validateBody(noteCreateSchema), async (req, res) => {
     try {
-      const { sessionId, title, content, isPinned } = req.body;
-
-      if (!sessionId) {
-        return res.status(400).json({ error: 'Session ID is required' });
-      }
-
-      if (!content?.trim()) {
-        return res.status(400).json({ error: 'Note content is required' });
-      }
+      const { sessionId, title, content, isPinned } = req.validatedBody;
 
       // Verify session exists
       const session = await prisma.session.findUnique({
@@ -150,18 +160,21 @@ export function createNotesRouter(prisma) {
 
       res.status(201).json(note);
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.body.sessionId, requestId: req.id }, 'failed to create note');
-      res.status(500).json({ error: 'Failed to create note' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create note',
+        operation: 'create note',
+        requestId: req.id,
+      });
     }
   });
 
   /**
    * Update a note
    */
-  router.put('/:id', async (req, res) => {
+  router.put('/:id', validateBody(noteUpdateSchema), async (req, res) => {
     try {
       const { id } = req.params;
-      const { title, content, isPinned } = req.body;
+      const { title, content, isPinned } = req.validatedBody;
 
       const note = await prisma.sessionNote.update({
         where: { id },
@@ -174,8 +187,12 @@ export function createNotesRouter(prisma) {
 
       res.json(note);
     } catch (error) {
-      log.error({ error: error.message, noteId: req.params.id, requestId: req.id }, 'failed to update note');
-      res.status(500).json({ error: 'Failed to update note' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update note',
+        operation: 'update note',
+        requestId: req.id,
+        context: { noteId: req.params.id },
+      });
     }
   });
 
@@ -188,42 +205,46 @@ export function createNotesRouter(prisma) {
       await prisma.sessionNote.delete({ where: { id } });
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, noteId: req.params.id, requestId: req.id }, 'failed to delete note');
-      res.status(500).json({ error: 'Failed to delete note' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to delete note',
+        operation: 'delete note',
+        requestId: req.id,
+        context: { noteId: req.params.id },
+      });
     }
   });
 
   /**
    * Toggle note pin status
    */
-  router.put('/:id/pin', async (req, res) => {
+  router.put('/:id/pin', validateBody(notePinSchema), async (req, res) => {
     try {
       const { id } = req.params;
-      const { isPinned } = req.body;
+      const { isPinned } = req.validatedBody;
 
       const note = await prisma.sessionNote.update({
         where: { id },
-        data: { isPinned: isPinned ?? true }
+        data: { isPinned }
       });
 
       res.json(note);
     } catch (error) {
-      log.error({ error: error.message, noteId: req.params.id, requestId: req.id }, 'failed to toggle note pin');
-      res.status(500).json({ error: 'Failed to toggle pin' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to toggle pin',
+        operation: 'toggle note pin',
+        requestId: req.id,
+        context: { noteId: req.params.id },
+      });
     }
   });
 
   /**
    * Move note to different session
    */
-  router.put('/:id/move', async (req, res) => {
+  router.put('/:id/move', validateBody(noteMoveSchema), async (req, res) => {
     try {
       const { id } = req.params;
-      const { sessionId } = req.body;
-
-      if (!sessionId) {
-        return res.status(400).json({ error: 'Target session ID is required' });
-      }
+      const { sessionId } = req.validatedBody;
 
       // Verify target session exists
       const session = await prisma.session.findUnique({
@@ -241,8 +262,12 @@ export function createNotesRouter(prisma) {
 
       res.json(note);
     } catch (error) {
-      log.error({ error: error.message, noteId: req.params.id, targetSessionId: req.body.sessionId, requestId: req.id }, 'failed to move note');
-      res.status(500).json({ error: 'Failed to move note' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to move note',
+        operation: 'move note',
+        requestId: req.id,
+        context: { noteId: req.params.id },
+      });
     }
   });
 
@@ -273,8 +298,12 @@ export function createNotesRouter(prisma) {
 
       res.status(201).json(duplicate);
     } catch (error) {
-      log.error({ error: error.message, noteId: req.params.id, requestId: req.id }, 'failed to duplicate note');
-      res.status(500).json({ error: 'Failed to duplicate note' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to duplicate note',
+        operation: 'duplicate note',
+        requestId: req.id,
+        context: { noteId: req.params.id },
+      });
     }
   });
 
@@ -323,8 +352,12 @@ export function createNotesRouter(prisma) {
       res.setHeader('Content-Disposition', `attachment; filename="${session.sessionName}-notes.md"`);
       res.send(markdown);
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.sessionId, requestId: req.id }, 'failed to export notes');
-      res.status(500).json({ error: 'Failed to export notes' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to export notes',
+        operation: 'export notes',
+        requestId: req.id,
+        context: { sessionId: req.params.sessionId },
+      });
     }
   });
 

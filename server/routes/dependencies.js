@@ -14,6 +14,13 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import os from 'os';
 import { createLogger } from '../services/logger.js';
+import { validateBody } from '../middleware/validate.js';
+import {
+  dependencySingleUpdateSchema,
+  dependencyProjectSchema,
+  auditFixSchema,
+} from '../validation/schemas.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('dependencies');
 const execAsync = promisify(exec);
@@ -176,21 +183,20 @@ export function createDependenciesRouter() {
         projectPath: fullPath
       });
     } catch (error) {
-      log.error({ error: error.message, projectPath: req.params.projectPath, requestId: req.id }, 'failed to fetch dependencies');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch dependencies',
+        operation: 'fetch dependencies',
+        requestId: req.id,
+      });
     }
   });
 
   /**
    * POST /api/dependencies/update - Update a single package
    */
-  router.post('/update', async (req, res) => {
+  router.post('/update', validateBody(dependencySingleUpdateSchema), async (req, res) => {
     try {
-      const { projectPath, packageName, version } = req.body;
-
-      if (!projectPath || !packageName) {
-        return res.status(400).json({ error: 'Project path and package name required' });
-      }
+      const { projectPath, packageName, version } = req.validatedBody;
 
       const fullPath = projectPath.startsWith('/')
         ? projectPath
@@ -218,21 +224,20 @@ export function createDependenciesRouter() {
         output: stdout + stderr
       });
     } catch (error) {
-      log.error({ error: error.message, packageName: req.body.packageName, projectPath: req.body.projectPath, requestId: req.id }, 'failed to update package');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update package',
+        operation: 'update package',
+        requestId: req.id,
+      });
     }
   });
 
   /**
    * POST /api/dependencies/update-all - Update all outdated packages
    */
-  router.post('/update-all', async (req, res) => {
+  router.post('/update-all', validateBody(dependencyProjectSchema), async (req, res) => {
     try {
-      const { projectPath } = req.body;
-
-      if (!projectPath) {
-        return res.status(400).json({ error: 'Project path required' });
-      }
+      const { projectPath } = req.validatedBody;
 
       const fullPath = projectPath.startsWith('/')
         ? projectPath
@@ -254,21 +259,20 @@ export function createDependenciesRouter() {
         output: stdout + stderr
       });
     } catch (error) {
-      log.error({ error: error.message, projectPath: req.body.projectPath, requestId: req.id }, 'failed to update all packages');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update all packages',
+        operation: 'update all packages',
+        requestId: req.id,
+      });
     }
   });
 
   /**
    * POST /api/dependencies/audit-fix - Run npm audit fix
    */
-  router.post('/audit-fix', async (req, res) => {
+  router.post('/audit-fix', validateBody(auditFixSchema), async (req, res) => {
     try {
-      const { projectPath, force = false } = req.body;
-
-      if (!projectPath) {
-        return res.status(400).json({ error: 'Project path required' });
-      }
+      const { projectPath, force } = req.validatedBody;
 
       const fullPath = projectPath.startsWith('/')
         ? projectPath
@@ -291,8 +295,11 @@ export function createDependenciesRouter() {
         output: stdout + stderr
       });
     } catch (error) {
-      log.error({ error: error.message, projectPath: req.body.projectPath, requestId: req.id }, 'failed to run npm audit fix');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to run npm audit fix',
+        operation: 'npm audit fix',
+        requestId: req.id,
+      });
     }
   });
 

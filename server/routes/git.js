@@ -7,6 +7,9 @@ import { Router } from 'express';
 import { spawn } from 'child_process';
 import path from 'path';
 import { createLogger } from '../services/logger.js';
+import { validateBody } from '../middleware/validate.js';
+import { gitCommitSchema, gitBranchSchema } from '../validation/schemas.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('git');
 
@@ -81,8 +84,12 @@ export function createGitRouter(prisma) {
         untracked,
       });
     } catch (error) {
-      log.error({ error: error.message, projectPath: req.params.projectPath }, 'failed to get git status');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get git status',
+        operation: 'git status',
+        requestId: req.id,
+        context: { projectPath: req.params.projectPath },
+      });
     }
   });
 
@@ -93,7 +100,12 @@ export function createGitRouter(prisma) {
       const { output } = await execGit(['pull'], repoPath);
       res.json({ output });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to pull changes',
+        operation: 'git pull',
+        requestId: req.id,
+        context: { projectPath: req.params.projectPath },
+      });
     }
   });
 
@@ -104,29 +116,39 @@ export function createGitRouter(prisma) {
       const { output } = await execGit(['push'], repoPath);
       res.json({ output });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to push changes',
+        operation: 'git push',
+        requestId: req.id,
+        context: { projectPath: req.params.projectPath },
+      });
     }
   });
 
   // Commit
-  router.post('/:projectPath(*)/commit', async (req, res) => {
+  router.post('/:projectPath(*)/commit', validateBody(gitCommitSchema), async (req, res) => {
     try {
       const repoPath = getRepoPath(decodeURIComponent(req.params.projectPath));
-      const { message, addAll } = req.body;
-
-      if (!message) {
-        return res.status(400).json({ error: 'Commit message required' });
-      }
+      const { message, files } = req.validatedBody;
+      const { addAll } = req.body;
 
       // Stage all if requested
       if (addAll) {
         await execGit(['add', '-A'], repoPath);
+      } else if (files && files.length > 0) {
+        // Stage specific files
+        await execGit(['add', ...files], repoPath);
       }
 
       const { output } = await execGit(['commit', '-m', message], repoPath);
       res.json({ output });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to commit changes',
+        operation: 'git commit',
+        requestId: req.id,
+        context: { projectPath: req.params.projectPath },
+      });
     }
   });
 
@@ -144,25 +166,36 @@ export function createGitRouter(prisma) {
       const { output } = await execGit(args, repoPath);
       res.json({ output });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to stash changes',
+        operation: 'git stash',
+        requestId: req.id,
+        context: { projectPath: req.params.projectPath },
+      });
     }
   });
 
   // Create branch
-  router.post('/:projectPath(*)/branch', async (req, res) => {
+  router.post('/:projectPath(*)/branch', validateBody(gitBranchSchema), async (req, res) => {
     try {
       const repoPath = getRepoPath(decodeURIComponent(req.params.projectPath));
-      const { name } = req.body;
+      const { name, from } = req.validatedBody;
 
-      if (!name) {
-        return res.status(400).json({ error: 'Branch name required' });
+      // Create and checkout (optionally from a specific ref)
+      const args = ['checkout', '-b', name];
+      if (from) {
+        args.push(from);
       }
 
-      // Create and checkout
-      await execGit(['checkout', '-b', name], repoPath);
+      await execGit(args, repoPath);
       res.json({ output: 'Created and switched to branch: ' + name });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create branch',
+        operation: 'git branch',
+        requestId: req.id,
+        context: { projectPath: req.params.projectPath },
+      });
     }
   });
 
@@ -170,7 +203,7 @@ export function createGitRouter(prisma) {
   router.get('/:projectPath(*)/log', async (req, res) => {
     try {
       const repoPath = getRepoPath(decodeURIComponent(req.params.projectPath));
-      const limit = parseInt(req.query.limit) || 10;
+      const limit = Math.min(Math.max(parseInt(req.query.limit) || 10, 1), 100);
 
       const { output } = await execGit([
         'log',
@@ -185,7 +218,12 @@ export function createGitRouter(prisma) {
 
       res.json(commits);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get commit log',
+        operation: 'git log',
+        requestId: req.id,
+        context: { projectPath: req.params.projectPath },
+      });
     }
   });
 
@@ -203,7 +241,12 @@ export function createGitRouter(prisma) {
 
       res.json({ current: currentBranch.trim(), branches });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get branches',
+        operation: 'git branch',
+        requestId: req.id,
+        context: { projectPath: req.params.projectPath },
+      });
     }
   });
 
@@ -213,14 +256,24 @@ export function createGitRouter(prisma) {
       const repoPath = getRepoPath(decodeURIComponent(req.params.projectPath));
       const { branch } = req.body;
 
-      if (!branch) {
-        return res.status(400).json({ error: 'Branch name required' });
+      if (!branch || typeof branch !== 'string' || branch.length > 100) {
+        return res.status(400).json({ error: 'Valid branch name required' });
+      }
+
+      // Validate branch name format
+      if (!/^[a-zA-Z0-9_\-./]+$/.test(branch)) {
+        return res.status(400).json({ error: 'Invalid branch name format' });
       }
 
       const { output } = await execGit(['checkout', branch], repoPath);
       res.json({ output: 'Switched to branch: ' + branch });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to switch branch',
+        operation: 'git checkout',
+        requestId: req.id,
+        context: { projectPath: req.params.projectPath },
+      });
     }
   });
 

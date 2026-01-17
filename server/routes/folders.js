@@ -5,6 +5,18 @@
 
 import { Router } from 'express';
 import { createLogger } from '../services/logger.js';
+import { validateBody } from '../middleware/validate.js';
+import {
+  folderSchema,
+  folderUpdateSchema,
+  folderReorderSchema,
+  tagSchema,
+  tagUpdateSchema,
+  sessionMoveFolderSchema,
+  sessionPinSchema,
+  sessionArchiveSchema,
+} from '../validation/schemas.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('folders');
 
@@ -34,21 +46,20 @@ export function createFoldersRouter(prisma) {
       });
       res.json(folders);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch folders');
-      res.status(500).json({ error: 'Failed to fetch folders' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch folders',
+        operation: 'fetch folders',
+        requestId: req.id,
+      });
     }
   });
 
   /**
    * Create a new folder
    */
-  router.post('/folders', async (req, res) => {
+  router.post('/folders', validateBody(folderSchema), async (req, res) => {
     try {
-      const { name, color, icon, parentId, sortOrder } = req.body;
-
-      if (!name?.trim()) {
-        return res.status(400).json({ error: 'Folder name is required' });
-      }
+      const { name, color, icon, parentId, sortOrder } = req.validatedBody;
 
       const folder = await prisma.sessionFolder.create({
         data: {
@@ -66,18 +77,21 @@ export function createFoldersRouter(prisma) {
 
       res.status(201).json(folder);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to create folder');
-      res.status(500).json({ error: 'Failed to create folder' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create folder',
+        operation: 'create folder',
+        requestId: req.id,
+      });
     }
   });
 
   /**
    * Update a folder
    */
-  router.put('/folders/:id', async (req, res) => {
+  router.put('/folders/:id', validateBody(folderUpdateSchema), async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, color, icon, parentId, sortOrder } = req.body;
+      const { name, color, icon, parentId, sortOrder } = req.validatedBody;
 
       // Prevent circular reference
       if (parentId === id) {
@@ -101,8 +115,12 @@ export function createFoldersRouter(prisma) {
 
       res.json(folder);
     } catch (error) {
-      log.error({ error: error.message, folderId: req.params.id, requestId: req.id }, 'failed to update folder');
-      res.status(500).json({ error: 'Failed to update folder' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update folder',
+        operation: 'update folder',
+        requestId: req.id,
+        context: { folderId: req.params.id },
+      });
     }
   });
 
@@ -140,21 +158,21 @@ export function createFoldersRouter(prisma) {
 
       res.json({ success: true, movedSessions: folder.sessions.length, movedFolders: folder.children.length });
     } catch (error) {
-      log.error({ error: error.message, folderId: req.params.id, requestId: req.id }, 'failed to delete folder');
-      res.status(500).json({ error: 'Failed to delete folder' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to delete folder',
+        operation: 'delete folder',
+        requestId: req.id,
+        context: { folderId: req.params.id },
+      });
     }
   });
 
   /**
    * Reorder folders
    */
-  router.post('/folders/reorder', async (req, res) => {
+  router.post('/folders/reorder', validateBody(folderReorderSchema), async (req, res) => {
     try {
-      const { orders } = req.body; // Array of { id, sortOrder }
-
-      if (!Array.isArray(orders)) {
-        return res.status(400).json({ error: 'Orders must be an array' });
-      }
+      const { orders } = req.validatedBody;
 
       await prisma.$transaction(
         orders.map(({ id, sortOrder }) =>
@@ -167,8 +185,11 @@ export function createFoldersRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to reorder folders');
-      res.status(500).json({ error: 'Failed to reorder folders' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to reorder folders',
+        operation: 'reorder folders',
+        requestId: req.id,
+      });
     }
   });
 
@@ -198,25 +219,20 @@ export function createFoldersRouter(prisma) {
 
       res.json(tagsWithCount);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch tags');
-      res.status(500).json({ error: 'Failed to fetch tags' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch tags',
+        operation: 'fetch tags',
+        requestId: req.id,
+      });
     }
   });
 
   /**
    * Create a new tag
    */
-  router.post('/tags', async (req, res) => {
+  router.post('/tags', validateBody(tagSchema), async (req, res) => {
     try {
-      const { name, color, description } = req.body;
-
-      if (!name?.trim()) {
-        return res.status(400).json({ error: 'Tag name is required' });
-      }
-
-      if (!color) {
-        return res.status(400).json({ error: 'Tag color is required' });
-      }
+      const { name, color, description } = req.validatedBody;
 
       const tag = await prisma.sessionTag.create({
         data: {
@@ -231,18 +247,21 @@ export function createFoldersRouter(prisma) {
       if (error.code === 'P2002') {
         return res.status(409).json({ error: 'Tag name already exists' });
       }
-      log.error({ error: error.message, requestId: req.id }, 'failed to create tag');
-      res.status(500).json({ error: 'Failed to create tag' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create tag',
+        operation: 'create tag',
+        requestId: req.id,
+      });
     }
   });
 
   /**
    * Update a tag
    */
-  router.put('/tags/:id', async (req, res) => {
+  router.put('/tags/:id', validateBody(tagUpdateSchema), async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, color, description } = req.body;
+      const { name, color, description } = req.validatedBody;
 
       const tag = await prisma.sessionTag.update({
         where: { id },
@@ -258,8 +277,12 @@ export function createFoldersRouter(prisma) {
       if (error.code === 'P2002') {
         return res.status(409).json({ error: 'Tag name already exists' });
       }
-      log.error({ error: error.message, tagId: req.params.id, requestId: req.id }, 'failed to update tag');
-      res.status(500).json({ error: 'Failed to update tag' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update tag',
+        operation: 'update tag',
+        requestId: req.id,
+        context: { tagId: req.params.id },
+      });
     }
   });
 
@@ -272,8 +295,12 @@ export function createFoldersRouter(prisma) {
       await prisma.sessionTag.delete({ where: { id } });
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, tagId: req.params.id, requestId: req.id }, 'failed to delete tag');
-      res.status(500).json({ error: 'Failed to delete tag' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to delete tag',
+        operation: 'delete tag',
+        requestId: req.id,
+        context: { tagId: req.params.id },
+      });
     }
   });
 
@@ -293,8 +320,12 @@ export function createFoldersRouter(prisma) {
       if (error.code === 'P2002') {
         return res.status(409).json({ error: 'Tag already assigned to session' });
       }
-      log.error({ error: error.message, sessionId: req.params.sessionId, requestId: req.id }, 'failed to assign tag');
-      res.status(500).json({ error: 'Failed to assign tag' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to assign tag',
+        operation: 'assign tag to session',
+        requestId: req.id,
+        context: { sessionId: req.params.sessionId, tagId: req.params.tagId },
+      });
     }
   });
 
@@ -311,71 +342,87 @@ export function createFoldersRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.sessionId, requestId: req.id }, 'failed to remove tag');
-      res.status(500).json({ error: 'Failed to remove tag' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to remove tag',
+        operation: 'remove tag from session',
+        requestId: req.id,
+        context: { sessionId: req.params.sessionId, tagId: req.params.tagId },
+      });
     }
   });
 
   /**
    * Move session to folder
    */
-  router.put('/sessions/:sessionId/folder', async (req, res) => {
+  router.put('/sessions/:sessionId/folder', validateBody(sessionMoveFolderSchema), async (req, res) => {
     try {
       const { sessionId } = req.params;
-      const { folderId } = req.body;
+      const { folderId } = req.validatedBody;
 
       const session = await prisma.session.update({
         where: { id: sessionId },
-        data: { folderId: folderId || null }
+        data: { folderId }
       });
 
       res.json(session);
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.sessionId, requestId: req.id }, 'failed to move session to folder');
-      res.status(500).json({ error: 'Failed to move session' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to move session',
+        operation: 'move session to folder',
+        requestId: req.id,
+        context: { sessionId: req.params.sessionId },
+      });
     }
   });
 
   /**
    * Toggle session pin status
    */
-  router.put('/sessions/:sessionId/pin', async (req, res) => {
+  router.put('/sessions/:sessionId/pin', validateBody(sessionPinSchema), async (req, res) => {
     try {
       const { sessionId } = req.params;
-      const { isPinned } = req.body;
+      const { isPinned } = req.validatedBody;
 
       const session = await prisma.session.update({
         where: { id: sessionId },
-        data: { isPinned: isPinned ?? true }
+        data: { isPinned }
       });
 
       res.json(session);
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.sessionId, requestId: req.id }, 'failed to pin session');
-      res.status(500).json({ error: 'Failed to pin session' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to pin session',
+        operation: 'toggle session pin',
+        requestId: req.id,
+        context: { sessionId: req.params.sessionId },
+      });
     }
   });
 
   /**
    * Archive session
    */
-  router.put('/sessions/:sessionId/archive', async (req, res) => {
+  router.put('/sessions/:sessionId/archive', validateBody(sessionArchiveSchema), async (req, res) => {
     try {
       const { sessionId } = req.params;
-      const { isArchived } = req.body;
+      const { isArchived } = req.validatedBody;
 
       const session = await prisma.session.update({
         where: { id: sessionId },
         data: {
-          isArchived: isArchived ?? true,
+          isArchived,
           archivedAt: isArchived ? new Date() : null
         }
       });
 
       res.json(session);
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.sessionId, requestId: req.id }, 'failed to archive session');
-      res.status(500).json({ error: 'Failed to archive session' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to archive session',
+        operation: 'archive session',
+        requestId: req.id,
+        context: { sessionId: req.params.sessionId },
+      });
     }
   });
 

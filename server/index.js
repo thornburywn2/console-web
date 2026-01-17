@@ -115,6 +115,18 @@ import {
   recordTerminalSession,
 } from './services/prometheusMetrics.js';
 
+// Import Sentry for error tracking
+import {
+  initSentry,
+  sentryRequestHandler,
+  sentryTracingHandler,
+  sentryErrorHandler,
+  flush as flushSentry,
+} from './services/sentry.js';
+
+// Initialize Sentry before everything else
+initSentry();
+
 // ES modules don't have __dirname, compute it
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -232,6 +244,9 @@ prisma.$on('warn', (e) => {
   dbLog.warn({ message: e.message }, 'prisma warning');
 });
 
+// Wire up Prisma metrics middleware for query tracking
+prisma.$use(prismaMetricsMiddleware);
+
 const app = express();
 const server = createServer(app);
 
@@ -249,6 +264,38 @@ const CLAUDE_SETTINGS_LOCAL_FILE = join(CLAUDE_DIR, 'settings.local.json');
 
 // Docker client initialization
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
+
+// =============================================================================
+// CONNECTION DRAINING / GRACEFUL SHUTDOWN
+// =============================================================================
+let isShuttingDown = false;
+const DRAIN_TIMEOUT_MS = 30000; // 30 seconds to drain connections
+const activeRequests = new Set();
+
+// Middleware to track active requests and reject during shutdown
+function shutdownMiddleware(req, res, next) {
+  if (isShuttingDown) {
+    return res.status(503).json({
+      error: 'Service temporarily unavailable',
+      message: 'Server is shutting down. Please retry in a moment.',
+      retryAfter: 30,
+    });
+  }
+
+  // Track active request
+  const requestId = req.id || Math.random().toString(36).substring(7);
+  activeRequests.add(requestId);
+
+  res.on('finish', () => {
+    activeRequests.delete(requestId);
+  });
+
+  res.on('close', () => {
+    activeRequests.delete(requestId);
+  });
+
+  next();
+}
 
 // Shpool handles session persistence with raw byte passthrough
 // No special directory setup needed - shpool auto-daemonizes
@@ -342,6 +389,15 @@ app.use(requestLogger);
 
 // Prometheus metrics middleware - tracks HTTP request metrics
 app.use(metricsMiddleware);
+
+// Sentry request handler - must be before all other middleware
+app.use(sentryRequestHandler());
+
+// Sentry tracing handler for performance monitoring
+app.use(sentryTracingHandler());
+
+// Shutdown middleware - reject new requests during graceful shutdown
+app.use(shutdownMiddleware);
 
 // =============================================================================
 // HEALTH CHECK & METRICS (Unauthenticated - for monitoring)
@@ -4135,6 +4191,9 @@ if (process.env.NODE_ENV === 'production') {
   app.use(notFoundHandler);
 }
 
+// Sentry error handler (must be before global error handler)
+app.use(sentryErrorHandler());
+
 // Global error handler (catches all unhandled errors - must be last)
 app.use(globalErrorHandler);
 
@@ -4525,6 +4584,12 @@ server.listen(PORT, '0.0.0.0', () => {
 ╚═══════════════════════════════════════════════════════════╝
   `);
 
+  // Signal PM2 that the application is ready (for cluster mode)
+  if (process.send) {
+    process.send('ready');
+    startupLog.info('PM2 ready signal sent');
+  }
+
   // Check Code Puppy initialization status
   (async () => {
     try {
@@ -4540,30 +4605,89 @@ server.listen(PORT, '0.0.0.0', () => {
   })();
 });
 
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  logShutdown('SIGTERM', { activeSessions: sessions.size });
+// Graceful shutdown with connection draining
+async function gracefulShutdown(signal) {
+  if (isShuttingDown) {
+    logger.warn({ signal }, 'shutdown already in progress');
+    return;
+  }
+
+  isShuttingDown = true;
+  logShutdown(signal, {
+    activeSessions: sessions.size,
+    activeRequests: activeRequests.size,
+  });
+
+  // Notify Socket.IO clients of impending shutdown
+  io.emit('server-shutdown', {
+    message: 'Server is shutting down for maintenance',
+    reconnectAfter: 30,
+  });
+
+  // Stop accepting new connections
+  server.close(async () => {
+    logger.info('server stopped accepting new connections');
+  });
 
   // Stop metrics collection
   metricsCollector.stop();
 
   // Stop MCP manager
-  await mcpManager.shutdown();
+  try {
+    await mcpManager.shutdown();
+  } catch (error) {
+    logger.error({ error: error.message }, 'error shutting down MCP manager');
+  }
+
+  // Wait for in-flight requests to complete (with timeout)
+  const drainStart = Date.now();
+  while (activeRequests.size > 0 && Date.now() - drainStart < DRAIN_TIMEOUT_MS) {
+    logger.info({ activeRequests: activeRequests.size }, 'waiting for in-flight requests to drain');
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+
+  if (activeRequests.size > 0) {
+    logger.warn({
+      remainingRequests: activeRequests.size,
+      timeout: DRAIN_TIMEOUT_MS,
+    }, 'drain timeout exceeded, forcing shutdown');
+  } else {
+    logger.info('all requests drained successfully');
+  }
 
   // Don't kill shpool sessions - they should persist
   sessions.forEach((session, projectPath) => {
     sessionLog.info({ projectPath }, 'detaching from session');
     // Just kill the PTY wrapper, shpool continues in background
-    session.pty.kill();
+    try {
+      session.pty.kill();
+    } catch (error) {
+      sessionLog.warn({ projectPath, error: error.message }, 'error detaching from session');
+    }
   });
 
-  server.close(() => {
-    logger.info('server closed');
-    process.exit(0);
-  });
-});
+  // Close database connection pool
+  try {
+    await prisma.$disconnect();
+    logger.info('database connections closed');
+  } catch (error) {
+    logger.error({ error: error.message }, 'error closing database connections');
+  }
 
-process.on('SIGINT', () => {
-  logShutdown('SIGINT', { activeSessions: sessions.size });
+  // Close raw pg pool
+  try {
+    await pool.end();
+    logger.info('pg pool closed');
+  } catch (error) {
+    logger.error({ error: error.message }, 'error closing pg pool');
+  }
+
+  // Flush Sentry events
+  await flushSentry(2000);
+
+  logger.info({ signal }, 'graceful shutdown complete');
   process.exit(0);
-});
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

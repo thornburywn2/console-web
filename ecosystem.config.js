@@ -16,16 +16,27 @@ export default {
       env_production: {
         NODE_ENV: 'production'
       },
-      instances: 1,
-      exec_mode: 'fork',
+      // Cluster mode configuration
+      // Set to 'max' for all CPUs, or a number for specific count
+      // For WebSocket apps, consider using 2-4 instances max
+      instances: process.env.PM2_INSTANCES || 2,
+      exec_mode: 'cluster',
+      // Graceful shutdown settings
+      kill_timeout: 30000,        // 30s for graceful shutdown
+      wait_ready: true,           // Wait for process.send('ready')
+      listen_timeout: 10000,      // 10s to start listening
+      // Memory and restart settings
       watch: false,
       max_memory_restart: '500M',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      // Watcher handles recovery, so disable PM2 auto-restart
       autorestart: true,
       max_restarts: 3,
       min_uptime: '10s',
       restart_delay: 5000,
+      // Cluster-specific settings
+      merge_logs: true,           // Combine logs from all instances
+      // Environment for clustering
+      instance_var: 'INSTANCE_ID',
     },
 
     // Watcher service - monitors and auto-recovers main app
