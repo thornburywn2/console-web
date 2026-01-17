@@ -13,8 +13,8 @@
 |-------|--------|----------|--------|
 | Phase 0: Immediate | ✅ Complete | 3/3 | This Week |
 | Phase 1: Error Handling | ✅ Complete | 4/4 | Week 1-2 |
-| Phase 2: Integration Hardening | ⏳ Pending | 0/4 | Week 3-4 |
-| Phase 3: Testing Foundation | ⏳ Pending | 0/4 | Week 5-8 |
+| Phase 2: Integration Hardening | 🔄 In Progress | 2/4 | Week 3-4 |
+| Phase 3: Testing Foundation | 🔄 In Progress | 2/4 | Week 5-8 |
 | Phase 4: Observability | ⏳ Pending | 0/4 | Week 9-10 |
 | Phase 5: Full Hardening | ⏳ Pending | 0/4 | Week 11-16 |
 
@@ -96,15 +96,17 @@ Routes updated (24 files, 300+ catch blocks):
 
 ---
 
-## Phase 2: Integration Hardening (Week 3-4)
+## Phase 2: Integration Hardening (Week 3-4) 🔄 IN PROGRESS
 
-### 2.1 Create useApiQuery() Hook
-- [ ] **2.1.1** Design hook API (loading, error, data, refetch)
-- [ ] **2.1.2** Implement hook wrapping src/services/api.js
-- [ ] **2.1.3** Add timeout support (default 30s)
-- [ ] **2.1.4** Add retry logic
-- [ ] **2.1.5** Add AbortController for cancellation
-- [ ] **2.1.6** Write unit tests for hook
+### 2.1 Create useApiQuery() Hook ✅
+- [x] **2.1.1** Design hook API (loading, error, data, refetch) ✅
+- [x] **2.1.2** Implement hook wrapping src/services/api.js ✅
+- [x] **2.1.3** Add timeout support (default 30s) ✅
+- [x] **2.1.4** Add retry logic ✅
+- [x] **2.1.5** Add AbortController for cancellation ✅
+- [x] **2.1.6** Write unit tests for hook ✅ (16 tests passing)
+- [x] **2.1.7** Added useApiMutation for POST/PUT/DELETE operations ✅
+- [x] **2.1.8** Added useApiQueries for parallel fetching ✅
 
 ### 2.2 Migrate fetch() Calls (First 50%)
 - [ ] **2.2.1** HomeDashboard.jsx - migrate to useApiQuery
@@ -116,10 +118,10 @@ Routes updated (24 files, 300+ catch blocks):
 - [ ] **2.2.7** DatabaseBrowser.jsx - migrate to useApiQuery
 - [ ] **2.2.8** AdminDashboard.jsx - migrate to useApiQuery
 
-### 2.3 Add Request Timeout
-- [ ] **2.3.1** Update api.js default timeout to 30s
-- [ ] **2.3.2** Add timeout error handling in useApiQuery
-- [ ] **2.3.3** Show timeout-specific error messages in UI
+### 2.3 Add Request Timeout ✅
+- [x] **2.3.1** Update api.js default timeout to 30s ✅ (already implemented)
+- [x] **2.3.2** Add timeout error handling in useApiQuery ✅
+- [x] **2.3.3** Show timeout-specific error messages in UI ✅ (via getUserMessage())
 
 ### 2.4 Standardize Socket.IO Events
 - [ ] **2.4.1** Create Socket.IO event catalog (TypeScript types)
@@ -130,25 +132,28 @@ Routes updated (24 files, 300+ catch blocks):
 
 ---
 
-## Phase 3: Testing Foundation (Week 5-8)
+## Phase 3: Testing Foundation (Week 5-8) 🔄 IN PROGRESS
 
-### 3.1 Install & Configure Playwright
-- [ ] **3.1.1** Install Playwright and dependencies
-- [ ] **3.1.2** Create playwright.config.js
-- [ ] **3.1.3** Add test scripts to package.json
+### 3.1 Install & Configure Playwright ✅
+- [x] **3.1.1** Install Playwright and dependencies ✅
+- [x] **3.1.2** Create playwright.config.js ✅
+- [x] **3.1.3** Add test scripts to package.json ✅
 - [ ] **3.1.4** Create test fixtures for auth
 
-### 3.2 Write Critical Path E2E Tests
+### 3.2 Write Critical Path E2E Tests (Started)
 - [ ] **3.2.1** Login flow test
 - [ ] **3.2.2** Session create test
 - [ ] **3.2.3** Terminal I/O test
 - [ ] **3.2.4** Project CRUD test
 - [ ] **3.2.5** Docker control test (start/stop)
 - [ ] **3.2.6** Git operations test
-- [ ] **3.2.7** Admin dashboard navigation test
+- [x] **3.2.7** Admin dashboard navigation test ✅
 - [ ] **3.2.8** Settings save/load test
 - [ ] **3.2.9** Agent create/run test
 - [ ] **3.2.10** Security scan test
+- [x] **3.2.11** Home dashboard load test ✅
+- [x] **3.2.12** Theme picker test ✅
+- [x] **3.2.13** Search modal test ✅
 
 ### 3.3 Install & Configure Storybook
 - [ ] **3.3.1** Install Storybook for React/Vite
@@ -156,7 +161,7 @@ Routes updated (24 files, 300+ catch blocks):
 - [ ] **3.3.3** Add Storybook scripts to package.json
 - [ ] **3.3.4** Create stories for shared components
 
-### 3.4 Increase Unit Test Coverage to 30%
+### 3.4 Increase Unit Test Coverage to 30% (Started)
 - [ ] **3.4.1** Add tests for useSessionManagement hook
 - [ ] **3.4.2** Add tests for useTheme hook
 - [ ] **3.4.3** Add tests for useKeyboardShortcuts hook
@@ -165,6 +170,7 @@ Routes updated (24 files, 300+ catch blocks):
 - [ ] **3.4.6** Add tests for AdminDashboard component
 - [ ] **3.4.7** Add tests for HomeDashboard component
 - [ ] **3.4.8** Enable coverage gating in CI (30% threshold)
+- [x] **3.4.9** Add tests for useApiQuery hook ✅ (16 tests)
 
 ---
 
@@ -291,6 +297,26 @@ Routes updated (24 files, 300+ catch blocks):
     - LeftSidebar, RightSidebar, Terminal, HomeDashboard (App.jsx)
     - HomeDashboard widgets individually wrapped
     - GlobalErrorBoundary already wraps entire app
+
+### Session 3 (2026-01-17)
+- **Released v1.0.13**: Stability Hardening - Phase 1 Complete
+- **Phase 2 Progress:**
+  - ✅ 2.1: Created useApiQuery hook with full test coverage
+    - useApiQuery for GET requests with loading/error/data states
+    - useApiMutation for POST/PUT/DELETE operations
+    - useApiQueries for parallel data fetching
+    - 16 unit tests passing
+  - ✅ 2.3: Request timeout support (30s default, configurable)
+  - ⏳ 2.2: Component migration pending
+  - ⏳ 2.4: Socket.IO standardization pending
+- **Phase 3 Progress:**
+  - ✅ 3.1: Playwright installed and configured
+    - playwright.config.js created
+    - E2E test scripts added to package.json
+    - e2e/ test directory with dashboard tests
+  - ✅ 3.2: Basic E2E tests created (dashboard, admin nav, theme, search)
+  - ✅ 3.4.9: useApiQuery hook tests (16 tests)
+  - ⏳ Remaining: More E2E tests, Storybook, coverage increase
 
 ---
 
