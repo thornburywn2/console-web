@@ -93,8 +93,9 @@ This major release refactors the 5,544-line AdminDashboard.jsx monolith into 35+
 ### Navigation Changes
 
 - **SETTINGS promoted**: Now a main tab (was nested 2 levels deep under SYSTEM)
-- **AUTOMATION created**: New tab combining AGENTS + MCP + SCHEDULED
+- **AUTOMATION created**: New tab containing AGENTS + MCP (both with marketplace interfaces)
 - **INFRASTRUCTURE renamed**: Now called SERVER for clarity
+- **SCHEDULED moved**: Cron jobs/timers moved from AUTOMATION to SERVER tab (11 sub-tabs total)
 - **Cleaner hierarchy**: Maximum 2 levels of nesting (main tab → sub-tab)
 
 ### New Navigation Structure
@@ -102,6 +103,9 @@ This major release refactors the 5,544-line AdminDashboard.jsx monolith into 35+
 ```
 Before: PROJECTS | SYSTEM (13 sub-tabs) | AGENTS | MCP | SECURITY | HISTORY
 After:  PROJECTS | SETTINGS | AUTOMATION | SERVER | SECURITY | HISTORY
+
+AUTOMATION: AGENTS | MCP (marketplace-style interfaces)
+SERVER: OVERVIEW | SERVICES | DOCKER | STACK | PACKAGES | LOGS | PROCESSES | NETWORK | SCHEDULED | AUTHENTIK | USERS
 ```
 
 ### Technical Changes
@@ -123,10 +127,19 @@ After:  PROJECTS | SETTINGS | AUTOMATION | SERVER | SECURITY | HISTORY
 
 ### Bug Fixes
 
+#### API Endpoint Fixes
 - **HistoryTab**: Fixed API endpoint (was `/api/sessions/history`, now `/api/admin/history`)
 - **ScheduledPane**: Fixed cron/timer endpoints to use `/api/infra/scheduled/*`
 - **Fail2banPane**: Fixed endpoint to `/api/infra/security/fail2ban/status`
 - **ScanConfigPane**: Replaced non-existent endpoints with placeholder UI
+- **ProjectsTab**: Fixed API response handling (was expecting `data.projects`, now `data` directly)
+
+#### Rate Limiting Fixes
+- **DockerPane**: Increased polling interval from 10s to 30s to avoid 429 errors
+- **ServicesPane**: Increased polling interval from 5s to 15s to avoid rate limiting
+
+#### Process Monitoring
+- **ProcessesPane**: Reduced polling interval from 30s to 10s for more responsive memory/CPU monitoring
 
 ---
 

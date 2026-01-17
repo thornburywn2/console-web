@@ -204,19 +204,20 @@ Data refreshes every 15 seconds while dashboard is open.
 
 ---
 
-## Admin Dashboard Structure (v1.0.0)
+## Admin Dashboard Structure (v1.0.6)
 
 The Admin Dashboard provides comprehensive system management with 6 main tabs.
+Refactored from a 5,544-line monolith into 35+ modular components.
 
 ### Main Tabs
 
 | Tab | Description | Sub-tabs |
 |-----|-------------|----------|
 | **PROJECTS** | Project list with completion metrics, CLAUDE.md editor | - |
-| **INFRASTRUCTURE** | Server management, containers, settings | SETTINGS (default), SERVICES, DOCKER, STACK, PACKAGES, LOGS, PROCESSES, NETWORK, FIREWALL, FAIL2BAN, AUTHENTIK, USERS, SCHEDULED |
-| **AGENTS** | Agent management and marketplace | MY AGENTS, MARKETPLACE |
-| **MCP** | MCP Server catalog and management | - |
-| **SECURITY** | Security scanning dashboard | - |
+| **SETTINGS** | User preferences and configuration (promoted from Infrastructure) | GENERAL, APPEARANCE, SHORTCUTS, PERSONAS, INTEGRATIONS, AUTH |
+| **AUTOMATION** | AI agents and MCP servers (marketplace-style interface) | AGENTS, MCP |
+| **SERVER** | Server infrastructure management (renamed from Infrastructure) | OVERVIEW, SERVICES, DOCKER, STACK, PACKAGES, LOGS, PROCESSES, NETWORK, SCHEDULED, AUTHENTIK, USERS |
+| **SECURITY** | Security scanning and firewall management | SCANS, FIREWALL, FAIL2BAN, SCAN_CONFIG |
 | **HISTORY** | Session history entries | - |
 
 ### Hidden Experimental Tabs (Enable in Settings > System)
@@ -225,12 +226,31 @@ The Admin Dashboard provides comprehensive system management with 6 main tabs.
 - **TABBY** - Tabby code completion (requires Docker)
 - **SWARM** - Claude Flow multi-agent swarms (placeholder - package not released)
 
-### Infrastructure Sub-tab Categories
-- **Settings**: SETTINGS (default pane)
-- **System**: SERVICES, DOCKER, STACK, PACKAGES, LOGS, PROCESSES
-- **Network & Security**: NETWORK, FIREWALL, FAIL2BAN
+### Server Sub-tab Categories
+- **Overview**: OVERVIEW (system stats dashboard)
+- **Services**: SERVICES, DOCKER, STACK
+- **System**: PACKAGES, LOGS, PROCESSES
+- **Network**: NETWORK, SCHEDULED
 - **Users & Auth**: AUTHENTIK, USERS
-- **Automation**: SCHEDULED
+
+### Component Structure
+```
+src/components/admin/
+├── constants.js           # Tab enums and migration helpers
+├── utils.js               # Shared utilities
+├── shared/                # Shared components
+│   ├── TabButton.jsx
+│   ├── SubTabBar.jsx
+│   ├── TabContainer.jsx
+│   └── ErrorBoundary.jsx
+└── tabs/                  # Tab components
+    ├── ProjectsTab.jsx
+    ├── HistoryTab.jsx
+    ├── SettingsTab/
+    ├── AutomationTab/
+    ├── ServerTab/
+    └── SecurityTab/
+```
 
 ---
 
@@ -243,10 +263,11 @@ The Admin Dashboard provides comprehensive system management with 6 main tabs.
 5. **Delta CPU Calculation**: CPU stats use delta between readings for accuracy
 6. **Version Control**: When releasing a new version, update ALL of these locations:
    - `package.json` - version field (line 3)
-   - `CLAUDE.md` - Version header (line 4)
-   - `src/App.jsx` - header version badge (~line 441)
-   - `src/components/AdminDashboard.jsx` - footer version (~line 2922)
+   - `CLAUDE.md` - Version header (line 4) and footer (bottom)
+   - `src/App.jsx` - header version badge (~line 745)
+   - `src/components/AdminDashboard.jsx` - footer version (~line 777)
    - `src/components/ChangelogWidget.jsx` - add new entry to CHANGELOG_ENTRIES array
+   - `CHANGELOG.md` - add new version section
    - `CHANGELOG.md` - add new version section at top
 
 ---
