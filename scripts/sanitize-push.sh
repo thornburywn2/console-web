@@ -88,7 +88,7 @@ GITLEAKS_AVAILABLE=false
 check_tools() {
     if command -v gitleaks &> /dev/null; then
         GITLEAKS_AVAILABLE=true
-        $VERBOSE && info "gitleaks found: $(gitleaks version 2>&1 | head -1)"
+        $VERBOSE && info "gitleaks found: $(gitleaks version 2>&1 | head -1)" || true
     else
         warning "gitleaks is not installed - secret scanning will be limited"
         echo "  Install: brew install gitleaks (macOS)"
@@ -117,7 +117,7 @@ run_gitleaks() {
     # Use custom config if exists
     if [ -f "$CONFIG_FILE" ]; then
         scan_opts="--config=$CONFIG_FILE"
-        $VERBOSE && info "Using custom config: $CONFIG_FILE"
+        $VERBOSE && info "Using custom config: $CONFIG_FILE" || true
     fi
 
     # Staged only mode
@@ -258,7 +258,7 @@ scan_pii() {
     fi
 
     if [ -z "$files" ]; then
-        $VERBOSE && info "No files to scan for PII"
+        $VERBOSE && info "No files to scan for PII" || true
         return 0
     fi
 
@@ -323,7 +323,7 @@ check_env_files() {
 
             if $is_git_repo; then
                 if git check-ignore -q "$env_file" 2>/dev/null; then
-                    $VERBOSE && info "Ignored: $rel_path (in .gitignore)"
+                    $VERBOSE && info "Ignored: $rel_path (in .gitignore)" || true
                 else
                     # Check if it's tracked
                     if git ls-files --error-unmatch "$env_file" &>/dev/null; then
@@ -339,7 +339,7 @@ check_env_files() {
             else
                 # Not a git repo - just check if .gitignore exists and contains pattern
                 if [ -f "$PROJECT_DIR/.gitignore" ] && grep -q "^\.env$" "$PROJECT_DIR/.gitignore" 2>/dev/null; then
-                    $VERBOSE && info "$rel_path found, .gitignore exists with .env pattern"
+                    $VERBOSE && info "$rel_path found, .gitignore exists with .env pattern" || true
                 else
                     warning "$rel_path exists - ensure it's in .gitignore before pushing"
                     ((WARNINGS++)) || true

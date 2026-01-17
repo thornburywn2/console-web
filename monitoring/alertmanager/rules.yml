@@ -1,53 +1,42 @@
-# Console.web AlertManager Rules
-# Place in Prometheus rules directory
+# Console.web Prometheus Alerting Rules
+# Add these to your Prometheus configuration
 
 groups:
-  - name: console-web-alerts
+  - name: console-web
+    interval: 30s
     rules:
-      # High Error Rate Alert
+      # High Error Rate
       - alert: ConsoleWebHighErrorRate
         expr: |
-          sum(rate(consoleweb_http_requests_total{status_code=~"5.."}[5m]))
-          / sum(rate(consoleweb_http_requests_total[5m])) > 0.05
-        for: 5m
+          (
+            sum(rate(consoleweb_http_requests_total{status_code=~"5.."}[5m]))
+            /
+            sum(rate(consoleweb_http_requests_total[5m]))
+          ) * 100 > 5
+        for: 2m
         labels:
           severity: critical
           service: console-web
         annotations:
-          summary: "High error rate in Console.web"
-          description: "Error rate is {{ $value | humanizePercentage }} over the last 5 minutes (threshold: 5%)"
-          runbook: "Check application logs for errors. Review recent deployments."
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | printf \"%.2f\" }}% (threshold: 5%)"
+          runbook: "Check server logs for errors: pm2 logs console-web --err"
 
-      # High Response Time Alert
+      # High Response Time
       - alert: ConsoleWebHighResponseTime
         expr: |
-          histogram_quantile(0.95,
-            sum(rate(consoleweb_http_request_duration_seconds_bucket[5m])) by (le)
-          ) > 1
+          histogram_quantile(0.95, sum(rate(consoleweb_http_request_duration_seconds_bucket[5m])) by (le)) > 1
         for: 5m
         labels:
           severity: warning
           service: console-web
         annotations:
-          summary: "High response times in Console.web"
-          description: "P95 response time is {{ $value | humanizeDuration }} (threshold: 1s)"
-          runbook: "Check database queries and external service calls. Review memory usage."
+          summary: "High p95 response time"
+          description: "P95 response time is {{ $value | printf \"%.2f\" }}s (threshold: 1s)"
+          runbook: "Check for slow database queries or resource contention"
 
-      # Database Slow Queries Alert
-      - alert: ConsoleWebDatabaseSlowQueries
-        expr: |
-          sum(rate(consoleweb_slow_queries_total[5m])) > 10
-        for: 5m
-        labels:
-          severity: warning
-          service: console-web
-        annotations:
-          summary: "High number of slow database queries"
-          description: "{{ $value }} slow queries per second (threshold: 10/s)"
-          runbook: "Review slow query logs. Check database indexes and query plans."
-
-      # Service Down Alert
-      - alert: ConsoleWebServiceDown
+      # Service Down
+      - alert: ConsoleWebDown
         expr: up{job="console-web"} == 0
         for: 1m
         labels:
@@ -55,122 +44,81 @@ groups:
           service: console-web
         annotations:
           summary: "Console.web service is down"
-          description: "Console.web has been unreachable for more than 1 minute"
-          runbook: "Check PM2 process status. Review application logs for startup errors."
+          description: "The console-web service has been unreachable for more than 1 minute"
+          runbook: "Check PM2 status: pm2 status console-web; pm2 logs console-web"
 
-      # High Memory Usage Alert
-      - alert: ConsoleWebHighMemoryUsage
+      # High Memory Usage
+      - alert: ConsoleWebHighMemory
         expr: |
-          consoleweb_nodejs_heap_size_used_bytes
-          / consoleweb_nodejs_heap_size_total_bytes > 0.9
+          process_resident_memory_bytes{job="console-web"} / 1024 / 1024 > 450
         for: 5m
         labels:
           severity: warning
           service: console-web
         annotations:
-          summary: "High memory usage in Console.web"
-          description: "Heap usage is {{ $value | humanizePercentage }} (threshold: 90%)"
-          runbook: "Check for memory leaks. Review recent code changes. Consider restarting the service."
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | printf \"%.0f\" }}MB (threshold: 450MB)"
+          runbook: "Consider restarting the service: pm2 restart console-web"
 
-      # Memory Critical Alert
-      - alert: ConsoleWebMemoryCritical
-        expr: consoleweb_nodejs_heap_size_used_bytes > 1073741824  # 1GB
-        for: 5m
-        labels:
-          severity: critical
-          service: console-web
-        annotations:
-          summary: "Critical memory usage in Console.web"
-          description: "Heap usage is {{ $value | humanize1024 }}B (threshold: 1GB)"
-          runbook: "Immediate restart may be required. Investigate memory leak."
-
-      # Rate Limit Exceeded Alert
-      - alert: ConsoleWebRateLimitExceeded
+      # Rate Limit Exceeded
+      - alert: ConsoleWebRateLimitHits
         expr: |
-          sum(rate(consoleweb_rate_limit_hits_total[5m])) > 50
+          sum(rate(consoleweb_http_requests_total{status_code="429"}[5m])) > 1
         for: 5m
         labels:
           severity: warning
           service: console-web
         annotations:
-          summary: "High rate limit hit rate"
-          description: "{{ $value }} rate limit hits per second"
-          runbook: "Check for abuse patterns. Review rate limit configuration."
+          summary: "Rate limiting is active"
+          description: "{{ $value | printf \"%.2f\" }} requests/s are being rate limited"
+          runbook: "Check for potential abuse or consider adjusting rate limits"
 
-      # WebSocket Connection Surge
-      - alert: ConsoleWebWebSocketSurge
-        expr: consoleweb_websocket_connections > 100
+      # WebSocket Connection Spike
+      - alert: ConsoleWebHighWebSocketConnections
+        expr: consoleweb_websocket_connections > 50
         for: 5m
         labels:
           severity: warning
           service: console-web
         annotations:
           summary: "High number of WebSocket connections"
-          description: "{{ $value }} active WebSocket connections"
-          runbook: "Check for connection leaks. Review client reconnection behavior."
+          description: "{{ $value }} WebSocket connections active (threshold: 50)"
+          runbook: "Check for connection leaks or unusual client behavior"
 
-      # Event Loop Lag Alert
-      - alert: ConsoleWebEventLoopLag
-        expr: consoleweb_nodejs_eventloop_lag_seconds > 0.1
-        for: 5m
-        labels:
-          severity: warning
-          service: console-web
-        annotations:
-          summary: "High event loop lag"
-          description: "Event loop lag is {{ $value | humanizeDuration }}"
-          runbook: "Check for CPU-intensive operations. Review async patterns."
-
-      # Database Query Error Rate
-      - alert: ConsoleWebDatabaseErrors
-        expr: |
-          sum(rate(consoleweb_db_queries_total{success="false"}[5m]))
-          / sum(rate(consoleweb_db_queries_total[5m])) > 0.01
-        for: 5m
-        labels:
-          severity: warning
-          service: console-web
-        annotations:
-          summary: "High database query error rate"
-          description: "Database error rate is {{ $value | humanizePercentage }}"
-          runbook: "Check database connectivity. Review query logs."
-
-      # No Requests Alert (Service may be unresponsive)
+      # No Requests (Service might be broken)
       - alert: ConsoleWebNoTraffic
         expr: |
-          sum(rate(consoleweb_http_requests_total[5m])) == 0
+          sum(rate(consoleweb_http_requests_total[10m])) == 0
+        for: 15m
+        labels:
+          severity: warning
+          service: console-web
+        annotations:
+          summary: "No traffic to console-web"
+          description: "No HTTP requests received in the last 15 minutes"
+          runbook: "Verify service is accessible and check reverse proxy configuration"
+
+      # High Database Query Time
+      - alert: ConsoleWebSlowDatabaseQueries
+        expr: |
+          histogram_quantile(0.95, sum(rate(consoleweb_db_query_duration_seconds_bucket[5m])) by (le)) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: console-web
+        annotations:
+          summary: "Slow database queries detected"
+          description: "P95 database query time is {{ $value | printf \"%.2f\" }}s (threshold: 0.5s)"
+          runbook: "Check database performance and query optimization"
+
+      # Terminal Sessions High
+      - alert: ConsoleWebHighTerminalSessions
+        expr: consoleweb_terminal_sessions > 20
         for: 10m
         labels:
-          severity: warning
+          severity: info
           service: console-web
         annotations:
-          summary: "No HTTP traffic to Console.web"
-          description: "No requests received in the last 10 minutes"
-          runbook: "Check load balancer configuration. Verify service is accessible."
-
-      # Git Operations Failures
-      - alert: ConsoleWebGitOperationFailures
-        expr: |
-          sum(rate(consoleweb_git_operations_total{success="false"}[5m]))
-          / sum(rate(consoleweb_git_operations_total[5m])) > 0.1
-        for: 5m
-        labels:
-          severity: warning
-          service: console-web
-        annotations:
-          summary: "High git operation failure rate"
-          description: "Git operation failure rate is {{ $value | humanizePercentage }}"
-          runbook: "Check git repository accessibility. Review credential configuration."
-
-      # Agent Execution Failures
-      - alert: ConsoleWebAgentFailures
-        expr: |
-          sum(rate(consoleweb_agent_executions_total{status="failed"}[5m])) > 5
-        for: 5m
-        labels:
-          severity: warning
-          service: console-web
-        annotations:
-          summary: "High agent execution failure rate"
-          description: "{{ $value }} agent failures per second"
-          runbook: "Check agent configurations. Review execution logs."
+          summary: "Many terminal sessions active"
+          description: "{{ $value }} terminal sessions are currently active"
+          runbook: "This is informational - check if sessions are being properly cleaned up"
