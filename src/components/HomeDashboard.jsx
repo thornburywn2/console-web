@@ -1,120 +1,18 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-
-// Constants
-const LAST_ACCESSED_KEY = 'cw-last-accessed';
-const DASHBOARD_LAYOUT_KEY = 'cw-dashboard-layout';
-
-// Widget type configurations
-const WIDGET_TYPES = {
-  quickStats: {
-    title: 'Quick Stats',
-    icon: '📊',
-    description: 'Projects, sessions, containers overview',
-    color: '#06b6d4',
-    defaultSize: 'full',
-    row: 'top',
-  },
-  gitStatus: {
-    title: 'Git Status',
-    icon: '🔀',
-    description: 'Repos with uncommitted changes',
-    color: '#f59e0b',
-    defaultSize: 'medium',
-  },
-  activeSessions: {
-    title: 'Active Sessions',
-    icon: '💻',
-    description: 'Running terminal sessions',
-    color: '#22c55e',
-    defaultSize: 'medium',
-  },
-  recentProjects: {
-    title: 'Recent Projects',
-    icon: '📁',
-    description: 'Recently accessed projects',
-    color: '#8b5cf6',
-    defaultSize: 'large',
-  },
-  recentCommits: {
-    title: 'Recent Commits',
-    icon: '📝',
-    description: 'Latest git commits',
-    color: '#ec4899',
-    defaultSize: 'medium',
-  },
-  docker: {
-    title: 'Docker',
-    icon: '🐳',
-    description: 'Container status',
-    color: '#3b82f6',
-    defaultSize: 'medium',
-  },
-  activePorts: {
-    title: 'Active Ports',
-    icon: '🔌',
-    description: 'Listening ports and services',
-    color: '#14b8a6',
-    defaultSize: 'medium',
-  },
-  aiUsage: {
-    title: 'AI Usage',
-    icon: '🤖',
-    description: 'Token usage and costs',
-    color: '#a855f7',
-    defaultSize: 'small',
-  },
-  diskUsage: {
-    title: 'Disk Usage',
-    icon: '💾',
-    description: 'Project storage consumption',
-    color: '#f97316',
-    defaultSize: 'medium',
-  },
-  projectHealth: {
-    title: 'Project Health',
-    icon: '❤️',
-    description: 'Health scores by project',
-    color: '#ef4444',
-    defaultSize: 'medium',
-  },
-  techStack: {
-    title: 'Tech Stack',
-    icon: '🛠️',
-    description: 'Technologies across projects',
-    color: '#6366f1',
-    defaultSize: 'medium',
-  },
-  securityAlerts: {
-    title: 'Security Alerts',
-    icon: '🛡️',
-    description: 'Vulnerability warnings',
-    color: '#dc2626',
-    defaultSize: 'small',
-  },
-};
-
-// Size configurations
-const SIZE_OPTIONS = {
-  small: { label: 'S', maxHeight: 150 },
-  medium: { label: 'M', maxHeight: 250 },
-  large: { label: 'L', maxHeight: 400 },
-  full: { label: 'F', maxHeight: null },
-};
-
-// Default layout
-const DEFAULT_LAYOUT = [
-  { id: 'quickStats', type: 'quickStats', size: 'full' },
-  { id: 'gitStatus', type: 'gitStatus', size: 'medium' },
-  { id: 'activeSessions', type: 'activeSessions', size: 'medium' },
-  { id: 'recentProjects', type: 'recentProjects', size: 'large' },
-  { id: 'recentCommits', type: 'recentCommits', size: 'medium' },
-  { id: 'docker', type: 'docker', size: 'medium' },
-  { id: 'activePorts', type: 'activePorts', size: 'medium' },
-  { id: 'aiUsage', type: 'aiUsage', size: 'small' },
-  { id: 'diskUsage', type: 'diskUsage', size: 'medium' },
-  { id: 'projectHealth', type: 'projectHealth', size: 'medium' },
-  { id: 'techStack', type: 'techStack', size: 'medium' },
-];
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  LAST_ACCESSED_KEY,
+  DASHBOARD_LAYOUT_KEY,
+  WIDGET_TYPES,
+  SIZE_OPTIONS,
+  DEFAULT_LAYOUT,
+  formatUptime,
+  formatTimeAgo,
+  formatBytes,
+  formatTokens,
+  MiniStat,
+  EmptyState,
+  TechBadge,
+} from './home-dashboard';
 
 /**
  * Home Dashboard - Customizable widget-based dashboard
@@ -301,34 +199,6 @@ function HomeDashboard({ onSelectProject, projects = [] }) {
       .slice(0, 20);
   }, [data.projectsExtended]);
 
-  // Format helpers
-  const formatUptime = (s) => {
-    if (!s) return '0m';
-    const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
-    if (d > 0) return `${d}d ${h}h`;
-    if (h > 0) return `${h}h ${m}m`;
-    return `${m}m`;
-  };
-
-  const formatTimeAgo = (ts) => {
-    if (!ts) return '';
-    const diff = Date.now() - ts;
-    const m = Math.floor(diff / 60000), h = Math.floor(diff / 3600000), d = Math.floor(diff / 86400000);
-    if (d > 0) return `${d}d ago`;
-    if (h > 0) return `${h}h ago`;
-    if (m > 0) return `${m}m ago`;
-    return 'Just now';
-  };
-
-  const formatBytes = (b) => {
-    if (!b) return '0 B';
-    const k = 1024, sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(b) / Math.log(k));
-    return `${(b / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
-  };
-
-  const formatTokens = (t) => t >= 1000000 ? `${(t/1000000).toFixed(1)}M` : t >= 1000 ? `${(t/1000).toFixed(1)}K` : t.toString();
-
   // Widget content renderer
   const renderWidgetContent = useCallback((widget) => {
     const size = SIZE_OPTIONS[widget.size] || SIZE_OPTIONS.medium;
@@ -509,7 +379,7 @@ function HomeDashboard({ onSelectProject, projects = [] }) {
       default:
         return <EmptyState text="Unknown widget" />;
     }
-  }, [data, stats, containerStats, activeSessions, gitStatuses, recentCommits, activePorts, diskUsage, aiUsage, healthScores, securityAlerts, technologies, recentProjects, onSelectProject, formatUptime, formatTimeAgo, formatBytes, formatTokens]);
+  }, [data, stats, containerStats, activeSessions, gitStatuses, recentCommits, activePorts, diskUsage, aiUsage, healthScores, securityAlerts, technologies, recentProjects, onSelectProject]);
 
   // Get available widgets not yet added
   const availableWidgets = useMemo(() => {
@@ -661,38 +531,6 @@ function HomeDashboard({ onSelectProject, projects = [] }) {
         </div>
       )}
     </div>
-  );
-}
-
-// Mini stat component
-function MiniStat({ icon, value, label, color }) {
-  return (
-    <div className="rounded-lg p-2 text-center" style={{ background: 'var(--bg-glass)' }}>
-      <div className="text-sm mb-0.5">{icon}</div>
-      <div className="text-base font-bold font-mono" style={{ color }}>{value}</div>
-      <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</div>
-    </div>
-  );
-}
-
-// Empty state component
-function EmptyState({ text, icon, color }) {
-  return (
-    <div className="text-center py-4">
-      {icon && <div className="text-xl mb-1" style={{ color: color || 'var(--text-muted)' }}>{icon}</div>}
-      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{text}</p>
-    </div>
-  );
-}
-
-// Tech badge component
-function TechBadge({ name, count }) {
-  const colors = { React: '#61dafb', TypeScript: '#3178c6', JavaScript: '#f7df1e', 'Node.js': '#68a063', Python: '#3776ab', Docker: '#2496ed', Tailwind: '#38bdf8' };
-  const color = colors[name] || 'var(--accent-primary)';
-  return (
-    <span className="px-2 py-0.5 rounded text-xs font-mono" style={{ background: `${color}20`, color, border: `1px solid ${color}40` }}>
-      {name} ({count})
-    </span>
   );
 }
 
