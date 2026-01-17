@@ -7,6 +7,26 @@ import { useState, useEffect, useCallback } from 'react';
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.11',
+    date: '2026-01-17',
+    type: 'major',
+    title: 'Bundle Optimization & Component Refactoring',
+    highlights: [
+      'Reduced initial bundle size by 87% (1,792KB → 226KB)',
+      'Implemented React.lazy() code-splitting for 20+ components',
+      'Created modular settings pane components architecture',
+      'Fixed Tailwind safelist warning on production builds',
+    ],
+    features: [
+      { title: 'Vendor Chunk Splitting', description: 'Separate chunks for React, Socket.IO, xterm, Sentry, and markdown with optimal caching' },
+      { title: 'Lazy-Loaded Modals', description: '20+ modal and admin components now load on-demand, reducing initial page load' },
+      { title: 'Settings Module', description: 'New src/components/settings/ directory with GeneralPane, AppearancePane, ShortcutsPane, PersonasPane components' },
+      { title: 'Build Optimization', description: 'Vite manualChunks config for intelligent bundle splitting and caching' },
+      { title: 'Tailwind Cleanup', description: 'Removed broken safelist pattern that caused build warnings' },
+      { title: 'App.jsx Refactor', description: 'Converted 20+ static imports to React.lazy() for dynamic loading' },
+    ],
+  },
+  {
     version: '1.0.10',
     date: '2026-01-17',
     type: 'minor',

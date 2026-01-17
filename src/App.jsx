@@ -1,57 +1,67 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { io } from 'socket.io-client';
+
+// Core components (always loaded - essential for initial render)
 import LeftSidebar from './components/LeftSidebar';
 import Terminal from './components/Terminal';
-import AdminDashboard, { TABS as ADMIN_TABS } from './components/AdminDashboard';
 import RightSidebar from './components/RightSidebar';
 import CommandPalette from './components/CommandPalette';
-import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
-import ThemePicker from './components/ThemePicker';
 import BulkActionBar from './components/BulkActionBar';
-import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { useTheme } from './hooks/useTheme';
-import { useSessionManagement } from './hooks/useSessionManagement';
-
-// Phase 10: Quality of Life components
-import GlobalSearch, { useGlobalSearch } from './components/GlobalSearch';
-import SetupWizard, { useSetupWizard } from './components/SetupWizard';
-import ChangelogWidget, { ChangelogBadge } from './components/ChangelogWidget';
+import HomeDashboard from './components/HomeDashboard';
 import { OfflineIndicator } from './components/OfflineMode';
 import FavoritesBar from './components/FavoritesBar';
 
-// Phase 11: Additional features (previously TODOs)
-import SessionTemplateModal from './components/SessionTemplateModal';
-import SessionNoteEditor from './components/SessionNoteEditor';
-import ShareModal from './components/ShareModal';
-import HandoffModal from './components/HandoffModal';
-import ExportModal from './components/ExportModal';
-import ImportWizard from './components/ImportWizard';
-import PromptLibrary from './components/PromptLibrary';
-import SnippetPalette from './components/SnippetPalette';
-import CreateProjectModal from './components/CreateProjectModal';
-import CheckpointPanel from './components/CheckpointPanel';
-
-// Phase 13: GitHub Integration
-import GitHubSettingsModal from './components/GitHubSettingsModal';
-import GitHubRepoList from './components/GitHubRepoList';
-
-// Phase 14: Voice Commands (P0 Critical)
-import VoiceCommandPanel, { VoiceButton } from './components/VoiceCommandPanel';
-
-// P1: Aider Integration
-import AiderSessionPanel from './components/AiderSessionPanel';
-import { AiderModeToggleCompact } from './components/AiderModeToggle';
+// Core hooks (always needed)
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useTheme } from './hooks/useTheme';
+import { useSessionManagement } from './hooks/useSessionManagement';
 import { useAiderVoice } from './hooks/useAiderVoice';
-
-// Home Dashboard
-import HomeDashboard from './components/HomeDashboard';
-import ProjectInfoBar from './components/ProjectInfoBar';
-
-// About Modal
-import AboutModal from './components/AboutModal';
-
-// Phase 12: Authentication (Authentik SSO)
 import { AuthProvider, RequireAuth } from './hooks/useAuth';
+
+// Components with co-located hooks/exports (kept static to avoid dual import warning)
+import GlobalSearch, { useGlobalSearch } from './components/GlobalSearch';
+import SetupWizard, { useSetupWizard } from './components/SetupWizard';
+import ChangelogWidget, { ChangelogBadge } from './components/ChangelogWidget';
+import { VoiceButton } from './components/VoiceCommandPanel';
+import { AiderModeToggleCompact } from './components/AiderModeToggle';
+
+// Export ADMIN_TABS for external use
+export { TABS as ADMIN_TABS } from './components/AdminDashboard';
+
+// Lazy-loaded components (loaded on demand)
+// Admin & Settings
+const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
+const ProjectInfoBar = lazy(() => import('./components/ProjectInfoBar'));
+
+// Modals
+const KeyboardShortcutsModal = lazy(() => import('./components/KeyboardShortcutsModal'));
+const ThemePicker = lazy(() => import('./components/ThemePicker'));
+const SessionTemplateModal = lazy(() => import('./components/SessionTemplateModal'));
+const SessionNoteEditor = lazy(() => import('./components/SessionNoteEditor'));
+const ShareModal = lazy(() => import('./components/ShareModal'));
+const HandoffModal = lazy(() => import('./components/HandoffModal'));
+const ExportModal = lazy(() => import('./components/ExportModal'));
+const ImportWizard = lazy(() => import('./components/ImportWizard'));
+const PromptLibrary = lazy(() => import('./components/PromptLibrary'));
+const SnippetPalette = lazy(() => import('./components/SnippetPalette'));
+const CreateProjectModal = lazy(() => import('./components/CreateProjectModal'));
+const CheckpointPanel = lazy(() => import('./components/CheckpointPanel'));
+const AboutModal = lazy(() => import('./components/AboutModal'));
+
+// GitHub Integration
+const GitHubSettingsModal = lazy(() => import('./components/GitHubSettingsModal'));
+const GitHubRepoList = lazy(() => import('./components/GitHubRepoList'));
+
+// Voice & Aider (P0/P1 features)
+const VoiceCommandPanel = lazy(() => import('./components/VoiceCommandPanel'));
+const AiderSessionPanel = lazy(() => import('./components/AiderSessionPanel'));
+
+// Loading fallback component
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center p-8">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
+  </div>
+);
 
 // Home project marker - path will be computed from projects list
 export const HOME_PROJECT_ID = '__home__';
@@ -742,7 +752,7 @@ function App() {
                 style={{ color: 'var(--text-muted)', background: 'var(--bg-glass)' }}
                 title="About Console.web"
               >
-                v1.0.10
+                v1.0.11
               </button>
             </div>
             {selectedProject && (

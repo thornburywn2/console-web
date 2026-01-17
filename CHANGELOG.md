@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                             Console.web v1.0.10                              │
+│                             Console.web v1.0.11                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
 │  │  Terminal   │  │   Admin     │  │  Projects   │  │  Sidebars   │        │
@@ -151,6 +151,45 @@ npm run build && npm start
 | **Containers** | Dockerode |
 | **Observability** | OpenTelemetry, Jaeger, Loki, Prometheus, Grafana |
 | **Security** | Helmet, express-rate-limit, Zod, Sentry |
+
+---
+
+## [1.0.11] - 2026-01-17
+
+### Bundle Optimization & Component Refactoring
+
+Major performance improvements through bundle optimization and component modularization.
+
+#### Bundle Size Reduction (-87%)
+- **Before**: 1,792 KB main bundle (462 KB gzipped)
+- **After**: 226 KB main bundle (60 KB gzipped)
+- **Initial load**: ~121 KB gzipped (index + react + socket + icons)
+
+#### Code Splitting with React.lazy()
+- **20+ lazy-loaded components**: Modals, admin panels, and tools load on-demand
+- **Vendor chunks**: Separate bundles for React, Socket.IO, xterm, Sentry, markdown
+- **28 total chunks**: Optimal caching and parallel loading
+
+#### New Settings Module Architecture
+- **src/components/settings/**: New modular directory structure
+- **GeneralPane.jsx**: General settings extracted (100 lines)
+- **AppearancePane.jsx**: Theme picker extracted (100 lines)
+- **ShortcutsPane.jsx**: Keyboard shortcuts extracted (100 lines)
+- **PersonasPane.jsx**: AI personas extracted (165 lines)
+- **IntegrationsPane.jsx**: GitHub/Cloudflare settings
+- **AuthPane.jsx**: Authentication settings extracted
+- **constants.js**: Shared category constants
+- **CategoryIcon.jsx**: Reusable icon component
+
+#### Vite Build Optimization
+- **manualChunks config**: Intelligent vendor splitting
+- **Sourcemap disabled in production**: Reduced build size
+- **Fixed Tailwind safelist warning**: Removed broken pattern
+
+#### App.jsx Refactoring
+- **Converted 20+ static imports to React.lazy()**
+- **Added LoadingFallback component for Suspense**
+- **Separated core vs lazy-loaded components**
 
 ---
 

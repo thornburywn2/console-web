@@ -6,8 +6,9 @@ export default {
   ],
   darkMode: 'class',
   safelist: [
-    // Preserve all theme CSS selectors
-    { pattern: /^\[data-theme=/ },
+    // Theme selectors are defined in index.css as custom CSS, not Tailwind-generated
+    // No safelist needed - all dynamic classes use object lookups with literal strings
+    // Status colors: text-green-400, bg-green-500/20, etc. are scanned from JS objects
   ],
   theme: {
     extend: {

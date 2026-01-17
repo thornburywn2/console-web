@@ -25,6 +25,28 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Core vendor libraries
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-socket': ['socket.io-client'],
+          'vendor-icons': ['lucide-react'],
+
+          // Terminal (heavy, only needed when project selected)
+          'vendor-terminal': ['xterm', 'xterm-addon-fit', '@xterm/addon-serialize'],
+
+          // Search (loaded with CommandPalette)
+          'vendor-search': ['fuse.js'],
+
+          // Markdown rendering (session notes only)
+          'vendor-markdown': ['react-markdown'],
+
+          // Sentry (can load async)
+          'vendor-sentry': ['@sentry/react'],
+        },
+      },
+    },
   },
 });
