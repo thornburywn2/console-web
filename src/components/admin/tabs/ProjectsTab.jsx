@@ -19,13 +19,16 @@ export function ProjectsTab({
 
   // Fetch projects using useApiQuery
   const {
-    data: projects,
+    data: projectsData,
     loading,
     error,
     refetch: fetchProjects
   } = useApiQuery('/admin/projects-extended', {
-    defaultValue: [],
+    initialData: [],
   });
+
+  // Ensure projects is always an array
+  const projects = Array.isArray(projectsData) ? projectsData : [];
 
   // Mutation for toggling skip permissions
   const { mutate: toggleSkipPermissions } = useApiMutation();
