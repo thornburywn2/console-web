@@ -76,3 +76,77 @@ Available metrics:
 - `consoleweb_websocket_connections` - WebSocket connection gauge
 - `consoleweb_terminal_sessions` - Terminal session gauge
 - Standard Node.js process metrics
+
+## Log Aggregation (Fluentd)
+
+Ship structured JSON logs to Elasticsearch or Loki for centralized log management.
+
+### Setup
+
+1. Enable file logging in Console.web:
+   ```bash
+   export LOG_FILE=/home/thornburywn/Projects/console-web/logs/app.log
+   ```
+
+2. Configure Elasticsearch connection:
+   ```bash
+   export ELASTICSEARCH_HOST=your-elasticsearch-host
+   export ELASTICSEARCH_PORT=9200
+   export ELASTICSEARCH_USER=elastic
+   export ELASTICSEARCH_PASSWORD=your-password
+   ```
+
+3. Start Fluentd:
+   ```bash
+   cd monitoring/fluentd
+   docker-compose up -d
+   ```
+
+### Log Fields
+
+Logs include these structured fields:
+- `time` - ISO timestamp
+- `level` - Numeric log level (10-60)
+- `severity` - Human-readable level (TRACE, DEBUG, INFO, WARN, ERROR, FATAL)
+- `service` - Service name (console-web)
+- `component` - Component name (http, socket, server, etc.)
+- `requestId` - Request correlation ID
+- `msg` - Log message
+
+### Retention
+
+Daily indices are created with pattern `console-web-YYYY.MM.DD`. Configure Elasticsearch ILM or a cron job for retention.
+
+## Distributed Tracing (OpenTelemetry)
+
+Enable distributed tracing for request correlation across services.
+
+### Setup
+
+1. Configure the OTLP endpoint:
+   ```bash
+   export OTEL_EXPORTER_OTLP_ENDPOINT=http://your-collector:4318
+   export OTEL_SERVICE_NAME=console-web
+   ```
+
+2. Restart Console.web - tracing auto-initializes on startup.
+
+### Trace Collectors
+
+Compatible with:
+- Jaeger
+- Tempo (Grafana)
+- Zipkin (via OTLP)
+- Any OTLP-compatible collector
+
+### Instrumented Components
+
+Auto-instrumented:
+- HTTP requests (Express)
+- Database queries (PostgreSQL/Prisma)
+- External HTTP calls
+
+### Response Headers
+
+When tracing is enabled, responses include:
+- `X-Trace-Id` - Trace ID for correlation

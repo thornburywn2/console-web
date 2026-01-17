@@ -1,4 +1,9 @@
 import 'dotenv/config';
+
+// Initialize OpenTelemetry tracing FIRST (before other imports)
+import { initTracing, tracingMiddleware } from './services/tracing.js';
+await initTracing();
+
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -386,6 +391,9 @@ app.use(cookieParser());
 
 // Structured request logging - adds req.id and req.log to all requests
 app.use(requestLogger);
+
+// OpenTelemetry tracing middleware - adds trace context to requests
+app.use(tracingMiddleware());
 
 // Prometheus metrics middleware - tracks HTTP request metrics
 app.use(metricsMiddleware);

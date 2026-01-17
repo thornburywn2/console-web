@@ -1,0 +1,43 @@
+# Fluentd Log Aggregation Stack
+# 
+# Usage:
+#   docker-compose up -d
+#
+# Prerequisites:
+#   - Elasticsearch running (or configure alternative output)
+#   - Console.web LOG_FILE configured
+
+services:
+  fluentd:
+    image: fluent/fluentd:v1.16-debian
+    container_name: console-web-fluentd
+    restart: unless-stopped
+    volumes:
+      - ./fluent.conf:/fluentd/etc/fluent.conf:ro
+      - /home/thornburywn/Projects/console-web/logs:/logs:ro
+      - /home/thornburywn/.pm2/logs:/pm2-logs:ro
+      - fluentd-pos:/var/log/fluentd
+      - fluentd-buffer:/var/log/fluentd/buffer
+    environment:
+      - ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST:-elasticsearch}
+      - ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
+      - ELASTICSEARCH_USER=${ELASTICSEARCH_USER:-elastic}
+      - ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_PASSWORD:-changeme}
+      - LOKI_URL=${LOKI_URL:-http://loki:3100}
+      - NODE_ENV=${NODE_ENV:-production}
+    networks:
+      - monitoring
+    # Install elasticsearch plugin on startup
+    command: >
+      /bin/sh -c "
+        gem install fluent-plugin-elasticsearch --no-document &&
+        fluentd -c /fluentd/etc/fluent.conf
+      "
+
+volumes:
+  fluentd-pos:
+  fluentd-buffer:
+
+networks:
+  monitoring:
+    external: true
