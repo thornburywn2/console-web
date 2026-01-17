@@ -84,6 +84,77 @@ End of Day:
 
 ---
 
+## [1.0.6] - 2026-01-17
+
+### Admin Dashboard Modularization
+
+This major release refactors the 5,544-line AdminDashboard.jsx monolith into 35+ modular components with improved navigation.
+
+### Navigation Changes
+
+- **SETTINGS promoted**: Now a main tab (was nested 2 levels deep under SYSTEM)
+- **AUTOMATION created**: New tab combining AGENTS + MCP + SCHEDULED
+- **INFRASTRUCTURE renamed**: Now called SERVER for clarity
+- **Cleaner hierarchy**: Maximum 2 levels of nesting (main tab → sub-tab)
+
+### New Navigation Structure
+
+```
+Before: PROJECTS | SYSTEM (13 sub-tabs) | AGENTS | MCP | SECURITY | HISTORY
+After:  PROJECTS | SETTINGS | AUTOMATION | SERVER | SECURITY | HISTORY
+```
+
+### Technical Changes
+
+#### Component Extraction
+- **AdminDashboard.jsx**: Reduced from 5,544 to 915 lines (83% reduction)
+- **35+ new components**: Each tab and pane extracted to separate files
+- **New folder structure**: `src/components/admin/` with organized subdirectories
+
+#### New Components
+- `admin/constants.js` - Tab enums and legacy migration helpers
+- `admin/shared/` - TabButton, SubTabBar, TabContainer, ErrorBoundary
+- `admin/tabs/SettingsTab/` - 6 pane components (General, Appearance, Shortcuts, etc.)
+- `admin/tabs/AutomationTab/` - 3 pane components (Agents, MCP, Scheduled)
+- `admin/tabs/ServerTab/` - 10 pane components (Overview, Services, Docker, etc.)
+- `admin/tabs/SecurityTab/` - 4 pane components (Scans, Firewall, Fail2ban, ScanConfig)
+- `admin/tabs/ProjectsTab.jsx` - Project list with completion metrics
+- `admin/tabs/HistoryTab.jsx` - Session history browser
+
+### Bug Fixes
+
+- **HistoryTab**: Fixed API endpoint (was `/api/sessions/history`, now `/api/admin/history`)
+- **ScheduledPane**: Fixed cron/timer endpoints to use `/api/infra/scheduled/*`
+- **Fail2banPane**: Fixed endpoint to `/api/infra/security/fail2ban/status`
+- **ScanConfigPane**: Replaced non-existent endpoints with placeholder UI
+
+---
+
+## [1.0.5] - 2026-01-16
+
+### Production Hardening & Observability
+
+This release adds comprehensive security hardening, observability, and testing infrastructure.
+
+### Security
+
+- **Helmet middleware**: CSP, HSTS, X-Frame-Options, and other security headers
+- **Rate limiting**: General (1000/15min), strict (10/min), and auth (10/15min) rate limiters
+- **Input validation**: 25+ Zod schemas validate all API input
+
+### Observability
+
+- **Prometheus metrics**: HTTP duration histograms, request counters, WebSocket gauges at `/metrics`
+- **Slow query logging**: Prisma queries exceeding 100ms are automatically logged
+- **Watcher alerts**: PM2 watcher integrates with AlertRule database for memory/service alerts
+
+### Testing
+
+- **Backend tests**: 111 passing tests covering validation schemas, middleware, and metrics
+- **Test infrastructure**: Vitest configuration with coverage reporting
+
+---
+
 ## [1.0.4] - 2026-01-16
 
 ### Paste Fix & Structured Logging

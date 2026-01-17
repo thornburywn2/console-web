@@ -7,6 +7,26 @@ import { useState, useEffect, useCallback } from 'react';
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.6',
+    date: '2026-01-17',
+    type: 'major',
+    title: 'Admin Dashboard Modularization',
+    highlights: [
+      'Refactored 5,544-line AdminDashboard.jsx into 35+ modular components',
+      'New navigation: PROJECTS | SETTINGS | AUTOMATION | SERVER | SECURITY | HISTORY',
+      'SETTINGS promoted to main tab (was nested 2 levels deep)',
+      'New AUTOMATION tab combines AGENTS + MCP + SCHEDULED',
+    ],
+    features: [
+      { title: 'Component Extraction', description: 'AdminDashboard reduced from 5,544 to 915 lines (83% reduction)' },
+      { title: 'Tab Restructure', description: 'INFRASTRUCTURE renamed to SERVER, SETTINGS promoted, AUTOMATION created' },
+      { title: 'Shared Components', description: 'New TabButton, SubTabBar, TabContainer, ErrorBoundary components' },
+      { title: 'Error Boundaries', description: 'Each tab wrapped in error boundary for fault tolerance' },
+      { title: 'API Endpoint Fixes', description: 'Fixed HistoryTab, ScheduledPane, Fail2banPane, ScanConfigPane endpoints' },
+      { title: 'Organized Structure', description: 'New src/components/admin/ folder with tabs/, shared/, and constants' },
+    ],
+  },
+  {
     version: '1.0.5',
     date: '2026-01-16',
     type: 'minor',
