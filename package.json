@@ -30,6 +30,8 @@
     "@octokit/rest": "^22.0.1",
     "@prisma/adapter-pg": "^7.2.0",
     "@prisma/client": "^7.2.0",
+    "@sentry/node": "^10.34.0",
+    "@sentry/react": "^10.34.0",
     "@xterm/addon-clipboard": "^0.2.0",
     "@xterm/addon-serialize": "^0.14.0",
     "chart.js": "^4.5.1",
