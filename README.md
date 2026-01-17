@@ -1,242 +1,278 @@
 # Console.web
 
-A comprehensive web-based management interface for Claude Code projects. Provides real-time terminal access, AI agent automation, GitHub integration, system monitoring, and project organization - your one-stop dashboard for managing development infrastructure.
+### Your AI-Powered Development Command Center
 
-## Features
+**Stop context-switching. Start shipping.**
 
-### Core
-- **Project Sidebar**: Browse, search, and favorite projects from your configured directory
-- **Persistent Sessions**: Claude sessions run in tmux, surviving browser refreshes and disconnects
-- **Full Terminal Experience**: xterm.js with complete terminal emulation (colors, spinners, vim keybindings)
-- **Multi-Session Support**: Switch between active Claude sessions without losing context
-- **11 Themes**: Glassmorphism themes including dark mode, ocean, sepia, and more
+Console.web transforms how you work with AI coding assistants. Instead of juggling terminal windows, losing session context, and manually managing infrastructure, you get a unified dashboard where Claude Code sessions persist forever, terminals survive disconnects, and your entire development stack is one click away.
 
-### Admin Dashboard (v1.0.0)
-- **6 Main Tabs**: PROJECTS, INFRASTRUCTURE, AGENTS, MCP, SECURITY, HISTORY
-- **INFRASTRUCTURE**: Server services, Docker containers, Sovereign Stack health (with sub-tabs)
-- **DEVELOPMENT**: API Tester, Git Workflow, File Browser, Database Browser, Log Viewer
-- **AGENTS**: Custom agents + Marketplace with 13+ pre-built automation agents (with sub-tabs)
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  CONSOLE.WEB v1.0.15                                          ⚡ LIVE       │
+├─────────────┬───────────────────────────────────────────────────────────────┤
+│             │                                                               │
+│  📁 PROJECTS│   $ claude "refactor auth to use JWT"                        │
+│  ├─ api     │   ✓ Analyzing codebase structure...                          │
+│  ├─ web ◀   │   ✓ Found 12 files with auth logic                           │
+│  └─ mobile  │   ✓ Creating migration plan...                               │
+│             │   ✓ Updating src/auth/provider.ts                            │
+│  ⭐ FAVORITES│   ✓ Updating src/middleware/auth.ts                          │
+│  ├─ console │   ✓ Running tests... 47/47 passed                            │
+│  └─ agents  │                                                               │
+│             │   Ready for next command.                                     │
+│  📊 SYSTEM  │   _                                                           │
+│  CPU: 23%   ├───────────────────────────────────────────────────────────────┤
+│  MEM: 4.2GB │  [PROJECTS] [SERVER] [AGENTS] [SECURITY] [SETTINGS]          │
+│  DISK: 67%  │                                                               │
+└─────────────┴───────────────────────────────────────────────────────────────┘
+```
 
-### AI Agents
-- **Agent Marketplace**: Browse and install from 13+ pre-built automation agents
-- **Agent Categories**: Code Quality, Git Workflow, Security, Testing, Documentation, DevOps, Productivity
-- **One-Click Install**: Configure trigger type, project scope, and settings before installation
-- **Custom Agents**: Build your own agents with shell commands, API calls, or MCP tools
+---
 
-### GitHub Integration
-- **Repository Browser**: Browse all your GitHub repos with search
-- **Clone from GitHub**: Clone repos directly to local projects with one click
-- **Push to GitHub**: Create new GitHub repositories from local projects
-- **Sync Status**: Visual indicators showing ahead/behind/synced status
-- **GitHub Actions**: View workflow runs and CI/CD status per project
+## 🎯 The Problem
 
-### Security
-- **Security Dashboard**: Integrated security scanning from the Admin Dashboard
-- **Push Sanitization**: Pre-push hooks scan for secrets, PII, and sensitive data
-- **Tool Integration**: Semgrep, Gitleaks, Trivy, License Checker support
-- **One-Click Scans**: Run security, quality gate, and performance scans
+Working with AI coding assistants today is **fragmented**:
 
-### Organization
-- **Folders & Tags**: Organize sessions with hierarchical folders and color-coded tags
-- **Session Notes**: Attach markdown notes to sessions
-- **Templates**: Create session templates for quick setup
-- **Checkpoints**: Save and restore project state snapshots
+- **Sessions disappear** when you close your browser or lose connection
+- **Context is lost** switching between projects and terminals
+- **No visibility** into what your AI agents are doing across projects
+- **Manual overhead** managing infrastructure, containers, git, deployments
+- **Security blind spots** - no unified view of vulnerabilities across your stack
 
-### Libraries
-- **Prompt Library**: Reusable prompt templates with variable substitution
-- **Command Snippets**: Quick access to common commands
-- **MCP Server Catalog**: 22+ pre-configured MCP servers with one-click installation
+You're constantly rebuilding context, re-explaining your codebase, and context-switching between tools.
 
-### Collaboration
-- **Session Sharing**: Share sessions with expiring links and optional passwords
-- **Comments**: Inline comments and discussion threads
-- **Team Handoffs**: Transfer sessions with context to team members
-- **Activity Feed**: Track team activity
+## ✨ The Solution
 
-### Developer Tools
-- **Git Integration**: Commit, push, pull, and manage branches
-- **File Browser**: Explore project files with preview
-- **Database Browser**: Query and edit database tables
-- **Port Wizard**: Manage port allocations and conflicts
-- **Embedded Browser**: Preview agent-built UIs with DevTools
+Console.web gives you **persistent AI sessions** backed by shpool, a **unified dashboard** for all your projects, and **one-click infrastructure management** - all in a beautiful, themeable interface.
 
-### System Admin
-- **System Stats**: Real-time CPU, memory, and disk monitoring
-- **Docker Control**: Container lifecycle management
-- **Cloudflare Tunnels**: One-click publish to Cloudflare with automatic DNS
-- **Workflow Automation**: Build automated task sequences
+### Sessions That Never Die
 
-## Requirements
+```bash
+# Your Claude session survives everything:
+✓ Browser refresh → Session continues
+✓ Network disconnect → Reconnects automatically
+✓ Server restart → Sessions persist in shpool
+✓ Multiple devices → Same session, anywhere
+```
 
-- Node.js 18+
+### Everything in One Place
+
+| What You Get | What It Replaces |
+|--------------|------------------|
+| Persistent terminal sessions | tmux + terminal tabs + SSH sessions |
+| Project dashboard with metrics | Manual project tracking |
+| Docker container management | Docker Desktop + CLI |
+| Git workflow UI | GitKraken / CLI juggling |
+| Security scanning dashboard | Multiple CLI tools |
+| AI agent automation | Custom scripts everywhere |
+| MCP server catalog | Manual MCP configuration |
+
+---
+
+## 🚀 Key Features
+
+### 🖥️ Persistent AI Terminal Sessions
+- **Shpool-backed sessions** survive browser closes, network drops, and server restarts
+- **Full terminal emulation** with xterm.js - colors, vim, spinners, everything works
+- **Multi-project support** - switch projects without losing any session context
+- **Session history** with searchable command logs
+
+### 🤖 AI Agent Marketplace
+- **13+ pre-built agents** for code quality, security, testing, git workflows
+- **One-click install** with customizable triggers and scopes
+- **Build custom agents** with shell commands, API calls, or MCP tools
+- **Automatic execution** on file changes, schedules, or git events
+
+### 🔒 Security Dashboard
+- **Unified vulnerability view** across all projects
+- **Pre-push sanitization** catches secrets before they leak
+- **Integrated scanning** with Semgrep, Gitleaks, Trivy
+- **Firewall management** with UFW integration
+
+### 📊 Full Observability
+- **Prometheus metrics** for requests, latency, database, WebSocket connections
+- **Sentry integration** with request ID tracing through the stack
+- **Grafana dashboards** for visualization
+- **Alert rules** for error rates, latency, and resource exhaustion
+
+### 🐳 Infrastructure Control
+- **Docker management** - start, stop, restart, view logs for all containers
+- **Service monitoring** - systemd services at a glance
+- **Cloudflare Tunnels** - one-click publish with automatic DNS
+- **Real-time system stats** - CPU, memory, disk, network
+
+### 🎨 Developer Experience
+- **11 glassmorphism themes** including dark mode, ocean, sepia
+- **Command palette** (⌘K) for quick actions
+- **Prompt library** with variable substitution
+- **MCP server catalog** - 22+ servers with one-click setup
+
+---
+
+## 📦 Quick Start
+
+### Prerequisites
+
+- Node.js 18+ and npm
 - PostgreSQL 14+
-- tmux installed on the server
-- `claude-code` CLI installed globally (`npm install -g @anthropic-ai/claude-code`)
-- Anthropic API key configured
+- [shpool](https://github.com/shell-pool/shpool) for session persistence
+- Claude Code CLI (`npm install -g @anthropic-ai/claude-code`)
 
-## Quick Start
-
-### Local Development
+### Installation
 
 ```bash
 # Clone the repository
-cd ~/Projects/console-web
-
-# Copy environment file
-cp .env.example .env
-
-# Edit .env with your configuration
-# - Set PROJECTS_DIR to your projects folder
-# - Set ANTHROPIC_API_KEY for claude CLI
-# - Set DATABASE_URL for PostgreSQL
+git clone https://github.com/yourusername/console-web.git
+cd console-web
 
 # Install dependencies
 npm install
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your settings:
+#   DATABASE_URL=postgresql://...
+#   ANTHROPIC_API_KEY=sk-ant-...
+#   PROJECTS_DIR=~/Projects
 
 # Setup database
 npx prisma db push
 npx prisma generate
 
-# Start development servers (frontend:7777 + backend:5275)
+# Start development server
 npm run dev
 
 # Open http://localhost:7777
 ```
 
-### Production (Docker)
+### Docker Deployment
 
 ```bash
-# Build and run with docker-compose
 docker-compose up -d
-
-# Or build manually
-docker build -t command-portal .
-docker run -d \
-  -p 5275:5275 \
-  -v /path/to/your/projects:/projects \
-  -e ANTHROPIC_API_KEY=your-key \
-  -e DATABASE_URL=postgresql://... \
-  command-portal
+# Access at http://localhost:7777
 ```
 
-### Access
+---
 
-After starting, open: http://localhost:7777
-
-## Configuration
-
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | Backend server port | `5275` |
-| `PROJECTS_DIR` | Directory containing your projects | `~/Projects` |
-| `CLIENT_URL` | Frontend URL for CORS | `http://localhost:7777` |
-| `DATABASE_URL` | PostgreSQL connection string | Required |
-| `NODE_ENV` | Environment mode | `development` |
-| `ANTHROPIC_API_KEY` | API key for Claude CLI | Required |
-| `AUTH_ENABLED` | Enable Authentik authentication | `true` |
-| `AUTHENTIK_URL` | Authentik server URL | `https://auth.example.com` |
-
-## Architecture
+## 🏗️ Architecture
 
 ```
-+-------------------------------------------------------------+
-|                     Browser (React)                          |
-|  +-----------+  +---------------------------------------+    |
-|  |  Sidebar  |  |           xterm.js                    |    |
-|  | (Projects)|  |      (Terminal Emulator)              |    |
-|  +-----------+  +---------------------------------------+    |
-+----------------------------+--------------------------------+
-                             | Socket.IO (WebSocket)
-+----------------------------v--------------------------------+
-|                   Node.js Backend                            |
-|  +-----------+  +---------------+  +------------------+      |
-|  |  Express  |  |   node-pty    |  |     Prisma       |      |
-|  |   (API)   |  | (PTY Manager) |  |   (Database)     |      |
-|  +-----------+  +-------+-------+  +--------+---------+      |
-+-------------------------|------------------|----------------+
-                          |                  |
-+-------------------------v--+    +----------v-----------+
-|       tmux Sessions        |    |     PostgreSQL       |
-|  +--------+ +--------+     |    |  +----------------+  |
-|  |cp-proj1|  |cp-proj2|    |    |  | Sessions, Tags |  |
-|  |[claude]|  |[claude]|    |    |  | Prompts, etc.  |  |
-|  +--------+ +--------+     |    |  +----------------+  |
-+----------------------------+    +----------------------+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Console.web v1.0.15                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │                    React Frontend (Vite + Tailwind)                 │   │
+│   │  Terminal │ Dashboard │ Projects │ Security │ Settings │ Agents    │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                             Socket.IO + REST                                │
+│                                    │                                        │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │                 Express Backend (41+ Route Files)                   │   │
+│   │  Sessions │ Docker │ Git │ Agents │ Search │ Monitoring │ Security │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│   ┌──────────────┬─────────────────┼─────────────────┬──────────────────┐   │
+│   │   Shpool     │   PostgreSQL    │   Prometheus    │   Sentry         │   │
+│   │  (Sessions)  │    (Prisma)     │   (Metrics)     │  (Errors)        │   │
+│   └──────────────┴─────────────────┴─────────────────┴──────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Session Persistence
+### Tech Stack
 
-Sessions are managed by tmux with naming convention `cp-{project_name}` (Console.web). This means:
+| Layer | Technology |
+|-------|------------|
+| **Frontend** | React 18, Vite, Tailwind CSS, xterm.js |
+| **Backend** | Node.js, Express, Socket.IO |
+| **Database** | PostgreSQL with Prisma 7 |
+| **Sessions** | shpool (persistent terminal sessions) |
+| **Containers** | Dockerode |
+| **Observability** | Prometheus, Grafana, Loki, Sentry |
+| **Security** | Helmet, Zod validation, rate limiting |
 
-- **Browser Refresh**: Sessions continue running, reconnect automatically
-- **Server Restart**: tmux sessions persist, reattach on startup
-- **Multiple Clients**: Multiple browsers can view the same session
-- **Database Backup**: Session state persisted to PostgreSQL
+---
 
-### Manual Session Management
+## 📊 Observability Stack
+
+Console.web includes a complete observability setup in the `monitoring/` directory:
 
 ```bash
-# List all Console.web sessions
-tmux list-sessions | grep cp-
-
-# Attach to a session directly
-tmux attach -t cp-myproject
-
-# Kill a specific session
-tmux kill-session -t cp-myproject
+cd monitoring
+docker-compose up -d
 ```
 
-## Security Considerations
+This gives you:
+- **Prometheus** metrics collection with 20+ custom metrics
+- **Grafana** dashboards for visualization
+- **Loki + Promtail** for log aggregation
+- **Alert rules** for error rates, latency, pool exhaustion
 
-This application is designed to run behind a reverse proxy (e.g., Nginx with Authentik). It binds to `0.0.0.0` but includes Authentik OAuth2 authentication.
+---
 
-**Recommended Setup:**
-1. Run behind Authentik or another auth proxy
-2. Use HTTPS termination at the proxy level
-3. Limit network access to trusted networks
-4. Configure `TRUSTED_PROXY_IPS` for proxy validation
+## 🔐 Security
 
-## Development
+Console.web is designed for self-hosted environments with defense in depth:
+
+- **Authentik SSO** integration for enterprise authentication
+- **Pre-push hooks** scan for secrets and PII before commits reach GitHub
+- **Input validation** with Zod schemas on all endpoints
+- **Rate limiting** to prevent abuse
+- **Security headers** via Helmet
+- **Request ID tracing** through the entire stack
+
+### Recommended Deployment
+
+1. Run behind a reverse proxy (nginx/Caddy) with HTTPS
+2. Enable Authentik authentication for access control
+3. Use Cloudflare Tunnel for secure external access
+4. Configure `TRUSTED_PROXY_IPS` for your infrastructure
+
+---
+
+## 🧪 Testing
 
 ```bash
-# Run backend only
-npm run dev:server
-
-# Run frontend only
-npm run dev:client
-
-# Run both with concurrently
-npm run dev
-
-# Build for production
-npm run build
-
-# Start production server
-npm start
-
-# Run tests
+# Unit tests (113 tests)
 npm test
+
+# E2E tests with Playwright (36 tests)
+npm run test:e2e
+
+# Coverage report
 npm run test:coverage
+
+# Storybook component library
+npm run storybook
 ```
 
-## Database
+---
 
-```bash
-# Apply schema changes
-npx prisma db push
+## 📚 Documentation
 
-# Generate Prisma client
-npx prisma generate
+- [CHANGELOG.md](./CHANGELOG.md) - Version history and detailed release notes
+- [CLAUDE.md](./CLAUDE.md) - AI agent context and project documentation
+- [STABILITY-ROADMAP.md](./STABILITY-ROADMAP.md) - Development roadmap and progress
+- [monitoring/README.md](./monitoring/README.md) - Observability stack setup
 
-# Open database GUI
-npx prisma studio
+---
 
-# Create migration
-npx prisma migrate dev --name your_migration_name
-```
+## 🤝 Contributing
 
-## License
+Contributions are welcome! Please read our contributing guidelines and submit PRs to the `main` branch.
 
-MIT
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](./LICENSE) for details.
+
+---
+
+<p align="center">
+  <strong>Built for developers who ship fast and break nothing.</strong>
+  <br>
+  <sub>Stop managing infrastructure. Start building.</sub>
+</p>
