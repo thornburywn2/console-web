@@ -4,28 +4,13 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-
-// Predefined colors for tags (matching TagManager)
-const TAG_COLORS = [
-  '#ef4444', // Red
-  '#f97316', // Orange
-  '#eab308', // Yellow
-  '#22c55e', // Green
-  '#10b981', // Emerald
-  '#06b6d4', // Cyan
-  '#3b82f6', // Blue
-  '#8b5cf6', // Purple
-  '#ec4899', // Pink
-  '#6b7280', // Gray
-];
-
-// Priority options
-const PRIORITY_OPTIONS = [
-  { value: null, label: 'None', color: 'var(--text-muted)' },
-  { value: 'HIGH', label: 'High', color: '#ef4444' },
-  { value: 'MEDIUM', label: 'Medium', color: '#f97316' },
-  { value: 'LOW', label: 'Low', color: '#22c55e' },
-];
+import {
+  PRIORITY_OPTIONS,
+  ProjectInfoView,
+  NotesView,
+  CloneView,
+  TagsSection,
+} from './context-menu';
 
 export default function ProjectContextMenu({
   isOpen,
@@ -41,13 +26,10 @@ export default function ProjectContextMenu({
   const menuRef = useRef(null);
   const [allTags, setAllTags] = useState([]);
   const [projectTags, setProjectTags] = useState([]);
-  const [isCreatingTag, setIsCreatingTag] = useState(false);
-  const [newTagName, setNewTagName] = useState('');
-  const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
   const [isLoading, setIsLoading] = useState(false);
 
   // View states
-  const [currentView, setCurrentView] = useState('main'); // main, info, notes, clone, settings
+  const [currentView, setCurrentView] = useState('main');
   const [projectInfo, setProjectInfo] = useState(null);
   const [loadingInfo, setLoadingInfo] = useState(false);
 
@@ -57,17 +39,8 @@ export default function ProjectContextMenu({
 
   // Notes state
   const [notes, setNotes] = useState([]);
-  const [isCreatingNote, setIsCreatingNote] = useState(false);
-  const [newNoteTitle, setNewNoteTitle] = useState('');
-  const [newNoteContent, setNewNoteContent] = useState('');
-  const [editingNote, setEditingNote] = useState(null);
 
-  // Clone state
-  const [cloneName, setCloneName] = useState('');
-  const [copySettings, setCopySettings] = useState(true);
-  const [cloning, setCloning] = useState(false);
-
-  // Encode project path for URL (URL-encode the base64 to handle = padding)
+  // Encode project path for URL
   const encodedPath = project?.path ? encodeURIComponent(btoa(project.path)) : null;
 
   // Fetch all tags and project's current tags
@@ -163,7 +136,6 @@ export default function ProjectContextMenu({
       fetchSettings();
       setCurrentView('main');
       setProjectInfo(null);
-      setCloneName(project.name + '-copy');
     }
   }, [isOpen, project?.path, fetchTags, fetchSettings]);
 
@@ -223,18 +195,13 @@ export default function ProjectContextMenu({
   };
 
   // Create new tag
-  const handleCreateTag = async () => {
-    if (!newTagName.trim()) return;
-
+  const handleCreateTag = async (name, color) => {
     setIsLoading(true);
     try {
       const res = await fetch('/api/project-tags', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newTagName.trim(),
-          color: newTagColor
-        })
+        body: JSON.stringify({ name, color })
       });
 
       if (res.ok) {
@@ -244,9 +211,6 @@ export default function ProjectContextMenu({
           await fetch(`/api/projects/by-path/${encodedPath}/tags/${tag.id}`, { method: 'POST' });
           setProjectTags(prev => [...prev, tag]);
         }
-        setNewTagName('');
-        setNewTagColor(TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)]);
-        setIsCreatingTag(false);
         onRefresh?.();
       }
     } catch (err) {
@@ -279,26 +243,18 @@ export default function ProjectContextMenu({
   };
 
   // Create note
-  const handleCreateNote = async () => {
-    if (!newNoteContent.trim()) return;
-
+  const handleCreateNote = async (title, content) => {
     setIsLoading(true);
     try {
       const res = await fetch(`/api/projects/by-path/${encodedPath}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: newNoteTitle.trim() || null,
-          content: newNoteContent.trim(),
-        })
+        body: JSON.stringify({ title, content })
       });
 
       if (res.ok) {
         const note = await res.json();
         setNotes(prev => [note, ...prev]);
-        setNewNoteTitle('');
-        setNewNoteContent('');
-        setIsCreatingNote(false);
       }
     } catch (err) {
       console.error('Failed to create note:', err);
@@ -340,17 +296,14 @@ export default function ProjectContextMenu({
   };
 
   // Clone project
-  const handleCloneProject = async () => {
-    if (!cloneName.trim()) return;
-
-    setCloning(true);
+  const handleCloneProject = async (cloneName, copySettings) => {
     try {
       const res = await fetch('/api/projects/clone', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sourcePath: project.path,
-          newName: cloneName.trim(),
+          newName: cloneName,
           copySettings,
         })
       });
@@ -365,8 +318,6 @@ export default function ProjectContextMenu({
     } catch (err) {
       console.error('Failed to clone project:', err);
       alert('Failed to clone project');
-    } finally {
-      setCloning(false);
     }
   };
 
@@ -390,347 +341,49 @@ export default function ProjectContextMenu({
     zIndex: 9999,
   };
 
-  // Back button for subviews
-  const BackButton = ({ label }) => (
-    <div className="px-3 py-2 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => setCurrentView('main')}
-          className="p-1 hover:bg-white/10 rounded"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <span className="text-xs font-semibold text-primary">{label}</span>
-      </div>
-      <button onClick={onClose} className="p-1 hover:bg-white/10 rounded">
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
-    </div>
-  );
-
-  // Project Info View
+  // Render subviews
   if (currentView === 'info') {
     return (
-      <div
-        ref={menuRef}
-        className="w-72 rounded-lg shadow-2xl overflow-hidden"
-        style={{
-          ...menuStyle,
-          background: 'var(--bg-elevated)',
-          border: '1px solid var(--border-default)',
-          backdropFilter: 'blur(16px)',
-        }}
-      >
-        <BackButton label="Project Info" />
-
-        <div className="p-3 space-y-3">
-          {loadingInfo ? (
-            <div className="text-center py-4">
-              <div className="animate-spin w-6 h-6 border-2 border-accent border-t-transparent rounded-full mx-auto" />
-              <div className="text-xs text-muted mt-2">Loading...</div>
-            </div>
-          ) : projectInfo ? (
-            <>
-              <div>
-                <div className="text-2xs text-muted uppercase mb-1">Project Name</div>
-                <div className="text-sm font-semibold text-primary">{projectInfo.name || project.name}</div>
-              </div>
-
-              <div>
-                <div className="text-2xs text-muted uppercase mb-1">Path</div>
-                <div className="text-xs font-mono text-secondary break-all">{project.path}</div>
-              </div>
-
-              {projectTags.length > 0 && (
-                <div>
-                  <div className="text-2xs text-muted uppercase mb-1">Tags</div>
-                  <div className="flex flex-wrap gap-1">
-                    {projectTags.map(tag => (
-                      <span
-                        key={tag.id}
-                        className="text-2xs px-1.5 py-0.5 rounded-full"
-                        style={{
-                          backgroundColor: `${tag.color}20`,
-                          color: tag.color,
-                          border: `1px solid ${tag.color}40`,
-                        }}
-                      >
-                        {tag.name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {priority && (
-                <div>
-                  <div className="text-2xs text-muted uppercase mb-1">Priority</div>
-                  <span
-                    className="text-xs font-semibold"
-                    style={{ color: PRIORITY_OPTIONS.find(p => p.value === priority)?.color }}
-                  >
-                    {priority}
-                  </span>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-2">
-                <div className="p-2 rounded" style={{ background: 'var(--bg-tertiary)' }}>
-                  <div className="text-2xs text-muted">Session</div>
-                  <div className={`text-xs font-semibold ${project.hasActiveSession ? 'text-green-400' : 'text-muted'}`}>
-                    {project.hasActiveSession ? 'Active' : 'Inactive'}
-                  </div>
-                </div>
-
-                {project.lastModified && (
-                  <div className="p-2 rounded" style={{ background: 'var(--bg-tertiary)' }}>
-                    <div className="text-2xs text-muted">Modified</div>
-                    <div className="text-xs text-secondary">
-                      {new Date(project.lastModified).toLocaleDateString()}
-                    </div>
-                  </div>
-                )}
-
-                {projectInfo.fileCount && (
-                  <div className="p-2 rounded" style={{ background: 'var(--bg-tertiary)' }}>
-                    <div className="text-2xs text-muted">Files</div>
-                    <div className="text-xs text-secondary">{projectInfo.fileCount}</div>
-                  </div>
-                )}
-
-                {projectInfo.size && (
-                  <div className="p-2 rounded" style={{ background: 'var(--bg-tertiary)' }}>
-                    <div className="text-2xs text-muted">Size</div>
-                    <div className="text-xs text-secondary">{projectInfo.size}</div>
-                  </div>
-                )}
-              </div>
-
-              {projectInfo.git && (
-                <div>
-                  <div className="text-2xs text-muted uppercase mb-1">Git</div>
-                  <div className="p-2 rounded space-y-1" style={{ background: 'var(--bg-tertiary)' }}>
-                    {projectInfo.git.branch && (
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="text-muted">Branch:</span>
-                        <span className="text-secondary font-mono">{projectInfo.git.branch}</span>
-                      </div>
-                    )}
-                    {projectInfo.git.lastCommit && (
-                      <div className="text-2xs text-muted truncate" title={projectInfo.git.lastCommit}>
-                        {projectInfo.git.lastCommit}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {projectInfo.hasClaudeMd !== undefined && (
-                <div className="flex items-center gap-2 text-xs">
-                  <span className={projectInfo.hasClaudeMd ? 'text-green-400' : 'text-amber-400'}>
-                    {projectInfo.hasClaudeMd ? '✓' : '○'}
-                  </span>
-                  <span className="text-secondary">CLAUDE.md</span>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="text-center py-4 text-muted text-xs">No info available</div>
-          )}
-        </div>
-      </div>
+      <ProjectInfoView
+        menuRef={menuRef}
+        menuStyle={menuStyle}
+        project={project}
+        projectInfo={projectInfo}
+        projectTags={projectTags}
+        priority={priority}
+        loadingInfo={loadingInfo}
+        onBack={() => setCurrentView('main')}
+        onClose={onClose}
+      />
     );
   }
 
-  // Notes View
   if (currentView === 'notes') {
     return (
-      <div
-        ref={menuRef}
-        className="w-80 rounded-lg shadow-2xl overflow-hidden"
-        style={{
-          ...menuStyle,
-          background: 'var(--bg-elevated)',
-          border: '1px solid var(--border-default)',
-          backdropFilter: 'blur(16px)',
-        }}
-      >
-        <BackButton label="Project Notes" />
-
-        <div className="p-3 space-y-3 max-h-96 overflow-y-auto">
-          {/* Create note form */}
-          {isCreatingNote ? (
-            <div className="p-2 rounded space-y-2" style={{ background: 'var(--bg-tertiary)' }}>
-              <input
-                type="text"
-                value={newNoteTitle}
-                onChange={(e) => setNewNoteTitle(e.target.value)}
-                placeholder="Title (optional)"
-                className="w-full bg-transparent border-b border-accent/50 outline-none text-xs px-1 py-1"
-              />
-              <textarea
-                value={newNoteContent}
-                onChange={(e) => setNewNoteContent(e.target.value)}
-                placeholder="Note content..."
-                className="w-full bg-transparent outline-none text-xs resize-none"
-                rows={3}
-                autoFocus
-              />
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => {
-                    setIsCreatingNote(false);
-                    setNewNoteTitle('');
-                    setNewNoteContent('');
-                  }}
-                  className="px-2 py-1 text-2xs text-secondary hover:text-primary"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreateNote}
-                  disabled={!newNoteContent.trim() || isLoading}
-                  className="px-2 py-1 text-2xs bg-accent/20 text-accent rounded hover:bg-accent/30 disabled:opacity-50"
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              onClick={() => setIsCreatingNote(true)}
-              className="w-full flex items-center justify-center gap-1 px-2 py-2 text-xs text-accent hover:bg-accent/10 rounded transition-colors"
-              style={{ border: '1px dashed var(--border-subtle)' }}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Note
-            </button>
-          )}
-
-          {/* Notes list */}
-          {notes.length === 0 && !isCreatingNote ? (
-            <div className="text-center py-4 text-muted text-xs">No notes yet</div>
-          ) : (
-            notes.map(note => (
-              <div
-                key={note.id}
-                className="p-2 rounded group"
-                style={{ background: 'var(--bg-tertiary)' }}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    {note.title && (
-                      <div className="text-xs font-semibold text-primary truncate">{note.title}</div>
-                    )}
-                    <div className="text-2xs text-secondary whitespace-pre-wrap break-words">
-                      {note.content}
-                    </div>
-                    <div className="text-2xs text-muted mt-1">
-                      {new Date(note.createdAt).toLocaleDateString()}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => handleToggleNotePin(note.id, note.isPinned)}
-                      className={`p-1 hover:bg-white/10 rounded ${note.isPinned ? 'text-accent' : 'text-muted'}`}
-                      title={note.isPinned ? 'Unpin' : 'Pin'}
-                    >
-                      <svg className="w-3 h-3" fill={note.isPinned ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => handleDeleteNote(note.id)}
-                      className="p-1 hover:bg-red-500/20 text-red-400 rounded"
-                      title="Delete"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+      <NotesView
+        menuRef={menuRef}
+        menuStyle={menuStyle}
+        notes={notes}
+        onBack={() => setCurrentView('main')}
+        onClose={onClose}
+        onCreateNote={handleCreateNote}
+        onDeleteNote={handleDeleteNote}
+        onToggleNotePin={handleToggleNotePin}
+        isLoading={isLoading}
+      />
     );
   }
 
-  // Clone View
   if (currentView === 'clone') {
     return (
-      <div
-        ref={menuRef}
-        className="w-72 rounded-lg shadow-2xl overflow-hidden"
-        style={{
-          ...menuStyle,
-          background: 'var(--bg-elevated)',
-          border: '1px solid var(--border-default)',
-          backdropFilter: 'blur(16px)',
-        }}
-      >
-        <BackButton label="Clone Project" />
-
-        <div className="p-3 space-y-3">
-          <div>
-            <div className="text-2xs text-muted uppercase mb-1">Source</div>
-            <div className="text-xs font-mono text-secondary truncate">{project.name}</div>
-          </div>
-
-          <div>
-            <div className="text-2xs text-muted uppercase mb-1">New Project Name</div>
-            <input
-              type="text"
-              value={cloneName}
-              onChange={(e) => setCloneName(e.target.value)}
-              placeholder="project-name"
-              className="w-full px-2 py-1.5 text-xs rounded bg-black/20 border border-white/10 outline-none focus:border-accent"
-            />
-          </div>
-
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={copySettings}
-              onChange={(e) => setCopySettings(e.target.checked)}
-              className="w-4 h-4 rounded accent-accent"
-            />
-            <span className="text-xs text-secondary">Copy tags, notes & settings</span>
-          </label>
-
-          <div className="text-2xs text-muted">
-            Note: Git history will be removed from the cloned project.
-          </div>
-
-          <button
-            onClick={handleCloneProject}
-            disabled={!cloneName.trim() || cloning}
-            className="w-full py-2 text-xs bg-accent/20 text-accent rounded hover:bg-accent/30 disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {cloning ? (
-              <>
-                <div className="animate-spin w-3 h-3 border-2 border-accent border-t-transparent rounded-full" />
-                Cloning...
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-                Clone Project
-              </>
-            )}
-          </button>
-        </div>
-      </div>
+      <CloneView
+        menuRef={menuRef}
+        menuStyle={menuStyle}
+        project={project}
+        onBack={() => setCurrentView('main')}
+        onClose={onClose}
+        onClone={handleCloneProject}
+      />
     );
   }
 
@@ -805,109 +458,13 @@ export default function ProjectContextMenu({
       </div>
 
       {/* Tags Section */}
-      <div className="p-2" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-        <div className="px-1 py-1 text-2xs font-semibold uppercase text-muted">Tags</div>
-
-        <div className="space-y-1 max-h-28 overflow-y-auto">
-          {allTags.map(tag => {
-            const isAssigned = projectTags.some(t => t.id === tag.id);
-            return (
-              <button
-                key={tag.id}
-                onClick={() => handleToggleTag(tag.id)}
-                disabled={isLoading}
-                className="w-full flex items-center gap-2 px-2 py-1 rounded text-xs hover:bg-white/5 transition-colors"
-              >
-                <div
-                  className="w-3 h-3 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: tag.color }}
-                />
-                <span className="flex-1 text-left truncate text-secondary">{tag.name}</span>
-                {isAssigned && (
-                  <svg className="w-3.5 h-3.5 text-accent" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                )}
-              </button>
-            );
-          })}
-
-          {allTags.length === 0 && !isCreatingTag && (
-            <div className="text-2xs text-muted text-center py-2">No tags yet</div>
-          )}
-        </div>
-
-        {/* Create new tag */}
-        {isCreatingTag ? (
-          <div className="mt-2 p-2 rounded" style={{ background: 'var(--bg-tertiary)' }}>
-            <div className="flex items-center gap-2 mb-2">
-              <div
-                className="w-3 h-3 rounded-full flex-shrink-0"
-                style={{ backgroundColor: newTagColor }}
-              />
-              <input
-                type="text"
-                value={newTagName}
-                onChange={(e) => setNewTagName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleCreateTag();
-                  if (e.key === 'Escape') {
-                    setIsCreatingTag(false);
-                    setNewTagName('');
-                  }
-                }}
-                placeholder="Tag name..."
-                className="flex-1 bg-transparent border-b border-accent outline-none text-xs"
-                autoFocus
-              />
-            </div>
-
-            <div className="flex gap-1 justify-center mb-2">
-              {TAG_COLORS.map(color => (
-                <button
-                  key={color}
-                  onClick={() => setNewTagColor(color)}
-                  className={`w-4 h-4 rounded-full border-2 transition-transform ${
-                    newTagColor === color
-                      ? 'border-white scale-110'
-                      : 'border-transparent hover:scale-110'
-                  }`}
-                  style={{ backgroundColor: color }}
-                />
-              ))}
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setIsCreatingTag(false);
-                  setNewTagName('');
-                }}
-                className="px-2 py-1 text-2xs text-secondary hover:text-primary"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateTag}
-                disabled={!newTagName.trim() || isLoading}
-                className="px-2 py-1 text-2xs bg-accent/20 text-accent rounded hover:bg-accent/30 disabled:opacity-50"
-              >
-                Create
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button
-            onClick={() => setIsCreatingTag(true)}
-            className="w-full mt-1 flex items-center justify-center gap-1 px-2 py-1 text-2xs text-accent hover:bg-accent/10 rounded transition-colors"
-          >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            New Tag
-          </button>
-        )}
-      </div>
+      <TagsSection
+        allTags={allTags}
+        projectTags={projectTags}
+        onToggleTag={handleToggleTag}
+        onCreateTag={handleCreateTag}
+        isLoading={isLoading}
+      />
 
       {/* Session Management Section */}
       <div className="p-1" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
@@ -1018,35 +575,5 @@ export default function ProjectContextMenu({
   );
 }
 
-// Tag chip for displaying inline tags
-export function ProjectTagChip({ tag, size = 'sm', onRemove }) {
-  const sizeClasses = {
-    xs: 'text-2xs px-1 py-0.5',
-    sm: 'text-xs px-1.5 py-0.5',
-    md: 'text-sm px-2 py-1',
-  };
-
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full ${sizeClasses[size]}`}
-      style={{
-        backgroundColor: `${tag.color}20`,
-        color: tag.color,
-        border: `1px solid ${tag.color}40`,
-      }}
-    >
-      {tag.name}
-      {onRemove && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove(tag.id);
-          }}
-          className="hover:opacity-70"
-        >
-          ×
-        </button>
-      )}
-    </span>
-  );
-}
+// Re-export ProjectTagChip for convenience
+export { ProjectTagChip } from './context-menu';
