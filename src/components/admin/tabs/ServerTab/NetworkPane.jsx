@@ -96,7 +96,7 @@ export function NetworkPane() {
         </div>
         <div className="hacker-card text-center">
           <div className="stat-value text-hacker-cyan">
-            {interfaces.filter(i => i.operstate === 'up').length}
+            {interfaces.filter(i => i.state === 'UP' || i.state === 'up' || i.state === 'UNKNOWN').length}
           </div>
           <div className="stat-label">UP</div>
         </div>
@@ -106,9 +106,9 @@ export function NetworkPane() {
         </div>
         <div className="hacker-card text-center">
           <div className="stat-value text-hacker-warning">
-            {connections.filter(c => c.state === 'ESTABLISHED').length}
+            {connections.filter(c => c.state === 'LISTEN').length}
           </div>
-          <div className="stat-label">ESTABLISHED</div>
+          <div className="stat-label">LISTENING</div>
         </div>
       </div>
 
@@ -127,42 +127,45 @@ export function NetworkPane() {
           </button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {interfaces.map((iface, idx) => (
-            <div key={idx} className="p-3 bg-hacker-surface rounded border border-hacker-border">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-mono text-sm text-hacker-cyan">{iface.name}</span>
-                <span className={`hacker-badge text-[10px] ${
-                  iface.operstate === 'up' ? 'hacker-badge-green' : 'hacker-badge-error'
-                }`}>
-                  {iface.operstate?.toUpperCase()}
-                </span>
-              </div>
-              <div className="text-xs font-mono space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-hacker-text-dim">IPv4</span>
-                  <span className="text-hacker-text">{iface.ipv4 || 'N/A'}</span>
+          {interfaces.map((iface, idx) => {
+            // Extract IPv4 and IPv6 addresses from the addresses array
+            const ipv4 = iface.addresses?.find(a => a.family === 'inet')?.address;
+            const ipv6 = iface.addresses?.find(a => a.family === 'inet6')?.address;
+            const isUp = iface.state === 'UP' || iface.state === 'up' || iface.state === 'UNKNOWN';
+
+            return (
+              <div key={idx} className="p-3 bg-hacker-surface rounded border border-hacker-border">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-mono text-sm text-hacker-cyan">{iface.name}</span>
+                  <span className={`hacker-badge text-[10px] ${
+                    isUp ? 'hacker-badge-green' : 'hacker-badge-error'
+                  }`}>
+                    {iface.state?.toUpperCase() || 'DOWN'}
+                  </span>
                 </div>
-                {iface.ipv6 && (
+                <div className="text-xs font-mono space-y-1">
                   <div className="flex justify-between">
-                    <span className="text-hacker-text-dim">IPv6</span>
-                    <span className="text-hacker-text truncate max-w-[60%]">{iface.ipv6}</span>
+                    <span className="text-hacker-text-dim">IPv4</span>
+                    <span className="text-hacker-text">{ipv4 || 'N/A'}</span>
                   </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-hacker-text-dim">MAC</span>
-                  <span className="text-hacker-text">{iface.mac || 'N/A'}</span>
+                  {ipv6 && (
+                    <div className="flex justify-between">
+                      <span className="text-hacker-text-dim">IPv6</span>
+                      <span className="text-hacker-text truncate max-w-[60%]">{ipv6}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-hacker-text-dim">MAC</span>
+                    <span className="text-hacker-text">{iface.mac || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-hacker-text-dim">MTU</span>
+                    <span className="text-hacker-text">{iface.mtu || 'N/A'}</span>
+                  </div>
                 </div>
-                {iface.rx !== undefined && (
-                  <div className="flex justify-between">
-                    <span className="text-hacker-text-dim">RX/TX</span>
-                    <span className="text-hacker-text">
-                      {formatBytes(iface.rx)} / {formatBytes(iface.tx)}
-                    </span>
-                  </div>
-                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -259,7 +262,7 @@ export function NetworkPane() {
       {connections.length > 0 && (
         <div className="hacker-card">
           <h4 className="text-sm font-semibold text-hacker-warning mb-4 uppercase tracking-wider">
-            ACTIVE CONNECTIONS [{connections.filter(c => c.state === 'ESTABLISHED').length}]
+            LISTENING SOCKETS [{connections.filter(c => c.state === 'LISTEN').length}]
           </h4>
           <div className="overflow-x-auto max-h-60">
             <table className="w-full text-xs font-mono">
@@ -267,19 +270,17 @@ export function NetworkPane() {
                 <tr className="text-left text-hacker-text-dim border-b border-hacker-border">
                   <th className="py-2 px-2">PROTO</th>
                   <th className="py-2 px-2">LOCAL</th>
-                  <th className="py-2 px-2">REMOTE</th>
+                  <th className="py-2 px-2">PEER</th>
                   <th className="py-2 px-2">STATE</th>
-                  <th className="py-2 px-2">PID</th>
                 </tr>
               </thead>
               <tbody>
-                {connections.filter(c => c.state === 'ESTABLISHED').slice(0, 20).map((conn, idx) => (
+                {connections.slice(0, 30).map((conn, idx) => (
                   <tr key={idx} className="border-b border-hacker-border/30 hover:bg-hacker-surface/30">
-                    <td className="py-1.5 px-2 text-hacker-cyan">{conn.proto}</td>
-                    <td className="py-1.5 px-2 text-hacker-text">{conn.local}</td>
-                    <td className="py-1.5 px-2 text-hacker-text">{conn.remote}</td>
+                    <td className="py-1.5 px-2 text-hacker-cyan">{conn.protocol}</td>
+                    <td className="py-1.5 px-2 text-hacker-text">{conn.localAddress}</td>
+                    <td className="py-1.5 px-2 text-hacker-text">{conn.peerAddress}</td>
                     <td className="py-1.5 px-2 text-hacker-green">{conn.state}</td>
-                    <td className="py-1.5 px-2 text-hacker-text-dim">{conn.pid || '-'}</td>
                   </tr>
                 ))}
               </tbody>

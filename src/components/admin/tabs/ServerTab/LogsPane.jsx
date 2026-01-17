@@ -4,14 +4,12 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { formatBytes } from '../../utils';
 
 export function LogsPane() {
   const [logs, setLogs] = useState([]);
-  const [logUnits, setLogUnits] = useState([]);
-  const [logFilter, setLogFilter] = useState({ unit: '', priority: '', search: '', lines: 100 });
+  const [logFilter, setLogFilter] = useState({ unit: '', priority: '', lines: 100 });
   const [loading, setLoading] = useState(false);
-  const [diskUsage, setDiskUsage] = useState(null);
+  const [units, setUnits] = useState([]);
 
   const fetchLogs = useCallback(async (filter) => {
     try {
@@ -19,10 +17,9 @@ export function LogsPane() {
       const params = new URLSearchParams();
       if (filter.unit) params.append('unit', filter.unit);
       if (filter.priority) params.append('priority', filter.priority);
-      if (filter.search) params.append('search', filter.search);
       params.append('lines', filter.lines);
 
-      const res = await fetch(`/api/infra/logs?${params}`);
+      const res = await fetch(`/api/server/logs?${params}`);
       if (res.ok) {
         const data = await res.json();
         setLogs(data.logs || []);
@@ -34,88 +31,64 @@ export function LogsPane() {
     }
   }, []);
 
-  const fetchLogUnits = useCallback(async () => {
+  // Fetch common unit names from services
+  const fetchUnits = useCallback(async () => {
     try {
-      const res = await fetch('/api/infra/logs/units');
+      const res = await fetch('/api/server/services');
       if (res.ok) {
         const data = await res.json();
-        setLogUnits(data.units || []);
+        const services = Array.isArray(data) ? data : [];
+        const unitNames = services.map(s => s.name).filter(Boolean);
+        setUnits(unitNames);
       }
     } catch (err) {
-      console.error('Error fetching log units:', err);
+      console.error('Error fetching units:', err);
     }
   }, []);
-
-  const fetchDiskUsage = useCallback(async () => {
-    try {
-      const res = await fetch('/api/infra/logs/disk-usage');
-      if (res.ok) {
-        const data = await res.json();
-        setDiskUsage(data);
-      }
-    } catch (err) {
-      console.error('Error fetching log disk usage:', err);
-    }
-  }, []);
-
-  const vacuumLogs = useCallback(async () => {
-    if (!confirm('This will remove old log entries to free up disk space. Continue?')) return;
-    try {
-      setLoading(true);
-      const res = await fetch('/api/infra/logs/vacuum', { method: 'POST' });
-      if (res.ok) {
-        fetchDiskUsage();
-        fetchLogs(logFilter);
-      }
-    } catch (err) {
-      console.error('Error vacuuming logs:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchDiskUsage, fetchLogs, logFilter]);
 
   useEffect(() => {
     fetchLogs(logFilter);
-    fetchLogUnits();
-    fetchDiskUsage();
-  }, [fetchLogs, fetchLogUnits, fetchDiskUsage, logFilter]);
+    fetchUnits();
+  }, [fetchLogs, fetchUnits, logFilter]);
 
-  const priorityColors = {
-    0: 'text-hacker-error', // emerg
-    1: 'text-hacker-error', // alert
-    2: 'text-hacker-error', // crit
-    3: 'text-hacker-error', // err
-    4: 'text-hacker-warning', // warning
-    5: 'text-hacker-cyan', // notice
-    6: 'text-hacker-text', // info
-    7: 'text-hacker-text-dim', // debug
+  // Parse log line to extract priority-like indicators
+  const getLogStyle = (log) => {
+    const lower = log.toLowerCase();
+    if (lower.includes('error') || lower.includes('fail') || lower.includes('crit')) {
+      return 'text-hacker-error';
+    }
+    if (lower.includes('warn')) {
+      return 'text-hacker-warning';
+    }
+    if (lower.includes('notice')) {
+      return 'text-hacker-cyan';
+    }
+    return 'text-hacker-text-dim';
   };
 
   return (
     <div className="space-y-6">
-      {/* Disk Usage & Controls */}
+      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="hacker-card text-center">
           <div className="stat-value text-hacker-blue">{logs.length}</div>
           <div className="stat-label">LOG ENTRIES</div>
         </div>
         <div className="hacker-card text-center">
-          <div className="stat-value text-hacker-cyan">{logUnits.length}</div>
+          <div className="stat-value text-hacker-cyan">{units.length}</div>
           <div className="stat-label">UNITS</div>
         </div>
         <div className="hacker-card text-center">
-          <div className="stat-value text-hacker-purple">
-            {diskUsage ? formatBytes(diskUsage.used) : 'N/A'}
-          </div>
-          <div className="stat-label">DISK USED</div>
+          <div className="stat-value text-hacker-purple">{logFilter.lines}</div>
+          <div className="stat-label">MAX LINES</div>
         </div>
         <div className="hacker-card text-center">
           <button
-            onClick={vacuumLogs}
+            onClick={() => fetchLogs(logFilter)}
             disabled={loading}
             className="hacker-btn text-xs w-full h-full flex items-center justify-center"
           >
-            VACUUM LOGS
+            {loading ? 'LOADING...' : 'REFRESH'}
           </button>
         </div>
       </div>
@@ -132,7 +105,7 @@ export function LogsPane() {
             className="input-glass text-sm"
           >
             <option value="">All Units</option>
-            {logUnits.map(unit => (
+            {units.map(unit => (
               <option key={unit} value={unit}>{unit}</option>
             ))}
           </select>
@@ -151,32 +124,24 @@ export function LogsPane() {
             <option value="6">Info</option>
             <option value="7">Debug</option>
           </select>
-          <input
-            type="text"
-            placeholder="Search logs..."
-            value={logFilter.search}
-            onChange={(e) => setLogFilter(f => ({ ...f, search: e.target.value }))}
+          <select
+            value={logFilter.lines}
+            onChange={(e) => setLogFilter(f => ({ ...f, lines: parseInt(e.target.value) }))}
             className="input-glass text-sm"
-          />
-          <div className="flex gap-2">
-            <select
-              value={logFilter.lines}
-              onChange={(e) => setLogFilter(f => ({ ...f, lines: parseInt(e.target.value) }))}
-              className="input-glass text-sm flex-1"
-            >
-              <option value="50">50 lines</option>
-              <option value="100">100 lines</option>
-              <option value="200">200 lines</option>
-              <option value="500">500 lines</option>
-            </select>
-            <button
-              onClick={() => fetchLogs(logFilter)}
-              disabled={loading}
-              className="hacker-btn text-xs"
-            >
-              {loading ? '...' : 'APPLY'}
-            </button>
-          </div>
+          >
+            <option value="50">50 lines</option>
+            <option value="100">100 lines</option>
+            <option value="200">200 lines</option>
+            <option value="500">500 lines</option>
+            <option value="1000">1000 lines</option>
+          </select>
+          <button
+            onClick={() => fetchLogs(logFilter)}
+            disabled={loading}
+            className="hacker-btn text-xs"
+          >
+            {loading ? 'LOADING...' : 'APPLY'}
+          </button>
         </div>
       </div>
 
@@ -186,28 +151,20 @@ export function LogsPane() {
           <h4 className="text-sm font-semibold text-hacker-blue uppercase tracking-wider">
             LOG OUTPUT
           </h4>
-          <button
-            onClick={() => fetchLogs(logFilter)}
-            disabled={loading}
-            className="hacker-btn text-xs"
-          >
-            {loading ? '[LOADING...]' : '[REFRESH]'}
-          </button>
+          <span className="text-xs text-hacker-text-dim font-mono">
+            {logs.length} entries
+          </span>
         </div>
-        <div className="bg-black/50 rounded p-3 max-h-96 overflow-y-auto font-mono">
+        <div className="bg-black/50 rounded p-3 max-h-[500px] overflow-y-auto font-mono">
           {logs.length === 0 ? (
             <p className="text-xs text-hacker-text-dim">No logs found matching filters</p>
           ) : (
             logs.map((log, idx) => (
               <div
                 key={idx}
-                className={`text-[11px] py-0.5 hover:bg-hacker-surface/30 ${
-                  priorityColors[log.priority] || 'text-hacker-text'
-                }`}
+                className={`text-[11px] py-0.5 hover:bg-hacker-surface/30 ${getLogStyle(log)}`}
               >
-                <span className="text-hacker-text-dim">{log.timestamp}</span>
-                {log.unit && <span className="text-hacker-cyan ml-2">[{log.unit}]</span>}
-                <span className="ml-2">{log.message}</span>
+                {log}
               </div>
             ))
           )}

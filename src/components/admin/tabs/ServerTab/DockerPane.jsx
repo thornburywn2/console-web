@@ -29,19 +29,23 @@ export function DockerPane() {
       if (systemRes.ok) setDockerSystem(await systemRes.json());
       if (containersRes.ok) {
         const data = await containersRes.json();
-        setContainers(data.containers || []);
+        // API returns array directly
+        setContainers(Array.isArray(data) ? data : []);
       }
       if (imagesRes.ok) {
         const data = await imagesRes.json();
-        setImages(data.images || []);
+        // API returns array directly
+        setImages(Array.isArray(data) ? data : []);
       }
       if (volumesRes.ok) {
         const data = await volumesRes.json();
-        setVolumes(data.volumes || []);
+        // API returns array directly
+        setVolumes(Array.isArray(data) ? data : []);
       }
       if (networksRes.ok) {
         const data = await networksRes.json();
-        setNetworks(data.networks || []);
+        // API returns array directly
+        setNetworks(Array.isArray(data) ? data : []);
       }
     } catch (err) {
       console.error('Error fetching Docker data:', err);

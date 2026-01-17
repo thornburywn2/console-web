@@ -77,11 +77,7 @@ export function OverviewPane() {
             </div>
             <div className="flex justify-between">
               <span className="text-hacker-text-dim">cores</span>
-              <span className="text-hacker-cyan">{systemInfo.cpu?.cores || 'N/A'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-hacker-text-dim">speed</span>
-              <span className="text-hacker-text">{systemInfo.cpu?.speed || 'N/A'} MHz</span>
+              <span className="text-hacker-cyan">{systemInfo.cpu?.count || 'N/A'}</span>
             </div>
           </div>
           {/* CPU Usage Bar */}
@@ -182,40 +178,40 @@ export function OverviewPane() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 font-mono text-sm">
           <div>
             <span className="text-hacker-text-dim block text-xs">hostname</span>
-            <span className="text-hacker-green">{systemInfo.hostname || 'N/A'}</span>
+            <span className="text-hacker-green">{systemInfo.system?.hostname || 'N/A'}</span>
           </div>
           <div>
             <span className="text-hacker-text-dim block text-xs">platform</span>
-            <span className="text-hacker-text">{systemInfo.platform || 'N/A'}</span>
+            <span className="text-hacker-text">{systemInfo.system?.platform || 'N/A'}</span>
           </div>
           <div>
-            <span className="text-hacker-text-dim block text-xs">kernel</span>
-            <span className="text-hacker-text">{systemInfo.kernel || 'N/A'}</span>
+            <span className="text-hacker-text-dim block text-xs">node</span>
+            <span className="text-hacker-text">{systemInfo.process?.nodeVersion || 'N/A'}</span>
           </div>
           <div>
             <span className="text-hacker-text-dim block text-xs">arch</span>
-            <span className="text-hacker-text">{systemInfo.arch || 'N/A'}</span>
+            <span className="text-hacker-text">{systemInfo.system?.arch || 'N/A'}</span>
           </div>
         </div>
       </div>
 
       {/* Load Average */}
-      {systemInfo.loadAverage && (
+      {systemInfo.loadAvg && (
         <div className="hacker-card">
           <h4 className="text-sm font-semibold text-hacker-cyan mb-4 uppercase tracking-wider flex items-center gap-2">
             <span>&#9654;</span> LOAD AVERAGE
           </h4>
           <div className="grid grid-cols-3 gap-4 text-center font-mono">
             <div>
-              <div className="text-2xl font-bold text-hacker-green">{systemInfo.loadAverage[0]?.toFixed(2)}</div>
+              <div className="text-2xl font-bold text-hacker-green">{systemInfo.loadAvg[0]?.toFixed(2)}</div>
               <div className="text-xs text-hacker-text-dim">1 min</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-hacker-cyan">{systemInfo.loadAverage[1]?.toFixed(2)}</div>
+              <div className="text-2xl font-bold text-hacker-cyan">{systemInfo.loadAvg[1]?.toFixed(2)}</div>
               <div className="text-xs text-hacker-text-dim">5 min</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-hacker-purple">{systemInfo.loadAverage[2]?.toFixed(2)}</div>
+              <div className="text-2xl font-bold text-hacker-purple">{systemInfo.loadAvg[2]?.toFixed(2)}</div>
               <div className="text-xs text-hacker-text-dim">15 min</div>
             </div>
           </div>

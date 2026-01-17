@@ -119,7 +119,7 @@ SERVER: OVERVIEW | SERVICES | DOCKER | STACK | PACKAGES | LOGS | PROCESSES | NET
 - `admin/constants.js` - Tab enums and legacy migration helpers
 - `admin/shared/` - TabButton, SubTabBar, TabContainer, ErrorBoundary
 - `admin/tabs/SettingsTab/` - 6 pane components (General, Appearance, Shortcuts, etc.)
-- `admin/tabs/AutomationTab/` - 3 pane components (Agents, MCP, Scheduled)
+- `admin/tabs/AutomationTab/` - 2 pane components (Agents, MCP)
 - `admin/tabs/ServerTab/` - 10 pane components (Overview, Services, Docker, etc.)
 - `admin/tabs/SecurityTab/` - 4 pane components (Scans, Firewall, Fail2ban, ScanConfig)
 - `admin/tabs/ProjectsTab.jsx` - Project list with completion metrics
@@ -133,6 +133,14 @@ SERVER: OVERVIEW | SERVICES | DOCKER | STACK | PACKAGES | LOGS | PROCESSES | NET
 - **Fail2banPane**: Fixed endpoint to `/api/infra/security/fail2ban/status`
 - **ScanConfigPane**: Replaced non-existent endpoints with placeholder UI
 - **ProjectsTab**: Fixed API response handling (was expecting `data.projects`, now `data` directly)
+- **LogsPane**: Fixed to use `/api/server/logs` endpoint (was using non-existent `/api/infra/logs`)
+
+#### API Response Structure Fixes
+- **OverviewPane**: Fixed system info display - changed `cpu.cores` to `cpu.count`, `loadAverage` to `loadAvg`, and system properties to use `system.*` path
+- **ServicesPane**: Fixed API response handling - services API returns array directly, not `{services: []}`
+- **DockerPane**: Fixed all API response handling - containers, images, volumes, networks APIs return arrays directly
+- **NetworkPane**: Fixed interface display to match `ip -j addr show` response format (state vs operstate, addresses array)
+- **ProcessesPane**: Fixed field names - `state` to `stat`, `mem` to `memory`, RSS formatting for KB to bytes conversion
 
 #### Rate Limiting Fixes
 - **DockerPane**: Increased polling interval from 10s to 30s to avoid 429 errors

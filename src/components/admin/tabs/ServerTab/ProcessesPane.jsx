@@ -72,19 +72,19 @@ export function ProcessesPane() {
         </div>
         <div className="hacker-card text-center">
           <div className="stat-value text-hacker-green">
-            {processes.filter(p => p.state === 'S' || p.state === 'R').length}
+            {processes.filter(p => p.stat?.startsWith('S') || p.stat?.startsWith('R')).length}
           </div>
           <div className="stat-label">RUNNING</div>
         </div>
         <div className="hacker-card text-center">
           <div className="stat-value text-hacker-warning">
-            {processes.filter(p => p.state === 'D').length}
+            {processes.filter(p => p.stat?.startsWith('D')).length}
           </div>
           <div className="stat-label">BLOCKED</div>
         </div>
         <div className="hacker-card text-center">
           <div className="stat-value text-hacker-error">
-            {processes.filter(p => p.state === 'Z').length}
+            {processes.filter(p => p.stat?.startsWith('Z')).length}
           </div>
           <div className="stat-label">ZOMBIE</div>
         </div>
@@ -154,18 +154,18 @@ export function ProcessesPane() {
                 <td className={`py-1.5 px-2 ${proc.cpu > 50 ? 'text-hacker-error' : proc.cpu > 20 ? 'text-hacker-warning' : 'text-hacker-green'}`}>
                   {proc.cpu?.toFixed(1)}%
                 </td>
-                <td className={`py-1.5 px-2 ${proc.mem > 50 ? 'text-hacker-error' : proc.mem > 20 ? 'text-hacker-warning' : 'text-hacker-green'}`}>
-                  {proc.mem?.toFixed(1)}%
+                <td className={`py-1.5 px-2 ${proc.memory > 50 ? 'text-hacker-error' : proc.memory > 20 ? 'text-hacker-warning' : 'text-hacker-green'}`}>
+                  {proc.memory?.toFixed(1)}%
                 </td>
-                <td className="py-1.5 px-2 text-hacker-text-dim">{formatBytes(proc.rss || 0)}</td>
+                <td className="py-1.5 px-2 text-hacker-text-dim">{formatBytes(parseInt(proc.rss) * 1024 || 0)}</td>
                 <td className="py-1.5 px-2">
                   <span className={`${
-                    proc.state === 'R' ? 'text-hacker-green' :
-                    proc.state === 'S' ? 'text-hacker-cyan' :
-                    proc.state === 'D' ? 'text-hacker-warning' :
-                    proc.state === 'Z' ? 'text-hacker-error' : 'text-hacker-text-dim'
+                    proc.stat?.startsWith('R') ? 'text-hacker-green' :
+                    proc.stat?.startsWith('S') ? 'text-hacker-cyan' :
+                    proc.stat?.startsWith('D') ? 'text-hacker-warning' :
+                    proc.stat?.startsWith('Z') ? 'text-hacker-error' : 'text-hacker-text-dim'
                   }`}>
-                    {proc.state}
+                    {proc.stat}
                   </span>
                 </td>
                 <td className="py-1.5 px-2 text-hacker-text max-w-xs truncate" title={proc.command}>

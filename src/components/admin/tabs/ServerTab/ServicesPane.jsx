@@ -27,7 +27,8 @@ export function ServicesPane() {
       }
       if (servicesRes.ok) {
         const data = await servicesRes.json();
-        setServices(data.services || []);
+        // API returns array directly
+        setServices(Array.isArray(data) ? data : []);
       }
       if (logsRes.ok) {
         const data = await logsRes.json();
@@ -129,11 +130,11 @@ export function ServicesPane() {
             <p className="text-xs text-hacker-text-dim font-mono">Loading services...</p>
           ) : (
             <div className="space-y-2 max-h-80 overflow-y-auto">
-              {services.map(service => {
+              {services.map((service, idx) => {
                 const isActive = service.active === 'active';
                 return (
                   <div
-                    key={service.unit}
+                    key={service.name || service.unit || idx}
                     className="flex items-center justify-between p-2 bg-hacker-bg/50 border border-hacker-green/10 rounded"
                   >
                     <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -142,7 +143,7 @@ export function ServicesPane() {
                       }`} />
                       <div className="min-w-0 flex-1">
                         <div className="font-mono text-xs text-hacker-text truncate">
-                          {service.unit?.replace('.service', '')}
+                          {(service.unit || service.name)?.replace('.service', '')}
                         </div>
                         <div className="text-[10px] text-hacker-text-dim truncate">
                           {service.description}
