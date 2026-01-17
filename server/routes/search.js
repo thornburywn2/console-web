@@ -306,7 +306,9 @@ export function createSearchRouter(prisma, projectsDir) {
           .slice(0, 5);
 
         projectDirs.forEach(name => suggestions.add(name));
-      } catch {}
+      } catch (e) {
+        log.debug({ error: e.message }, 'project dir scan failed during autocomplete');
+      }
 
       // Prompt names
       try {
@@ -316,7 +318,9 @@ export function createSearchRouter(prisma, projectsDir) {
           take: 5
         });
         prompts.forEach(p => suggestions.add(p.name));
-      } catch {}
+      } catch (e) {
+        log.debug({ error: e.message }, 'prompt search failed during autocomplete');
+      }
 
       // Snippet names
       try {
@@ -326,7 +330,9 @@ export function createSearchRouter(prisma, projectsDir) {
           take: 5
         });
         snippets.forEach(s => suggestions.add(s.name));
-      } catch {}
+      } catch (e) {
+        log.debug({ error: e.message }, 'snippet search failed during autocomplete');
+      }
 
       // Categories
       try {
@@ -335,7 +341,9 @@ export function createSearchRouter(prisma, projectsDir) {
           where: { category: { contains: query, mode: 'insensitive' } }
         });
         categories.forEach(c => c.category && suggestions.add(c.category));
-      } catch {}
+      } catch (e) {
+        log.debug({ error: e.message }, 'category search failed during autocomplete');
+      }
 
       res.json({
         query: q.trim(),

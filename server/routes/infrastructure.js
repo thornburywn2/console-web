@@ -7,13 +7,29 @@
  * - Network diagnostics
  * - Security monitoring (SSH, fail2ban)
  * - Scheduled tasks (cron, systemd timers)
+ *
+ * SECURITY: All endpoints use Zod validation to prevent command injection
  */
 
 import { Router } from 'express';
 import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import { readFileSync, existsSync } from 'fs';
-import { createLogger } from '../services/logger.js';
+import { createLogger, logSecurityEvent } from '../services/logger.js';
+import {
+  pingRequestSchema,
+  dnsLookupSchema,
+  portCheckSchema,
+  killProcessSchema,
+  packageOperationSchema,
+  packageRemoveSchema,
+  fail2banUnbanSchema,
+  timerToggleSchema,
+  timerNameSchema,
+  cronJobSchema,
+  validateBody
+} from '../utils/validation.js';
+import { networkDiagLimiter, destructiveLimiter } from '../middleware/rateLimit.js';
 
 const log = createLogger('infrastructure');
 const execAsync = promisify(exec);
@@ -536,17 +552,23 @@ export function createInfrastructureRouter() {
 
   /**
    * POST /api/infra/network/ping - Ping a host
+   * SECURITY: Rate limited, uses Zod validation to prevent command injection
    */
-  router.post('/network/ping', async (req, res) => {
+  router.post('/network/ping', networkDiagLimiter, async (req, res) => {
     try {
-      const { host, count = 4 } = req.body;
-
-      if (!host || !/^[a-zA-Z0-9.-]+$/.test(host)) {
-        return res.status(400).json({ error: 'Invalid host' });
+      // Validate input with Zod
+      const validation = validateBody(pingRequestSchema, req.body);
+      if (!validation.success) {
+        logSecurityEvent({
+          event: 'ping_validation_failed',
+          reason: validation.error,
+          ip: req.ip
+        });
+        return res.status(400).json({ error: validation.error });
       }
 
-      const pingCount = Math.min(Math.max(parseInt(count), 1), 10);
-      const { stdout, stderr } = await execAsync(`ping -c ${pingCount} ${host} 2>&1`, { timeout: 30000 });
+      const { host, count } = validation.data;
+      const { stdout, stderr } = await execAsync(`ping -c ${count} ${host} 2>&1`, { timeout: 30000 });
 
       // Parse ping statistics
       const statsMatch = stdout.match(/(\d+) packets transmitted, (\d+) received.*time (\d+)ms/);
@@ -578,21 +600,23 @@ export function createInfrastructureRouter() {
 
   /**
    * POST /api/infra/network/dns - DNS lookup
+   * SECURITY: Rate limited, uses Zod validation to prevent command injection
    */
-  router.post('/network/dns', async (req, res) => {
+  router.post('/network/dns', networkDiagLimiter, async (req, res) => {
     try {
-      const { host, type = 'A' } = req.body;
-
-      if (!host || !/^[a-zA-Z0-9.-]+$/.test(host)) {
-        return res.status(400).json({ error: 'Invalid host' });
+      // Validate input with Zod
+      const validation = validateBody(dnsLookupSchema, req.body);
+      if (!validation.success) {
+        logSecurityEvent({
+          event: 'dns_validation_failed',
+          reason: validation.error,
+          ip: req.ip
+        });
+        return res.status(400).json({ error: validation.error });
       }
 
-      const validTypes = ['A', 'AAAA', 'MX', 'NS', 'TXT', 'CNAME', 'SOA'];
-      if (!validTypes.includes(type.toUpperCase())) {
-        return res.status(400).json({ error: 'Invalid record type' });
-      }
-
-      const { stdout } = await execAsync(`dig +short ${type.toUpperCase()} ${host}`, { timeout: 10000 });
+      const { host, type } = validation.data;
+      const { stdout } = await execAsync(`dig +short ${type} ${host}`, { timeout: 10000 });
 
       res.json({
         host,
@@ -607,19 +631,22 @@ export function createInfrastructureRouter() {
 
   /**
    * POST /api/infra/network/port-check - Check if port is open
+   * SECURITY: Rate limited, uses Zod validation to prevent command injection
    */
-  router.post('/network/port-check', async (req, res) => {
+  router.post('/network/port-check', networkDiagLimiter, async (req, res) => {
     try {
-      const { host, port } = req.body;
-
-      if (!host || !/^[a-zA-Z0-9.-]+$/.test(host)) {
-        return res.status(400).json({ error: 'Invalid host' });
+      // Validate input with Zod
+      const validation = validateBody(portCheckSchema, req.body);
+      if (!validation.success) {
+        logSecurityEvent({
+          event: 'port_check_validation_failed',
+          reason: validation.error,
+          ip: req.ip
+        });
+        return res.status(400).json({ error: validation.error });
       }
 
-      if (!port || port < 1 || port > 65535) {
-        return res.status(400).json({ error: 'Invalid port' });
-      }
-
+      const { host, port } = validation.data;
       const { stdout } = await execAsync(
         `timeout 5 bash -c "echo >/dev/tcp/${host}/${port}" 2>&1 && echo "open" || echo "closed"`,
         { timeout: 10000 }
@@ -824,19 +851,22 @@ export function createInfrastructureRouter() {
 
   /**
    * POST /api/infra/security/fail2ban/unban - Unban an IP
+   * SECURITY: Rate limited, uses Zod validation to prevent command injection
    */
-  router.post('/security/fail2ban/unban', async (req, res) => {
+  router.post('/security/fail2ban/unban', destructiveLimiter, async (req, res) => {
     try {
-      const { jail, ip } = req.body;
-
-      if (!jail || !ip) {
-        return res.status(400).json({ error: 'Jail and IP are required' });
+      // Validate input with Zod
+      const validation = validateBody(fail2banUnbanSchema, req.body);
+      if (!validation.success) {
+        logSecurityEvent({
+          event: 'fail2ban_unban_validation_failed',
+          reason: validation.error,
+          ip: req.ip
+        });
+        return res.status(400).json({ error: validation.error });
       }
 
-      if (!/^[\d.]+$/.test(ip)) {
-        return res.status(400).json({ error: 'Invalid IP address' });
-      }
-
+      const { jail, ip } = validation.data;
       await execAsync(`sudo fail2ban-client set ${jail} unbanip ${ip}`);
 
       res.json({ success: true, jail, ip });
@@ -1014,22 +1044,38 @@ export function createInfrastructureRouter() {
 
   /**
    * POST /api/infra/scheduled/timers/:name/toggle - Enable/disable timer
+   * SECURITY: Uses Zod validation to prevent command injection
    */
   router.post('/scheduled/timers/:name/toggle', async (req, res) => {
     try {
       const { name } = req.params;
-      const { enabled } = req.body;
 
-      if (!/^[a-zA-Z0-9._@-]+$/.test(name)) {
+      // Validate timer name
+      const nameResult = timerNameSchema.safeParse(name);
+      if (!nameResult.success) {
+        logSecurityEvent({
+          event: 'timer_toggle_validation_failed',
+          reason: 'Invalid timer name',
+          ip: req.ip
+        });
         return res.status(400).json({ error: 'Invalid timer name' });
       }
 
+      // Validate body
+      const validation = validateBody(timerToggleSchema, req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: validation.error });
+      }
+
+      const { enabled } = validation.data;
       const action = enabled ? 'enable' : 'disable';
-      await execAsync(`sudo systemctl ${action} ${name}`);
+      await execAsync(`sudo systemctl ${action} ${nameResult.data}`);
 
       // Also start/stop it
       const startStop = enabled ? 'start' : 'stop';
-      await execAsync(`sudo systemctl ${startStop} ${name}`).catch(() => {});
+      await execAsync(`sudo systemctl ${startStop} ${nameResult.data}`).catch((e) => {
+        log.warn({ error: e.message, timer: nameResult.data }, 'failed to start/stop timer');
+      });
 
       res.json({ success: true, timer: name, enabled });
     } catch (error) {
@@ -1040,29 +1086,32 @@ export function createInfrastructureRouter() {
 
   /**
    * POST /api/infra/scheduled/cron - Add cron job
+   * SECURITY: Uses Zod validation to prevent command injection
    */
   router.post('/scheduled/cron', async (req, res) => {
     try {
-      const { schedule, command } = req.body;
-
-      if (!schedule || !command) {
-        return res.status(400).json({ error: 'Schedule and command are required' });
+      // Validate input with Zod
+      const validation = validateBody(cronJobSchema, req.body);
+      if (!validation.success) {
+        logSecurityEvent({
+          event: 'cron_job_validation_failed',
+          reason: validation.error,
+          ip: req.ip
+        });
+        return res.status(400).json({ error: validation.error });
       }
 
-      // Validate cron schedule format (basic check)
-      const cronParts = schedule.trim().split(/\s+/);
-      if (cronParts.length !== 5) {
-        return res.status(400).json({ error: 'Invalid cron schedule format. Expected: min hour dom month dow' });
-      }
+      const { schedule, command } = validation.data;
 
       // Get current crontab
       const { stdout: currentCron } = await execAsync('crontab -l 2>/dev/null').catch(() => ({ stdout: '' }));
 
-      // Add new job
-      const newCron = currentCron.trim() + '\n' + `${schedule} ${command}` + '\n';
+      // Add new job - escape special characters in command for shell safety
+      const escapedCommand = command.replace(/'/g, "'\\''");
+      const newCron = currentCron.trim() + '\n' + `${schedule} ${escapedCommand}` + '\n';
 
-      // Install new crontab
-      await execAsync(`echo "${newCron}" | crontab -`);
+      // Install new crontab using heredoc for safety
+      await execAsync(`cat << 'CRONTAB_EOF' | crontab -\n${newCron}CRONTAB_EOF`);
 
       res.json({ success: true, schedule, command });
     } catch (error) {

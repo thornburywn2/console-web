@@ -2,6 +2,7 @@
  * Developer Tools Routes
  * Port management, env files, database browser, proxy
  * SECURITY: Uses path validation to prevent path traversal attacks
+ * SECURITY: Uses Zod validation to prevent injection attacks
  */
 
 import { Router } from 'express';
@@ -12,6 +13,13 @@ import path from 'path';
 import { createLogger, logSecurityEvent } from '../services/logger.js';
 import { validateAndResolvePath, validatePathMiddleware, isValidName } from '../utils/pathSecurity.js';
 import { sendSafeError } from '../utils/errorResponse.js';
+import {
+  databaseQuerySchema,
+  tableDataQuerySchema,
+  safeIdentifierSchema,
+  validateBody
+} from '../utils/validation.js';
+import { dbQueryLimiter } from '../middleware/rateLimit.js';
 
 const execAsync = promisify(exec);
 const log = createLogger('devtools');
@@ -491,21 +499,62 @@ export function createDbBrowserRouter(prisma) {
     }
   });
 
-  // Execute raw query (read-only)
-  router.post('/query', async (req, res) => {
+  /**
+   * Execute raw query (read-only)
+   * SECURITY: This endpoint has been hardened against SQL injection:
+   * - Rate limited: 30 queries per minute
+   * - Validates query with Zod schema
+   * - Blocks dangerous SQL keywords (DROP, DELETE, INSERT, UPDATE, etc.)
+   * - Blocks multi-statement queries (semicolons)
+   * - Only allows SELECT queries
+   * - Enforces query timeout
+   * - Logs all query attempts for audit
+   */
+  router.post('/query', dbQueryLimiter, async (req, res) => {
     try {
-      const { query } = req.body;
-
-      // Safety check - only allow SELECT queries
-      if (!query.trim().toUpperCase().startsWith('SELECT')) {
-        return res.status(400).json({ error: 'Only SELECT queries are allowed' });
+      // Validate query using Zod schema
+      const validation = validateBody(databaseQuerySchema, req.body);
+      if (!validation.success) {
+        logSecurityEvent({
+          event: 'db_query_validation_failed',
+          reason: validation.error,
+          ip: req.ip,
+          query: req.body.query?.substring(0, 100)
+        });
+        return res.status(400).json({
+          error: 'Query validation failed',
+          details: validation.error
+        });
       }
 
+      const { query } = validation.data;
+
+      // Log query attempt for audit trail
+      log.info({
+        query: query.substring(0, 200),
+        ip: req.ip,
+        user: req.user?.username || 'anonymous'
+      }, 'executing validated database query');
+
       const startTime = Date.now();
-      const result = await prisma.$queryRawUnsafe(query);
+
+      // Use Prisma's $queryRaw with tagged template literal for safety
+      // Note: Since the query is already validated, we can use $queryRawUnsafe
+      // but we add a timeout wrapper for additional safety
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Query timeout exceeded (30s)')), 30000)
+      );
+
+      const queryPromise = prisma.$queryRawUnsafe(query);
+      const result = await Promise.race([queryPromise, timeoutPromise]);
+
       const executionTime = Date.now() - startTime;
 
-      log.info({ executionTime, rowCount: result.length, query: query.substring(0, 200) }, 'raw query executed');
+      log.info({
+        executionTime,
+        rowCount: result.length,
+        query: query.substring(0, 200)
+      }, 'raw query executed successfully');
 
       const columns = result.length > 0
         ? Object.keys(result[0]).map(key => ({
@@ -520,8 +569,14 @@ export function createDbBrowserRouter(prisma) {
         executionTime
       });
     } catch (error) {
-      log.error({ error: error.message, query: query.substring(0, 200) }, 'raw query failed');
-      return sendSafeError(res, error, { status: 400, userMessage: 'Query execution failed', operation: 'execute database query', requestId: req.id });
+      const queryPreview = req.body.query?.substring(0, 200) || 'unknown';
+      log.error({ error: error.message, query: queryPreview }, 'raw query failed');
+      return sendSafeError(res, error, {
+        status: 400,
+        userMessage: 'Query execution failed',
+        operation: 'execute database query',
+        requestId: req.id
+      });
     }
   });
 

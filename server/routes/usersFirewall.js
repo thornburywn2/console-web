@@ -4,13 +4,27 @@
  * - Authentik user management (via Authentik Admin API)
  * - Server/Linux user management
  * - Firewall (UFW) management
+ *
+ * SECURITY: All endpoints use Zod validation to prevent injection attacks
  */
 
 import { Router } from 'express';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { readFileSync, existsSync, writeFileSync } from 'fs';
-import { createLogger } from '../services/logger.js';
+import { createLogger, logSecurityEvent } from '../services/logger.js';
+import {
+  authentikSettingsSchema,
+  createAuthentikUserSchema,
+  updateAuthentikUserSchema,
+  setPasswordSchema,
+  createServerUserSchema,
+  updateServerUserSchema,
+  firewallRuleSchema,
+  firewallDefaultSchema,
+  firewallLoggingSchema,
+  validateBody
+} from '../utils/validation.js';
 
 const log = createLogger('users-firewall');
 const execAsync = promisify(exec);
@@ -478,14 +492,22 @@ export function createUsersFirewallRouter(prisma) {
 
   /**
    * POST /api/admin-users/server/users - Create new server user
+   * SECURITY: Uses Zod validation to prevent command injection
    */
   router.post('/server/users', async (req, res) => {
     try {
-      const { username, fullName, shell = '/bin/bash', createHome = true, groups = [] } = req.body;
-
-      if (!username || !/^[a-z_][a-z0-9_-]*[$]?$/.test(username)) {
-        return res.status(400).json({ error: 'Invalid username. Must start with lowercase letter or underscore.' });
+      // Validate input with Zod
+      const validation = validateBody(createServerUserSchema, req.body);
+      if (!validation.success) {
+        logSecurityEvent({
+          event: 'create_user_validation_failed',
+          reason: validation.error,
+          ip: req.ip
+        });
+        return res.status(400).json({ error: validation.error });
       }
+
+      const { username, fullName, shell, createHome, groups } = validation.data;
 
       // Check if user exists
       try {
@@ -495,11 +517,15 @@ export function createUsersFirewallRouter(prisma) {
         // User doesn't exist, continue
       }
 
-      // Build useradd command
+      // Build useradd command with validated inputs
       let cmd = 'sudo useradd';
       if (createHome) cmd += ' -m';
-      if (fullName) cmd += ` -c "${fullName}"`;
-      if (shell) cmd += ` -s ${shell}`;
+      if (fullName) {
+        // Escape quotes in fullName for shell safety
+        const escapedFullName = fullName.replace(/"/g, '\\"');
+        cmd += ` -c "${escapedFullName}"`;
+      }
+      cmd += ` -s ${shell}`;
       if (groups.length > 0) cmd += ` -G ${groups.join(',')}`;
       cmd += ` ${username}`;
 
@@ -803,26 +829,24 @@ export function createUsersFirewallRouter(prisma) {
 
   /**
    * POST /api/admin-users/firewall/rules - Add firewall rule
+   * SECURITY: Uses Zod validation to prevent command injection
    */
   router.post('/firewall/rules', async (req, res) => {
     try {
-      const {
-        action = 'allow',
-        direction = 'in',
-        port,
-        protocol,
-        from,
-        to,
-        comment
-      } = req.body;
-
-      // Validate action
-      const validActions = ['allow', 'deny', 'reject', 'limit'];
-      if (!validActions.includes(action.toLowerCase())) {
-        return res.status(400).json({ error: 'Invalid action. Must be: allow, deny, reject, or limit' });
+      // Validate input with Zod
+      const validation = validateBody(firewallRuleSchema, req.body);
+      if (!validation.success) {
+        logSecurityEvent({
+          event: 'firewall_rule_validation_failed',
+          reason: validation.error,
+          ip: req.ip
+        });
+        return res.status(400).json({ error: validation.error });
       }
 
-      // Build the UFW command
+      const { action, direction, port, protocol, from, to, comment } = validation.data;
+
+      // Build the UFW command with validated inputs
       let cmd = `ufw ${action}`;
 
       // Direction
@@ -842,11 +866,6 @@ export function createUsersFirewallRouter(prisma) {
 
       // Port/service
       if (port) {
-        // Validate port
-        if (!/^[\d\/\w,-]+$/.test(port)) {
-          return res.status(400).json({ error: 'Invalid port specification' });
-        }
-
         if (protocol) {
           cmd += ` ${port}/${protocol}`;
         } else {
@@ -854,9 +873,10 @@ export function createUsersFirewallRouter(prisma) {
         }
       }
 
-      // Add comment if provided
+      // Add comment if provided - escape for shell safety
       if (comment) {
-        cmd += ` comment '${comment.replace(/'/g, "\\'")}'`;
+        const escapedComment = comment.replace(/'/g, "'\\''");
+        cmd += ` comment '${escapedComment}'`;
       }
 
       const result = await runUfwCommand(cmd);
@@ -920,22 +940,17 @@ export function createUsersFirewallRouter(prisma) {
 
   /**
    * POST /api/admin-users/firewall/default - Set default policy
+   * SECURITY: Uses Zod validation
    */
   router.post('/firewall/default', async (req, res) => {
     try {
-      const { direction, policy } = req.body;
-
-      const validDirections = ['incoming', 'outgoing', 'routed'];
-      const validPolicies = ['allow', 'deny', 'reject'];
-
-      if (!validDirections.includes(direction)) {
-        return res.status(400).json({ error: 'Invalid direction. Must be: incoming, outgoing, or routed' });
+      // Validate input with Zod
+      const validation = validateBody(firewallDefaultSchema, req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: validation.error });
       }
 
-      if (!validPolicies.includes(policy)) {
-        return res.status(400).json({ error: 'Invalid policy. Must be: allow, deny, or reject' });
-      }
-
+      const { direction, policy } = validation.data;
       const result = await runUfwCommand(`ufw default ${policy} ${direction}`);
       if (!result.success) {
         return res.status(403).json({ error: result.error });
@@ -966,16 +981,17 @@ export function createUsersFirewallRouter(prisma) {
 
   /**
    * POST /api/admin-users/firewall/logging - Set logging level
+   * SECURITY: Uses Zod validation
    */
   router.post('/firewall/logging', async (req, res) => {
     try {
-      const { level } = req.body;
-
-      const validLevels = ['off', 'low', 'medium', 'high', 'full'];
-      if (!validLevels.includes(level)) {
-        return res.status(400).json({ error: 'Invalid logging level. Must be: off, low, medium, high, or full' });
+      // Validate input with Zod
+      const validation = validateBody(firewallLoggingSchema, req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: validation.error });
       }
 
+      const { level } = validation.data;
       const result = await runUfwCommand(`ufw logging ${level}`);
       if (!result.success) {
         return res.status(403).json({ error: result.error });

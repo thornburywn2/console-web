@@ -1,6 +1,8 @@
 /**
  * Cloudflare Tunnels Integration Routes
  * Manages published application routes via Cloudflare Tunnel API
+ *
+ * SECURITY: All endpoints use Zod validation
  */
 
 import { Router } from 'express';
@@ -9,7 +11,14 @@ import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { createLogger } from '../services/logger.js';
+import { createLogger, logSecurityEvent } from '../services/logger.js';
+import {
+  cloudflareSettingsSchema,
+  publishRouteSchema,
+  updateRoutePortSchema,
+  websocketToggleSchema,
+  validateBody
+} from '../utils/validation.js';
 
 const log = createLogger('cloudflare');
 const execAsync = promisify(exec);
@@ -370,7 +379,9 @@ export function createCloudflareRouter(prisma) {
           if (stat.isDirectory() && !name.startsWith('.')) {
             allProjects.add(name);
           }
-        } catch {}
+        } catch (e) {
+          log.debug({ name, error: e.message }, 'failed to stat directory');
+        }
       }
 
       // Extract port and subdomain from each project's CLAUDE.md
@@ -843,15 +854,22 @@ export function createCloudflareRouter(prisma) {
 
   /**
    * POST /api/cloudflare/publish - Publish a new route
+   * SECURITY: Uses Zod validation
    */
   router.post('/publish', async (req, res) => {
     try {
-      const { subdomain, localPort, localHost = 'localhost', projectId, description, enableAuthentik = true, websocket = false } = req.body;
-
-      if (!subdomain || !localPort) {
-        return res.status(400).json({ error: 'Subdomain and local port are required' });
+      // Validate input with Zod
+      const validation = validateBody(publishRouteSchema, req.body);
+      if (!validation.success) {
+        logSecurityEvent({
+          event: 'publish_route_validation_failed',
+          reason: validation.error,
+          ip: req.ip
+        });
+        return res.status(400).json({ error: validation.error });
       }
 
+      const { subdomain, localPort, localHost, projectId, description, enableAuthentik, websocket } = validation.data;
       const settings = await getSettings();
       const hostname = `${subdomain}.${settings.zoneName}`;
       const service = `http://${localHost}:${localPort}`;
@@ -1038,20 +1056,19 @@ export function createCloudflareRouter(prisma) {
   /**
    * PUT /api/cloudflare/routes/:hostname/port - Update the local port for a route
    * Updates tunnel config, database, and optionally restarts cloudflared
+   * SECURITY: Uses Zod validation
    */
   router.put('/routes/:hostname/port', async (req, res) => {
     try {
       const hostname = decodeURIComponent(req.params.hostname);
-      const { localPort } = req.body;
 
-      if (!localPort || isNaN(parseInt(localPort, 10))) {
-        return res.status(400).json({ error: 'Valid localPort is required' });
+      // Validate input with Zod
+      const validation = validateBody(updateRoutePortSchema, req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: validation.error });
       }
 
-      const portNum = parseInt(localPort, 10);
-      if (portNum < 1 || portNum > 65535) {
-        return res.status(400).json({ error: 'Port must be between 1 and 65535' });
-      }
+      const portNum = validation.data.localPort;
 
       // Get route from database
       const route = await prisma.publishedRoute.findUnique({
@@ -1129,15 +1146,19 @@ export function createCloudflareRouter(prisma) {
   /**
    * PUT /api/cloudflare/routes/:hostname/websocket - Toggle WebSocket support for a route
    * Updates tunnel config with originRequest.websocket setting
+   * SECURITY: Uses Zod validation
    */
   router.put('/routes/:hostname/websocket', async (req, res) => {
     try {
       const hostname = decodeURIComponent(req.params.hostname);
-      const { enabled } = req.body;
 
-      if (typeof enabled !== 'boolean') {
-        return res.status(400).json({ error: 'enabled (boolean) is required' });
+      // Validate input with Zod
+      const validation = validateBody(websocketToggleSchema, req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: validation.error });
       }
+
+      const { enabled } = validation.data;
 
       // Get route from database
       const route = await prisma.publishedRoute.findUnique({
@@ -1778,7 +1799,9 @@ export function createCloudflareRouter(prisma) {
             await deleteDnsRecord(dnsRecord.id);
             log.info({ hostname }, 'deleted DNS record by hostname lookup');
           }
-        } catch {}
+        } catch (e) {
+          log.warn({ hostname, error: e.message }, 'failed to find/delete DNS record by hostname');
+        }
       }
 
       // Step 5: Remove Authentik protection
@@ -1891,7 +1914,9 @@ export function createCloudflareRouter(prisma) {
           if (route.dnsRecordId) {
             try {
               await deleteDnsRecord(route.dnsRecordId);
-            } catch {}
+            } catch (e) {
+              log.warn({ hostname: route.hostname, dnsRecordId: route.dnsRecordId, error: e.message }, 'failed to delete DNS record during bulk cleanup');
+            }
           }
 
           // Remove Authentik
