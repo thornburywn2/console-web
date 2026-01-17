@@ -11,6 +11,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { createLogger, logSecurityEvent } from '../services/logger.js';
 import { validateAndResolvePath, validatePathMiddleware, isValidName } from '../utils/pathSecurity.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const execAsync = promisify(exec);
 const log = createLogger('devtools');
@@ -73,7 +74,7 @@ export function createPortsRouter() {
       res.json({ ports });
     } catch (error) {
       log.error({ error: error.message }, 'failed to get port status');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to get port status', operation: 'get port status', requestId: req.id });
     }
   });
 
@@ -88,7 +89,7 @@ export function createPortsRouter() {
         process: status.process
       });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to check port', operation: 'check port', requestId: req.id });
     }
   });
 
@@ -135,7 +136,7 @@ export function createPortsRouter() {
 
       res.json({ base, suggestions });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to suggest ports', operation: 'suggest ports', requestId: req.id });
     }
   });
 
@@ -149,7 +150,7 @@ export function createPortsRouter() {
       res.json({ success: true, pid });
     } catch (error) {
       log.error({ error: error.message, pid: req.params.pid }, 'failed to kill process');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to kill process', operation: 'kill process', requestId: req.id });
     }
   });
 
@@ -201,7 +202,7 @@ export function createEnvRouter() {
 
       res.json({ files: envFiles });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to list env files', operation: 'list env files', requestId: req.id });
     }
   });
 
@@ -252,7 +253,7 @@ export function createEnvRouter() {
 
       res.json({ variables });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to get env variables', operation: 'get env variables', requestId: req.id });
     }
   });
 
@@ -294,7 +295,7 @@ export function createEnvRouter() {
       res.json({ success: true });
     } catch (error) {
       log.error({ error: error.message, filePath: req.params.filename }, 'failed to save env file');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to save env file', operation: 'save env file', requestId: req.id });
     }
   });
 
@@ -325,7 +326,7 @@ export function createEnvRouter() {
 
       res.json({ added, removed, changed });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to compare env files', operation: 'compare env files', requestId: req.id });
     }
   });
 
@@ -340,7 +341,7 @@ export function createEnvRouter() {
 
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to sync env files', operation: 'sync env files', requestId: req.id });
     }
   });
 
@@ -368,7 +369,7 @@ export function createEnvRouter() {
 
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to generate env example', operation: 'generate env example', requestId: req.id });
     }
   });
 
@@ -400,7 +401,7 @@ export function createDbBrowserRouter(prisma) {
 
       res.json({ tables: tables.filter(t => t.rowCount >= 0) });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to list database tables', operation: 'list database tables', requestId: req.id });
     }
   });
 
@@ -439,7 +440,7 @@ export function createDbBrowserRouter(prisma) {
 
       res.json({ columns, rows, totalRows });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to get table data', operation: 'get table data', requestId: req.id });
     }
   });
 
@@ -465,7 +466,7 @@ export function createDbBrowserRouter(prisma) {
       res.json({ success: true });
     } catch (error) {
       log.error({ error: error.message, table }, 'failed to update record');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to update record', operation: 'update database record', requestId: req.id });
     }
   });
 
@@ -486,7 +487,7 @@ export function createDbBrowserRouter(prisma) {
       res.json({ success: true });
     } catch (error) {
       log.error({ error: error.message, table }, 'failed to delete record');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to delete record', operation: 'delete database record', requestId: req.id });
     }
   });
 
@@ -520,7 +521,7 @@ export function createDbBrowserRouter(prisma) {
       });
     } catch (error) {
       log.error({ error: error.message, query: query.substring(0, 200) }, 'raw query failed');
-      res.status(400).json({ error: error.message });
+      return sendSafeError(res, error, { status: 400, userMessage: 'Query execution failed', operation: 'execute database query', requestId: req.id });
     }
   });
 
@@ -569,11 +570,7 @@ export function createProxyRouter() {
       });
     } catch (error) {
       proxyLog.error({ error: error.message, url: req.body.url }, 'proxy request failed');
-      res.status(500).json({
-        status: 0,
-        statusText: 'Error',
-        error: error.message
-      });
+      return sendSafeError(res, error, { userMessage: 'Proxy request failed', operation: 'proxy API request', requestId: req.id });
     }
   });
 

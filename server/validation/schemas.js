@@ -288,20 +288,31 @@ export const noteCreateSchema = z.object({
 // TEMPLATE SCHEMAS
 // =============================================================================
 
+/**
+ * Session template schema for creating templates
+ * Used by /api/templates POST
+ */
 export const templateSchema = z.object({
-  name: z.string().min(1).max(100),
-  description: z.string().max(1000).optional(),
-  config: z.object({
-    workingDirectory: z.string().max(500).optional(),
-    terminalCols: z.number().int().min(1).max(1000).optional(),
-    terminalRows: z.number().int().min(1).max(500).optional(),
-    initialCommands: z.array(z.string().max(1000)).max(20).optional(),
-    environment: z.record(z.string().max(1000)).optional(),
-  }).optional(),
-  isPublic: z.boolean().default(false),
+  name: z.string().min(1, 'Template name is required').max(100),
+  description: z.string().max(1000).nullable().optional(),
+  icon: z.string().max(50).nullable().optional(),
+  commands: z.array(z.string().max(1000)).min(1, 'Template must have at least one command').max(20),
+  environment: z.record(z.string().max(1000)).nullable().optional(),
+  workingDir: z.string().max(500).nullable().optional(),
 });
 
-export const templateUpdateSchema = templateSchema.partial();
+/**
+ * Session template update schema
+ * Used by /api/templates PUT /:id
+ */
+export const templateUpdateSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().max(1000).nullable().optional(),
+  icon: z.string().max(50).nullable().optional(),
+  commands: z.array(z.string().max(1000)).min(1).max(20).optional(),
+  environment: z.record(z.string().max(1000)).nullable().optional(),
+  workingDir: z.string().max(500).nullable().optional(),
+});
 
 // =============================================================================
 // ALERT SCHEMAS

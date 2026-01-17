@@ -5,6 +5,7 @@
 
 import { Router } from 'express';
 import { createLogger } from '../services/logger.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('ai');
 
@@ -79,7 +80,7 @@ export function createAIRouter(prisma) {
       });
     } catch (error) {
       log.error({ error: error.message, range: req.query.range, sessionId: req.query.sessionId, requestId: req.id }, 'failed to fetch AI usage');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to fetch AI usage', operation: 'ai.getUsage', requestId: req.id });
     }
   });
 
@@ -105,7 +106,7 @@ export function createAIRouter(prisma) {
       res.json(usage);
     } catch (error) {
       log.error({ error: error.message, model: req.body.model, requestId: req.id }, 'failed to record AI usage');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to record AI usage', operation: 'ai.recordUsage', requestId: req.id });
     }
   });
 
@@ -133,7 +134,7 @@ export function createAIRouter(prisma) {
       res.json(analysis);
     } catch (error) {
       log.error({ error: error.message, projectPath: req.body.projectPath, requestId: req.id }, 'failed to analyze error');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to analyze error', operation: 'ai.analyzeError', requestId: req.id });
     }
   });
 
@@ -161,7 +162,7 @@ export function createAIRouter(prisma) {
       res.json(explanation);
     } catch (error) {
       log.error({ error: error.message, language: req.body.language, requestId: req.id }, 'failed to explain code');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to explain code', operation: 'ai.explainCode', requestId: req.id });
     }
   });
 
@@ -189,7 +190,7 @@ export function createAIRouter(prisma) {
       res.json({ suggestions, conventionalCommits });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to generate commit message');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to generate commit message', operation: 'ai.generateCommitMessage', requestId: req.id });
     }
   });
 
@@ -205,7 +206,7 @@ export function createAIRouter(prisma) {
       res.json(personas);
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to fetch personas');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to fetch personas', operation: 'ai.getPersonas', requestId: req.id });
     }
   });
 
@@ -224,7 +225,7 @@ export function createAIRouter(prisma) {
       res.status(201).json(persona);
     } catch (error) {
       log.error({ error: error.message, personaName: req.body.name, requestId: req.id }, 'failed to create persona');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to create persona', operation: 'ai.createPersona', requestId: req.id });
     }
   });
 
@@ -245,7 +246,7 @@ export function createAIRouter(prisma) {
       res.json(persona);
     } catch (error) {
       log.error({ error: error.message, personaId: req.params.id, requestId: req.id }, 'failed to update persona');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to update persona', operation: 'ai.updatePersona', requestId: req.id });
     }
   });
 
@@ -262,7 +263,7 @@ export function createAIRouter(prisma) {
       res.json({ success: true });
     } catch (error) {
       log.error({ error: error.message, personaId: req.params.id, requestId: req.id }, 'failed to delete persona');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Failed to delete persona', operation: 'ai.deletePersona', requestId: req.id });
     }
   });
 

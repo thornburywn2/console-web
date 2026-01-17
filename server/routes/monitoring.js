@@ -8,6 +8,9 @@ import os from 'os';
 import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
 import { createLogger } from '../services/logger.js';
+import { validateBody } from '../middleware/validate.js';
+import { uptimeCheckSchema } from '../validation/schemas.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('monitoring');
 
@@ -119,8 +122,11 @@ export function createMetricsRouter(prisma) {
         loadAverage: loadAvg,
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get system metrics');
-      res.status(500).json({ error: 'Failed to get metrics' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get metrics',
+        operation: 'get system metrics',
+        requestId: req.id,
+      });
     }
   });
 
@@ -246,13 +252,16 @@ export function createUptimeRouter(prisma) {
 
       res.json({ status, responseTime });
     } catch (error) {
-      log.error({ error: error.message, serviceId: req.params.id, requestId: req.id }, 'failed to check service');
-      res.status(500).json({ error: 'Failed to check service' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to check service',
+        operation: 'check uptime service',
+        requestId: req.id,
+      });
     }
   });
 
   // Add a new service to monitor
-  router.post('/', async (req, res) => {
+  router.post('/', validateBody(uptimeCheckSchema), async (req, res) => {
     try {
       const { name, url, endpoint, checkInterval } = req.body;
 
@@ -271,8 +280,11 @@ export function createUptimeRouter(prisma) {
 
       res.json({ service });
     } catch (error) {
-      log.error({ error: error.message, serviceName: req.body.name, requestId: req.id }, 'failed to add service');
-      res.status(500).json({ error: 'Failed to add service' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to add service',
+        operation: 'add uptime service',
+        requestId: req.id,
+      });
     }
   });
 
@@ -287,8 +299,11 @@ export function createUptimeRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, serviceId: req.params.id, requestId: req.id }, 'failed to remove service');
-      res.status(500).json({ error: 'Failed to remove service' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to remove service',
+        operation: 'remove uptime service',
+        requestId: req.id,
+      });
     }
   });
 
@@ -345,8 +360,11 @@ export function createNetworkRouter(prisma) {
 
       res.json({ interfaces });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get network stats');
-      res.status(500).json({ error: 'Failed to get network stats' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get network stats',
+        operation: 'get network statistics',
+        requestId: req.id,
+      });
     }
   });
 
@@ -469,8 +487,11 @@ export function createCostRouter(prisma) {
 
       res.json({ usage });
     } catch (error) {
-      log.error({ error: error.message, model: req.body.model, requestId: req.id }, 'failed to log API usage');
-      res.status(500).json({ error: 'Failed to log usage' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to log usage',
+        operation: 'log API usage',
+        requestId: req.id,
+      });
     }
   });
 

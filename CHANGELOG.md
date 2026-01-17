@@ -84,6 +84,34 @@ End of Day:
 
 ---
 
+## [1.0.8] - 2026-01-17
+
+### Production Hardening & Validation
+
+Comprehensive production hardening with input validation, error sanitization, and monitoring improvements.
+
+#### Input Validation
+- **Zod validation across all routes**: Applied `validateBody()` middleware with Zod schemas to all 41+ route files
+- **New validation schemas**: Added schemas for agents, templates, alerts, prompts, snippets, dependencies, and more
+- **Strict type checking**: All API inputs now validated with proper error messages
+
+#### Error Sanitization
+- **sendSafeError utility**: New error response helper that logs full errors internally but returns sanitized messages to clients
+- **Reference IDs**: Each error response includes a unique reference ID for support without exposing sensitive details
+- **Information leakage prevention**: Stack traces, file paths, and internal details no longer exposed in API responses
+
+#### Monitoring & Observability
+- **Sentry integration**: Full error tracking with request handlers, tracing, and error handlers
+- **Prisma metrics middleware**: Database query tracking via Prometheus for performance monitoring
+- **Connection draining**: Graceful shutdown on SIGTERM with 30-second timeout for zero-downtime deployments
+
+#### Documentation
+- **Markdown consolidation**: Moved old research docs to `docs/archive/`, removed duplicates
+- **Cleaner structure**: Root-level docs reduced from 8 to 6 essential files
+- **Archive preserved**: Historical research and completed plans available in `docs/archive/`
+
+---
+
 ## [1.0.7] - 2026-01-17
 
 ### Security Hardening

@@ -5,6 +5,9 @@
 
 import { Router } from 'express';
 import { createLogger } from '../services/logger.js';
+import { validateBody } from '../middleware/validate.js';
+import { templateSchema, templateUpdateSchema } from '../validation/schemas.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('templates');
 
@@ -98,8 +101,7 @@ export function createTemplatesRouter(prisma) {
       });
       res.json(templates);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch templates');
-      res.status(500).json({ error: 'Failed to fetch templates' });
+      return sendSafeError(res, error, { userMessage: 'Failed to fetch templates', operation: 'fetch templates', requestId: req.id });
     }
   });
 
@@ -120,25 +122,16 @@ export function createTemplatesRouter(prisma) {
 
       res.json(template);
     } catch (error) {
-      log.error({ error: error.message, templateId: req.params.id, requestId: req.id }, 'failed to fetch template');
-      res.status(500).json({ error: 'Failed to fetch template' });
+      return sendSafeError(res, error, { userMessage: 'Failed to fetch template', operation: 'fetch template', requestId: req.id });
     }
   });
 
   /**
    * Create a new template
    */
-  router.post('/', async (req, res) => {
+  router.post('/', validateBody(templateSchema), async (req, res) => {
     try {
-      const { name, description, icon, commands, environment, workingDir } = req.body;
-
-      if (!name?.trim()) {
-        return res.status(400).json({ error: 'Template name is required' });
-      }
-
-      if (!commands || !Array.isArray(commands) || commands.length === 0) {
-        return res.status(400).json({ error: 'Template must have at least one command' });
-      }
+      const { name, description, icon, commands, environment, workingDir } = req.validatedBody;
 
       const template = await prisma.sessionTemplate.create({
         data: {
@@ -154,18 +147,17 @@ export function createTemplatesRouter(prisma) {
 
       res.status(201).json(template);
     } catch (error) {
-      log.error({ error: error.message, templateName: req.body.name, requestId: req.id }, 'failed to create template');
-      res.status(500).json({ error: 'Failed to create template' });
+      return sendSafeError(res, error, { userMessage: 'Failed to create template', operation: 'create template', requestId: req.id });
     }
   });
 
   /**
    * Update a template
    */
-  router.put('/:id', async (req, res) => {
+  router.put('/:id', validateBody(templateUpdateSchema), async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, description, icon, commands, environment, workingDir } = req.body;
+      const { name, description, icon, commands, environment, workingDir } = req.validatedBody;
 
       // Check if template exists and is not built-in
       const existing = await prisma.sessionTemplate.findUnique({ where: { id } });
@@ -191,8 +183,7 @@ export function createTemplatesRouter(prisma) {
 
       res.json(template);
     } catch (error) {
-      log.error({ error: error.message, templateId: req.params.id, requestId: req.id }, 'failed to update template');
-      res.status(500).json({ error: 'Failed to update template' });
+      return sendSafeError(res, error, { userMessage: 'Failed to update template', operation: 'update template', requestId: req.id });
     }
   });
 
@@ -216,8 +207,7 @@ export function createTemplatesRouter(prisma) {
       await prisma.sessionTemplate.delete({ where: { id } });
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, templateId: req.params.id, requestId: req.id }, 'failed to delete template');
-      res.status(500).json({ error: 'Failed to delete template' });
+      return sendSafeError(res, error, { userMessage: 'Failed to delete template', operation: 'delete template', requestId: req.id });
     }
   });
 
@@ -250,8 +240,7 @@ export function createTemplatesRouter(prisma) {
         templateName: template.name
       });
     } catch (error) {
-      log.error({ error: error.message, templateId: req.params.id, requestId: req.id }, 'failed to use template');
-      res.status(500).json({ error: 'Failed to use template' });
+      return sendSafeError(res, error, { userMessage: 'Failed to use template', operation: 'use template', requestId: req.id });
     }
   });
 
@@ -285,8 +274,7 @@ export function createTemplatesRouter(prisma) {
 
       res.status(201).json(duplicate);
     } catch (error) {
-      log.error({ error: error.message, templateId: req.params.id, requestId: req.id }, 'failed to duplicate template');
-      res.status(500).json({ error: 'Failed to duplicate template' });
+      return sendSafeError(res, error, { userMessage: 'Failed to duplicate template', operation: 'duplicate template', requestId: req.id });
     }
   });
 

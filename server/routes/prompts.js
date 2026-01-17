@@ -5,6 +5,9 @@
 
 import { Router } from 'express';
 import { createLogger } from '../services/logger.js';
+import { validateBody } from '../middleware/validate.js';
+import { promptSchema, promptUpdateSchema } from '../validation/schemas.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('prompts');
 
@@ -52,8 +55,7 @@ export function createPromptsRouter(prisma) {
 
       res.json({ prompts, total, limit: parseInt(limit), offset: parseInt(offset) });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch prompts');
-      res.status(500).json({ error: 'Failed to fetch prompts' });
+      return sendSafeError(res, error, { userMessage: 'Failed to fetch prompts', operation: 'fetch prompts', requestId: req.id });
     }
   });
 
@@ -74,8 +76,7 @@ export function createPromptsRouter(prisma) {
         count: c._count.id
       })));
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch prompt categories');
-      res.status(500).json({ error: 'Failed to fetch categories' });
+      return sendSafeError(res, error, { userMessage: 'Failed to fetch categories', operation: 'fetch prompt categories', requestId: req.id });
     }
   });
 
@@ -96,68 +97,56 @@ export function createPromptsRouter(prisma) {
 
       res.json(prompt);
     } catch (error) {
-      log.error({ error: error.message, promptId: req.params.id, requestId: req.id }, 'failed to fetch prompt');
-      res.status(500).json({ error: 'Failed to fetch prompt' });
+      return sendSafeError(res, error, { userMessage: 'Failed to fetch prompt', operation: 'fetch prompt', requestId: req.id });
     }
   });
 
   /**
    * Create a new prompt
    */
-  router.post('/', async (req, res) => {
+  router.post('/', validateBody(promptSchema), async (req, res) => {
     try {
-      const { name, content, description, category, variables, isFavorite } = req.body;
-
-      if (!name?.trim()) {
-        return res.status(400).json({ error: 'Prompt name is required' });
-      }
-
-      if (!content?.trim()) {
-        return res.status(400).json({ error: 'Prompt content is required' });
-      }
+      const { title, content, category, tags, isPublic, isFavorite } = req.validatedBody;
 
       const prompt = await prisma.prompt.create({
         data: {
-          name: name.trim(),
-          content: content.trim(),
-          description: description?.trim() || null,
-          category: category?.trim() || null,
-          variables: variables || null,
+          name: title,
+          content: content,
+          description: null,
+          category: category || null,
+          variables: tags ? tags.map(t => ({ name: t })) : null,
           isFavorite: isFavorite || false
         }
       });
 
       res.status(201).json(prompt);
     } catch (error) {
-      log.error({ error: error.message, name: req.body.name, requestId: req.id }, 'failed to create prompt');
-      res.status(500).json({ error: 'Failed to create prompt' });
+      return sendSafeError(res, error, { userMessage: 'Failed to create prompt', operation: 'create prompt', requestId: req.id });
     }
   });
 
   /**
    * Update a prompt
    */
-  router.put('/:id', async (req, res) => {
+  router.put('/:id', validateBody(promptUpdateSchema), async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, content, description, category, variables, isFavorite } = req.body;
+      const { title, content, category, tags, isPublic, isFavorite } = req.validatedBody;
 
       const prompt = await prisma.prompt.update({
         where: { id },
         data: {
-          ...(name !== undefined && { name: name.trim() }),
-          ...(content !== undefined && { content: content.trim() }),
-          ...(description !== undefined && { description: description?.trim() || null }),
-          ...(category !== undefined && { category: category?.trim() || null }),
-          ...(variables !== undefined && { variables }),
+          ...(title !== undefined && { name: title }),
+          ...(content !== undefined && { content: content }),
+          ...(category !== undefined && { category: category || null }),
+          ...(tags !== undefined && { variables: tags.map(t => ({ name: t })) }),
           ...(isFavorite !== undefined && { isFavorite })
         }
       });
 
       res.json(prompt);
     } catch (error) {
-      log.error({ error: error.message, promptId: req.params.id, requestId: req.id }, 'failed to update prompt');
-      res.status(500).json({ error: 'Failed to update prompt' });
+      return sendSafeError(res, error, { userMessage: 'Failed to update prompt', operation: 'update prompt', requestId: req.id });
     }
   });
 
@@ -170,8 +159,7 @@ export function createPromptsRouter(prisma) {
       await prisma.prompt.delete({ where: { id } });
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, promptId: req.params.id, requestId: req.id }, 'failed to delete prompt');
-      res.status(500).json({ error: 'Failed to delete prompt' });
+      return sendSafeError(res, error, { userMessage: 'Failed to delete prompt', operation: 'delete prompt', requestId: req.id });
     }
   });
 
@@ -227,8 +215,7 @@ export function createPromptsRouter(prisma) {
         promptName: prompt.name
       });
     } catch (error) {
-      log.error({ error: error.message, promptId: req.params.id, requestId: req.id }, 'failed to execute prompt');
-      res.status(500).json({ error: 'Failed to execute prompt' });
+      return sendSafeError(res, error, { userMessage: 'Failed to execute prompt', operation: 'execute prompt', requestId: req.id });
     }
   });
 
@@ -247,8 +234,7 @@ export function createPromptsRouter(prisma) {
 
       res.json(prompt);
     } catch (error) {
-      log.error({ error: error.message, promptId: req.params.id, requestId: req.id }, 'failed to toggle prompt favorite');
-      res.status(500).json({ error: 'Failed to toggle favorite' });
+      return sendSafeError(res, error, { userMessage: 'Failed to toggle favorite', operation: 'toggle prompt favorite', requestId: req.id });
     }
   });
 
@@ -281,8 +267,7 @@ export function createPromptsRouter(prisma) {
 
       res.status(201).json(duplicate);
     } catch (error) {
-      log.error({ error: error.message, promptId: req.params.id, requestId: req.id }, 'failed to duplicate prompt');
-      res.status(500).json({ error: 'Failed to duplicate prompt' });
+      return sendSafeError(res, error, { userMessage: 'Failed to duplicate prompt', operation: 'duplicate prompt', requestId: req.id });
     }
   });
 

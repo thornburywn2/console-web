@@ -7,6 +7,26 @@ import { useState, useEffect, useCallback } from 'react';
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.8',
+    date: '2026-01-17',
+    type: 'major',
+    title: 'Production Hardening & Validation',
+    highlights: [
+      'Zod validation schemas applied across all 41+ route files',
+      'Error sanitization with sendSafeError() prevents information leakage',
+      'Sentry error tracking integration for production monitoring',
+      'Connection draining for graceful shutdown during deployments',
+    ],
+    features: [
+      { title: 'Input Validation', description: 'All API routes now use Zod schemas via validateBody() middleware for strict input validation' },
+      { title: 'Error Sanitization', description: 'sendSafeError() returns sanitized messages with reference IDs, logging full errors internally' },
+      { title: 'Sentry Integration', description: 'Full Sentry setup with request handlers, error tracking, and frontend error boundaries' },
+      { title: 'Graceful Shutdown', description: 'Connection draining on SIGTERM with 30s timeout for zero-downtime deployments' },
+      { title: 'Prisma Metrics', description: 'Database query tracking via Prometheus middleware for performance monitoring' },
+      { title: 'Doc Consolidation', description: 'Moved old research docs to archive/, removed duplicates, cleaner project structure' },
+    ],
+  },
+  {
     version: '1.0.7',
     date: '2026-01-17',
     type: 'security',

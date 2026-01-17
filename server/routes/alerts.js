@@ -5,6 +5,9 @@
 
 import { Router } from 'express';
 import { createLogger } from '../services/logger.js';
+import { validateBody } from '../middleware/validate.js';
+import { alertSchema, alertUpdateSchema } from '../validation/schemas.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('alerts');
 
@@ -39,8 +42,7 @@ export function createAlertsRouter(prisma) {
 
       res.json(rules);
     } catch (error) {
-      log.error({ error: error.message, type: req.query.type, requestId: req.id }, 'failed to fetch alert rules');
-      res.status(500).json({ error: 'Failed to fetch alert rules' });
+      return sendSafeError(res, error, { userMessage: 'Failed to fetch alert rules', operation: 'fetch alert rules', requestId: req.id });
     }
   });
 
@@ -61,106 +63,81 @@ export function createAlertsRouter(prisma) {
 
       res.json(rule);
     } catch (error) {
-      log.error({ error: error.message, ruleId: req.params.id, requestId: req.id }, 'failed to fetch alert rule');
-      res.status(500).json({ error: 'Failed to fetch alert rule' });
+      return sendSafeError(res, error, { userMessage: 'Failed to fetch alert rule', operation: 'fetch alert rule', requestId: req.id });
     }
   });
 
   /**
    * Create a new alert rule
    */
-  router.post('/', async (req, res) => {
+  router.post('/', validateBody(alertSchema), async (req, res) => {
     try {
       const {
         name,
         description,
-        type,
+        metric,
         condition,
         threshold,
         duration,
         enabled,
-        notifySound,
-        notifyDesktop,
-        cooldownMins
-      } = req.body;
-
-      if (!name?.trim()) {
-        return res.status(400).json({ error: 'Alert name is required' });
-      }
-
-      if (!type) {
-        return res.status(400).json({ error: 'Alert type is required' });
-      }
-
-      if (!condition) {
-        return res.status(400).json({ error: 'Alert condition is required' });
-      }
-
-      if (threshold === undefined || threshold === null) {
-        return res.status(400).json({ error: 'Alert threshold is required' });
-      }
+        cooldownMinutes
+      } = req.validatedBody;
 
       const rule = await prisma.alertRule.create({
         data: {
           name: name.trim(),
           description: description?.trim() || null,
-          type: type.toUpperCase(),
+          type: metric.toUpperCase(),
           condition: condition.toUpperCase(),
-          threshold: parseFloat(threshold),
+          threshold,
           duration: duration || null,
           enabled: enabled ?? true,
-          notifySound: notifySound ?? true,
-          notifyDesktop: notifyDesktop ?? true,
-          cooldownMins: cooldownMins ?? 5
+          notifySound: true,
+          notifyDesktop: true,
+          cooldownMins: cooldownMinutes ?? 5
         }
       });
 
       res.status(201).json(rule);
     } catch (error) {
-      log.error({ error: error.message, name: req.body.name, requestId: req.id }, 'failed to create alert rule');
-      res.status(500).json({ error: 'Failed to create alert rule' });
+      return sendSafeError(res, error, { userMessage: 'Failed to create alert rule', operation: 'create alert rule', requestId: req.id });
     }
   });
 
   /**
    * Update an alert rule
    */
-  router.put('/:id', async (req, res) => {
+  router.put('/:id', validateBody(alertUpdateSchema), async (req, res) => {
     try {
       const { id } = req.params;
       const {
         name,
         description,
-        type,
+        metric,
         condition,
         threshold,
         duration,
         enabled,
-        notifySound,
-        notifyDesktop,
-        cooldownMins
-      } = req.body;
+        cooldownMinutes
+      } = req.validatedBody;
 
       const rule = await prisma.alertRule.update({
         where: { id },
         data: {
           ...(name !== undefined && { name: name.trim() }),
           ...(description !== undefined && { description: description?.trim() || null }),
-          ...(type !== undefined && { type: type.toUpperCase() }),
+          ...(metric !== undefined && { type: metric.toUpperCase() }),
           ...(condition !== undefined && { condition: condition.toUpperCase() }),
-          ...(threshold !== undefined && { threshold: parseFloat(threshold) }),
+          ...(threshold !== undefined && { threshold }),
           ...(duration !== undefined && { duration }),
           ...(enabled !== undefined && { enabled }),
-          ...(notifySound !== undefined && { notifySound }),
-          ...(notifyDesktop !== undefined && { notifyDesktop }),
-          ...(cooldownMins !== undefined && { cooldownMins })
+          ...(cooldownMinutes !== undefined && { cooldownMins: cooldownMinutes })
         }
       });
 
       res.json(rule);
     } catch (error) {
-      log.error({ error: error.message, ruleId: req.params.id, requestId: req.id }, 'failed to update alert rule');
-      res.status(500).json({ error: 'Failed to update alert rule' });
+      return sendSafeError(res, error, { userMessage: 'Failed to update alert rule', operation: 'update alert rule', requestId: req.id });
     }
   });
 
@@ -173,8 +150,7 @@ export function createAlertsRouter(prisma) {
       await prisma.alertRule.delete({ where: { id } });
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, ruleId: req.params.id, requestId: req.id }, 'failed to delete alert rule');
-      res.status(500).json({ error: 'Failed to delete alert rule' });
+      return sendSafeError(res, error, { userMessage: 'Failed to delete alert rule', operation: 'delete alert rule', requestId: req.id });
     }
   });
 
@@ -193,8 +169,7 @@ export function createAlertsRouter(prisma) {
 
       res.json(rule);
     } catch (error) {
-      log.error({ error: error.message, ruleId: req.params.id, requestId: req.id }, 'failed to toggle alert rule');
-      res.status(500).json({ error: 'Failed to toggle alert rule' });
+      return sendSafeError(res, error, { userMessage: 'Failed to toggle alert rule', operation: 'toggle alert rule', requestId: req.id });
     }
   });
 
@@ -220,8 +195,7 @@ export function createAlertsRouter(prisma) {
         message: `Alert "${rule.name}" test triggered`
       });
     } catch (error) {
-      log.error({ error: error.message, ruleId: req.params.id, requestId: req.id }, 'failed to test alert rule');
-      res.status(500).json({ error: 'Failed to test alert rule' });
+      return sendSafeError(res, error, { userMessage: 'Failed to test alert rule', operation: 'test alert rule', requestId: req.id });
     }
   });
 
@@ -247,8 +221,7 @@ export function createAlertsRouter(prisma) {
         currentValue
       });
     } catch (error) {
-      log.error({ error: error.message, ruleId: req.params.id, requestId: req.id }, 'failed to record alert trigger');
-      res.status(500).json({ error: 'Failed to record trigger' });
+      return sendSafeError(res, error, { userMessage: 'Failed to record trigger', operation: 'record alert trigger', requestId: req.id });
     }
   });
 
@@ -275,8 +248,7 @@ export function createAlertsRouter(prisma) {
 
       res.json(rule);
     } catch (error) {
-      log.error({ error: error.message, ruleId: req.params.id, requestId: req.id }, 'failed to fetch alert history');
-      res.status(500).json({ error: 'Failed to fetch history' });
+      return sendSafeError(res, error, { userMessage: 'Failed to fetch history', operation: 'fetch alert history', requestId: req.id });
     }
   });
 
@@ -297,8 +269,7 @@ export function createAlertsRouter(prisma) {
 
       res.json(rule);
     } catch (error) {
-      log.error({ error: error.message, ruleId: req.params.id, requestId: req.id }, 'failed to reset alert');
-      res.status(500).json({ error: 'Failed to reset alert' });
+      return sendSafeError(res, error, { userMessage: 'Failed to reset alert', operation: 'reset alert', requestId: req.id });
     }
   });
 
@@ -357,8 +328,7 @@ export function createAlertsRouter(prisma) {
 
       res.json(templates);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch alert templates');
-      res.status(500).json({ error: 'Failed to fetch templates' });
+      return sendSafeError(res, error, { userMessage: 'Failed to fetch templates', operation: 'fetch alert templates', requestId: req.id });
     }
   });
 

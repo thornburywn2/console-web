@@ -8,6 +8,7 @@ import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { createLogger } from '../services/logger.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('backups');
 
@@ -91,7 +92,7 @@ export function createBackupsRouter(prisma) {
       res.json({ backups, schedules });
     } catch (error) {
       log.error({ error: error.message, projectPath: req.params.projectPath, requestId: req.id }, 'failed to list backups');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Backup operation failed', operation: 'list backups', requestId: req.id });
     }
   });
 
@@ -159,7 +160,7 @@ export function createBackupsRouter(prisma) {
       });
     } catch (error) {
       log.error({ error: error.message, projectPath: req.params.projectPath, strategy: req.body.strategy, requestId: req.id }, 'failed to create backup');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Backup operation failed', operation: 'create backup', requestId: req.id });
     }
   });
 
@@ -210,7 +211,7 @@ export function createBackupsRouter(prisma) {
       res.json({ success: true, message: 'Backup restored successfully' });
     } catch (error) {
       log.error({ error: error.message, projectPath: req.params.projectPath, backupId: req.params.backupId, requestId: req.id }, 'failed to restore backup');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Backup operation failed', operation: 'restore backup', requestId: req.id });
     }
   });
 
@@ -226,7 +227,7 @@ export function createBackupsRouter(prisma) {
       res.json({ success: true });
     } catch (error) {
       log.error({ error: error.message, projectPath: req.params.projectPath, backupId: req.params.backupId, requestId: req.id }, 'failed to delete backup');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Backup operation failed', operation: 'delete backup', requestId: req.id });
     }
   });
 
@@ -265,7 +266,7 @@ export function createBackupsRouter(prisma) {
       res.json({ success: true });
     } catch (error) {
       log.error({ error: error.message, projectPath: req.params.projectPath, requestId: req.id }, 'failed to save backup schedule');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, { userMessage: 'Backup operation failed', operation: 'save backup schedule', requestId: req.id });
     }
   });
 

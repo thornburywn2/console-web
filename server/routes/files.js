@@ -10,6 +10,7 @@ import path from 'path';
 import { spawn } from 'child_process';
 import { createLogger, logSecurityEvent } from '../services/logger.js';
 import { validateAndResolvePath, validatePathMiddleware } from '../utils/pathSecurity.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('files');
 
@@ -101,8 +102,11 @@ export function createFilesRouter(prisma) {
       const tree = await buildTree(fullPath);
       res.json(tree);
     } catch (error) {
-      log.error({ error: error.message, projectPath: req.params.projectPath, requestId: req.id }, 'failed to list files');
-      res.status(500).json({ error: 'Failed to list files' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list files',
+        operation: 'list files',
+        requestId: req.id,
+      });
     }
   });
 
@@ -132,8 +136,12 @@ export function createFilesRouter(prisma) {
       const content = await fs.readFile(fullPath, 'utf-8');
       res.type('text/plain').send(content);
     } catch (error) {
-      log.error({ error: error.message, filePath: req.params.filePath, requestId: req.id }, 'failed to read file');
-      res.status(404).json({ error: 'File not found' });
+      return sendSafeError(res, error, {
+        status: 404,
+        userMessage: 'File not found',
+        operation: 'read file',
+        requestId: req.id,
+      });
     }
   });
 
@@ -186,8 +194,12 @@ export function createLogsRouter(prisma) {
       const logLines = result.split('\n').filter(l => l.trim());
       res.json({ lines: logLines, total: logLines.length });
     } catch (error) {
-      log.error({ error: error.message, logPath: req.params.logPath, requestId: req.id }, 'failed to read logs');
-      res.status(404).json({ error: 'Log file not found', lines: [] });
+      return sendSafeError(res, error, {
+        status: 404,
+        userMessage: 'Log file not found',
+        operation: 'read logs',
+        requestId: req.id,
+      });
     }
   });
 
@@ -241,8 +253,11 @@ export function createDiffRouter(prisma) {
 
       res.json({ diff: result });
     } catch (error) {
-      log.error({ error: error.message, projectPath: req.params.projectPath, requestId: req.id }, 'failed to get diff');
-      res.status(500).json({ error: 'Failed to get diff', diff: '' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get diff',
+        operation: 'get diff',
+        requestId: req.id,
+      });
     }
   });
 
@@ -287,8 +302,11 @@ export function createExportRouter(prisma) {
 
       res.json(exportData);
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to export session');
-      res.status(500).json({ error: 'Failed to export session' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to export session',
+        operation: 'export session',
+        requestId: req.id,
+      });
     }
   });
 
@@ -352,8 +370,11 @@ export function createImportRouter(prisma) {
         sessions: imported,
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to import conversations');
-      res.status(500).json({ error: 'Failed to import' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to import conversations',
+        operation: 'import conversations',
+        requestId: req.id,
+      });
     }
   });
 
