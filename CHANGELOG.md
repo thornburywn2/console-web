@@ -84,6 +84,45 @@ End of Day:
 
 ---
 
+## [1.0.7] - 2026-01-17
+
+### Security Hardening
+
+Critical security fixes addressing vulnerabilities identified by Snyk security scanning.
+
+#### Dockerfile Security (CVE-2023-45853)
+- **Multi-stage build**: Implemented two-stage Docker build to reduce attack surface
+- **Security updates**: Added explicit `apt-get upgrade` to patch zlib Integer Overflow vulnerability
+- **Smaller image**: Production image only contains runtime dependencies
+- **Better caching**: Build dependencies cached in builder stage
+
+#### Path Traversal Prevention (CWE-23)
+- **New security utilities**: Created `/server/utils/pathSecurity.js` with centralized path validation
+- **`isValidProjectName()`**: Validates project names against strict allowlist (alphanumeric, hyphens, underscores)
+- **`safePath()`**: Resolves paths and ensures they stay within allowed base directories
+- **`validateAndResolvePath()`**: Validates both absolute and relative paths
+- **`validateProjectNameMiddleware`**: Express middleware for route protection
+- **`validatePathMiddleware`**: Express middleware to check path parameters
+
+#### Protected Endpoints (server/index.js)
+- `/api/admin/sessions/:projectName` - Session listing
+- `/api/admin/claude-md/:projectName` - CLAUDE.md read/write
+- `/api/admin/claude-md/:projectName/port` - Port configuration
+- `/api/projects/:projectName/settings` - Project settings
+- `/api/projects/:projectName/restart` - Project restart
+- `/api/admin/projects/:projectName` - Project deletion
+- `/api/projects/:projectName/rename` - Project renaming
+
+#### Protected Routes (server/routes/)
+- `files.js` - File browser, content, logs, and diff endpoints
+- `devtools.js` - Environment file listing, reading, and saving
+
+#### Security Logging
+- All blocked path traversal attempts are logged via `logSecurityEvent()`
+- Security events include IP address, attempted path, and event type
+
+---
+
 ## [1.0.6] - 2026-01-17
 
 ### Admin Dashboard Modularization

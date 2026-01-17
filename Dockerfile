@@ -1,6 +1,38 @@
 # Claude Code Manager - Docker Image
 # Includes: Node.js, tmux, git, and claude-code CLI
+# Security: Multi-stage build with explicit security updates
 
+# =============================================================================
+# Stage 1: Builder - compile native dependencies
+# =============================================================================
+FROM node:20-bookworm-slim AS builder
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive \
+    NODE_ENV=development
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy package files first for better caching
+COPY package*.json ./
+
+# Install all dependencies (including dev for building)
+RUN npm ci && npm cache clean --force
+
+# Copy source and build
+COPY . .
+RUN npm run build
+
+# =============================================================================
+# Stage 2: Production - minimal runtime image
+# =============================================================================
 FROM node:20-bookworm-slim
 
 # Set environment variables
@@ -12,17 +44,18 @@ ENV DEBIAN_FRONTEND=noninteractive \
     NODE_ENV=production \
     PROJECTS_DIR=/projects
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install system dependencies with security updates
+# CVE-2023-45853: zlib Integer Overflow - fixed by upgrade
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
     tmux \
     git \
     curl \
     ca-certificates \
     locales \
-    python3 \
-    make \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 # Generate locale
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
@@ -34,18 +67,14 @@ RUN npm install -g @anthropic-ai/claude-code
 # Create app directory
 WORKDIR /app
 
-# Copy package files first for better caching
-COPY package*.json ./
+# Copy built assets from builder stage
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package*.json ./
 
-# Install dependencies with node-pty rebuild
-RUN npm ci --include=dev && \
-    npm cache clean --force
-
-# Copy the rest of the application
-COPY . .
-
-# Build the frontend
-RUN npm run build
+# Copy server files (not already built)
+COPY server ./server
+COPY prisma ./prisma
 
 # Create projects directory
 RUN mkdir -p /projects

@@ -119,6 +119,84 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// ============================================================================
+// SECURITY: Path Traversal Prevention Utilities
+// ============================================================================
+import { resolve, normalize } from 'path';
+
+/**
+ * Validates a project name to prevent path traversal attacks.
+ * Only allows alphanumeric characters, hyphens, underscores, and dots.
+ * Rejects any path components like '..' or '/' or '\\'.
+ *
+ * @param {string} name - The project name to validate
+ * @returns {boolean} - True if valid, false if potentially malicious
+ */
+function isValidProjectName(name) {
+  if (!name || typeof name !== 'string') return false;
+
+  // Reject if contains path traversal patterns
+  if (name.includes('..') || name.includes('/') || name.includes('\\')) {
+    return false;
+  }
+
+  // Reject if starts or ends with dots (hidden files, edge cases)
+  if (name.startsWith('.') || name.endsWith('.')) {
+    return false;
+  }
+
+  // Only allow alphanumeric, hyphens, underscores, and single dots
+  // This is a strict allowlist approach
+  const validPattern = /^[a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9]$|^[a-zA-Z0-9]$/;
+  return validPattern.test(name);
+}
+
+/**
+ * Safely resolves a path and ensures it stays within the allowed base directory.
+ * Prevents path traversal attacks by validating the resolved path.
+ *
+ * @param {string} baseDir - The allowed base directory
+ * @param {string[]} pathParts - Path components to join
+ * @returns {string|null} - The safe resolved path, or null if traversal detected
+ */
+function safePath(baseDir, ...pathParts) {
+  const normalizedBase = resolve(baseDir);
+  const targetPath = resolve(normalizedBase, ...pathParts);
+
+  // Ensure the resolved path is still within the base directory
+  if (!targetPath.startsWith(normalizedBase + '/') && targetPath !== normalizedBase) {
+    logSecurityEvent({
+      event: 'path_traversal_attempt',
+      baseDir: normalizedBase,
+      attemptedPath: pathParts.join('/'),
+      resolvedPath: targetPath,
+    });
+    return null;
+  }
+
+  return targetPath;
+}
+
+/**
+ * Middleware to validate project name parameter.
+ * Returns 400 if invalid, continues if valid.
+ */
+function validateProjectName(req, res, next) {
+  const projectName = req.params.projectName || req.params.project;
+  if (projectName && !isValidProjectName(projectName)) {
+    logSecurityEvent({
+      event: 'invalid_project_name',
+      projectName,
+      ip: req.ip,
+      path: req.path,
+    });
+    return res.status(400).json({ error: 'Invalid project name' });
+  }
+  next();
+}
+
+// ============================================================================
+
 // Initialize Prisma client for session persistence (Prisma 7 adapter pattern)
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
@@ -1710,11 +1788,16 @@ Template: PROJECT-CLAUDE-TEMPLATE.md v1.0.0
 });
 
 // Update project settings
-app.patch('/api/projects/:projectName/settings', async (req, res) => {
+// SECURITY: Uses validateProjectName middleware and safePath to prevent path traversal
+app.patch('/api/projects/:projectName/settings', validateProjectName, async (req, res) => {
   try {
     const { projectName } = req.params;
     const { skipPermissions } = req.body;
-    const projectPath = join(PROJECTS_DIR, projectName);
+    const projectPath = safePath(PROJECTS_DIR, projectName);
+
+    if (!projectPath) {
+      return res.status(400).json({ error: 'Invalid project path' });
+    }
 
     if (!existsSync(projectPath)) {
       return res.status(404).json({ error: 'Project not found' });
@@ -1760,10 +1843,15 @@ app.patch('/api/projects/:projectName/settings', async (req, res) => {
 });
 
 // Get project settings
-app.get('/api/projects/:projectName/settings', async (req, res) => {
+// SECURITY: Uses validateProjectName middleware and safePath to prevent path traversal
+app.get('/api/projects/:projectName/settings', validateProjectName, async (req, res) => {
   try {
     const { projectName } = req.params;
-    const projectPath = join(PROJECTS_DIR, projectName);
+    const projectPath = safePath(PROJECTS_DIR, projectName);
+
+    if (!projectPath) {
+      return res.status(400).json({ error: 'Invalid project path' });
+    }
 
     if (!existsSync(projectPath)) {
       return res.status(404).json({ error: 'Project not found' });
@@ -1965,11 +2053,17 @@ app.get('/api/admin/history', async (req, res) => {
 
 /**
  * Get session details for a specific project
+ * SECURITY: Uses validateProjectName middleware and safePath to prevent path traversal
  */
-app.get('/api/admin/sessions/:projectName', (req, res) => {
+app.get('/api/admin/sessions/:projectName', validateProjectName, (req, res) => {
   try {
     const projectName = req.params.projectName;
-    const projectDir = join(CLAUDE_DIR, 'projects', `-home-thornburywn-Projects-${projectName}`);
+    const claudeProjectsDir = join(CLAUDE_DIR, 'projects');
+    const projectDir = safePath(claudeProjectsDir, `-home-thornburywn-Projects-${projectName}`);
+
+    if (!projectDir) {
+      return res.status(400).json({ error: 'Invalid project path' });
+    }
 
     if (!existsSync(projectDir)) {
       return res.json({ sessions: [] });
@@ -1977,7 +2071,8 @@ app.get('/api/admin/sessions/:projectName', (req, res) => {
 
     const files = readdirSync(projectDir);
     const sessions = files.map(file => {
-      const filePath = join(projectDir, file);
+      const filePath = safePath(projectDir, file);
+      if (!filePath) return null;
       try {
         const stat = statSync(filePath);
         const content = readFileSync(filePath, 'utf-8');
@@ -2056,12 +2151,21 @@ app.put('/api/admin/mcp', (req, res) => {
 
 /**
  * Get CLAUDE.md for a project (project-specific instructions)
+ * SECURITY: Uses validateProjectName middleware and safePath to prevent path traversal
  */
-app.get('/api/admin/claude-md/:projectName', (req, res) => {
+app.get('/api/admin/claude-md/:projectName', validateProjectName, (req, res) => {
   try {
     const projectName = req.params.projectName;
-    const projectPath = join(PROJECTS_DIR, projectName);
-    const claudeMdPath = join(projectPath, 'CLAUDE.md');
+    const projectPath = safePath(PROJECTS_DIR, projectName);
+
+    if (!projectPath) {
+      return res.status(400).json({ error: 'Invalid project path' });
+    }
+
+    const claudeMdPath = safePath(projectPath, 'CLAUDE.md');
+    if (!claudeMdPath) {
+      return res.status(400).json({ error: 'Invalid file path' });
+    }
 
     if (!existsSync(claudeMdPath)) {
       return res.json({
@@ -2089,13 +2193,22 @@ app.get('/api/admin/claude-md/:projectName', (req, res) => {
 
 /**
  * Update CLAUDE.md for a project
+ * SECURITY: Uses validateProjectName middleware and safePath to prevent path traversal
  */
-app.put('/api/admin/claude-md/:projectName', (req, res) => {
+app.put('/api/admin/claude-md/:projectName', validateProjectName, (req, res) => {
   try {
     const projectName = req.params.projectName;
     const { content } = req.body;
-    const projectPath = join(PROJECTS_DIR, projectName);
-    const claudeMdPath = join(projectPath, 'CLAUDE.md');
+    const projectPath = safePath(PROJECTS_DIR, projectName);
+
+    if (!projectPath) {
+      return res.status(400).json({ error: 'Invalid project path' });
+    }
+
+    const claudeMdPath = safePath(projectPath, 'CLAUDE.md');
+    if (!claudeMdPath) {
+      return res.status(400).json({ error: 'Invalid file path' });
+    }
 
     if (!existsSync(projectPath)) {
       return res.status(404).json({ error: 'Project not found' });
@@ -2118,13 +2231,22 @@ app.put('/api/admin/claude-md/:projectName', (req, res) => {
 /**
  * Update port in CLAUDE.md for a project
  * Updates or adds the Port field in the CLAUDE.md header
+ * SECURITY: Uses validateProjectName middleware and safePath to prevent path traversal
  */
-app.put('/api/admin/claude-md/:projectName/port', (req, res) => {
+app.put('/api/admin/claude-md/:projectName/port', validateProjectName, (req, res) => {
   try {
     const projectName = req.params.projectName;
     const { port } = req.body;
-    const projectPath = join(PROJECTS_DIR, projectName);
-    const claudeMdPath = join(projectPath, 'CLAUDE.md');
+    const projectPath = safePath(PROJECTS_DIR, projectName);
+
+    if (!projectPath) {
+      return res.status(400).json({ error: 'Invalid project path' });
+    }
+
+    const claudeMdPath = safePath(projectPath, 'CLAUDE.md');
+    if (!claudeMdPath) {
+      return res.status(400).json({ error: 'Invalid file path' });
+    }
 
     if (!existsSync(projectPath)) {
       return res.status(404).json({ error: 'Project not found' });
@@ -2196,17 +2318,21 @@ Add project description here.
 /**
  * Restart a project by killing and restarting its session
  */
-app.post('/api/projects/:projectName/restart', async (req, res) => {
+// SECURITY: Uses validateProjectName middleware and safePath to prevent path traversal
+app.post('/api/projects/:projectName/restart', validateProjectName, async (req, res) => {
   try {
     const projectName = req.params.projectName;
 
-    // Validate project name to prevent command injection
+    // Validate project name to prevent command injection (additional layer)
     const safeProjectName = projectName.replace(/[^a-zA-Z0-9_-]/g, '_');
     if (safeProjectName !== projectName) {
       log.warn({ original: projectName, sanitized: safeProjectName }, 'project name sanitized');
     }
 
-    const projectPath = join(PROJECTS_DIR, safeProjectName);
+    const projectPath = safePath(PROJECTS_DIR, safeProjectName);
+    if (!projectPath) {
+      return res.status(400).json({ error: 'Invalid project path' });
+    }
 
     if (!existsSync(projectPath)) {
       return res.status(404).json({ error: 'Project not found' });
@@ -3813,18 +3939,17 @@ app.get('/api/dashboard', async (req, res) => {
 /**
  * DELETE /api/admin/projects/:projectName - Delete a project
  * Moves project to ~/.Trash or deletes permanently based on query param
+ * SECURITY: Uses validateProjectName middleware and safePath to prevent path traversal
  */
-app.delete('/api/admin/projects/:projectName', async (req, res) => {
+app.delete('/api/admin/projects/:projectName', validateProjectName, async (req, res) => {
   try {
     const { projectName } = req.params;
     const { permanent = 'false' } = req.query;
 
-    // Validate project name (prevent path traversal)
-    if (!projectName || projectName.includes('..') || projectName.includes('/')) {
-      return res.status(400).json({ error: 'Invalid project name' });
+    const projectPath = safePath(PROJECTS_DIR, projectName);
+    if (!projectPath) {
+      return res.status(400).json({ error: 'Invalid project path' });
     }
-
-    const projectPath = join(PROJECTS_DIR, projectName);
 
     // Check project exists
     if (!existsSync(projectPath)) {
@@ -3893,8 +4018,9 @@ app.delete('/api/admin/projects/:projectName', async (req, res) => {
 /**
  * POST /api/projects/:projectName/rename - Rename a project
  * Renames the project folder on disk and updates database references
+ * SECURITY: Uses validateProjectName middleware and safePath to prevent path traversal
  */
-app.post('/api/projects/:projectName/rename', async (req, res) => {
+app.post('/api/projects/:projectName/rename', validateProjectName, async (req, res) => {
   try {
     const { projectName } = req.params;
     const { newName } = req.body;
@@ -3904,19 +4030,17 @@ app.post('/api/projects/:projectName/rename', async (req, res) => {
       return res.status(400).json({ error: 'Project name and new name are required' });
     }
 
-    // Prevent path traversal
-    if (projectName.includes('..') || projectName.includes('/') ||
-        newName.includes('..') || newName.includes('/')) {
-      return res.status(400).json({ error: 'Invalid project name' });
+    // Validate new name format using isValidProjectName
+    if (!isValidProjectName(newName)) {
+      return res.status(400).json({ error: 'Invalid new project name' });
     }
 
-    // Validate new name format (alphanumeric, hyphens, underscores)
-    if (!/^[a-zA-Z0-9_-]+$/.test(newName)) {
-      return res.status(400).json({ error: 'Project name can only contain letters, numbers, hyphens, and underscores' });
-    }
+    const oldPath = safePath(PROJECTS_DIR, projectName);
+    const newPath = safePath(PROJECTS_DIR, newName);
 
-    const oldPath = join(PROJECTS_DIR, projectName);
-    const newPath = join(PROJECTS_DIR, newName);
+    if (!oldPath || !newPath) {
+      return res.status(400).json({ error: 'Invalid project path' });
+    }
 
     // Check old project exists
     if (!existsSync(oldPath)) {

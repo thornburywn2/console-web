@@ -1,6 +1,7 @@
 /**
  * Developer Tools Routes
  * Port management, env files, database browser, proxy
+ * SECURITY: Uses path validation to prevent path traversal attacks
  */
 
 import { Router } from 'express';
@@ -8,7 +9,8 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
-import { createLogger } from '../services/logger.js';
+import { createLogger, logSecurityEvent } from '../services/logger.js';
+import { validateAndResolvePath, validatePathMiddleware, isValidName } from '../utils/pathSecurity.js';
 
 const execAsync = promisify(exec);
 const log = createLogger('devtools');
@@ -157,13 +159,25 @@ export function createPortsRouter() {
 // Environment Files Router
 export function createEnvRouter() {
   const router = Router();
+  const PROJECTS_DIR = process.env.PROJECTS_DIR || path.join(process.env.HOME || '/home', 'Projects');
 
   // List .env files in project
-  router.get('/files/:projectPath(*)', async (req, res) => {
+  // SECURITY: Validates path stays within PROJECTS_DIR
+  router.get('/files/:projectPath(*)', validatePathMiddleware, async (req, res) => {
     try {
-      const projectPath = req.params.projectPath
+      const inputPath = req.params.projectPath
         ? decodeURIComponent(req.params.projectPath)
-        : process.env.PROJECTS_DIR || path.join(process.env.HOME, 'Projects');
+        : PROJECTS_DIR;
+
+      const projectPath = validateAndResolvePath(inputPath, [PROJECTS_DIR]);
+      if (!projectPath) {
+        logSecurityEvent({
+          event: 'env_list_path_traversal_blocked',
+          inputPath,
+          ip: req.ip,
+        });
+        return res.status(400).json({ error: 'Invalid path' });
+      }
 
       const entries = await fs.readdir(projectPath, { withFileTypes: true });
       const envFiles = [];
@@ -192,16 +206,34 @@ export function createEnvRouter() {
   });
 
   // Get variables from env file
-  router.get('/variables/:projectPath(*)/:filename', async (req, res) => {
+  // SECURITY: Validates path and filename to prevent path traversal
+  router.get('/variables/:projectPath(*)/:filename', validatePathMiddleware, async (req, res) => {
     try {
-      let projectPath = decodeURIComponent(req.params.projectPath);
-      // Handle __self__ as the console-web server directory
-      if (projectPath === '__self__') {
-        projectPath = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-      }
+      let inputPath = decodeURIComponent(req.params.projectPath);
       const filename = req.params.filename;
-      const filePath = path.join(projectPath, filename);
 
+      // Validate filename (must be .env or start with .env)
+      if (!filename.startsWith('.env') || !isValidName(filename)) {
+        return res.status(400).json({ error: 'Invalid filename' });
+      }
+
+      // Handle __self__ as the console-web server directory
+      let projectPath;
+      if (inputPath === '__self__') {
+        projectPath = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
+      } else {
+        projectPath = validateAndResolvePath(inputPath, [PROJECTS_DIR]);
+        if (!projectPath) {
+          logSecurityEvent({
+            event: 'env_vars_path_traversal_blocked',
+            inputPath,
+            ip: req.ip,
+          });
+          return res.status(400).json({ error: 'Invalid path' });
+        }
+      }
+
+      const filePath = path.join(projectPath, filename);
       const content = await fs.readFile(filePath, 'utf-8');
       const variables = [];
 
@@ -225,14 +257,33 @@ export function createEnvRouter() {
   });
 
   // Save env file
-  router.post('/save/:projectPath(*)/:filename', async (req, res) => {
+  // SECURITY: Validates path and filename to prevent path traversal
+  router.post('/save/:projectPath(*)/:filename', validatePathMiddleware, async (req, res) => {
     try {
-      let projectPath = decodeURIComponent(req.params.projectPath);
-      // Handle __self__ as the console-web server directory
-      if (projectPath === '__self__') {
-        projectPath = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-      }
+      let inputPath = decodeURIComponent(req.params.projectPath);
       const filename = req.params.filename;
+
+      // Validate filename (must be .env or start with .env)
+      if (!filename.startsWith('.env') || !isValidName(filename)) {
+        return res.status(400).json({ error: 'Invalid filename' });
+      }
+
+      // Handle __self__ as the console-web server directory
+      let projectPath;
+      if (inputPath === '__self__') {
+        projectPath = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
+      } else {
+        projectPath = validateAndResolvePath(inputPath, [PROJECTS_DIR]);
+        if (!projectPath) {
+          logSecurityEvent({
+            event: 'env_save_path_traversal_blocked',
+            inputPath,
+            ip: req.ip,
+          });
+          return res.status(400).json({ error: 'Invalid path' });
+        }
+      }
+
       const filePath = path.join(projectPath, filename);
       const { variables } = req.body;
 

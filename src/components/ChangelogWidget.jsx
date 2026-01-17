@@ -7,6 +7,25 @@ import { useState, useEffect, useCallback } from 'react';
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.7',
+    date: '2026-01-17',
+    type: 'security',
+    title: 'Security Hardening',
+    highlights: [
+      'Fixed CVE-2023-45853 (zlib Integer Overflow) in Dockerfile with multi-stage build',
+      'Path traversal prevention with new centralized security utilities',
+      'Protected 10+ endpoints against path traversal attacks (CWE-23)',
+      'Security event logging for blocked traversal attempts',
+    ],
+    features: [
+      { title: 'Multi-stage Docker Build', description: 'Smaller attack surface with explicit security updates and build/runtime separation' },
+      { title: 'Path Security Utils', description: 'New /server/utils/pathSecurity.js with isValidProjectName(), safePath(), validateAndResolvePath()' },
+      { title: 'Protected Endpoints', description: 'Sessions, CLAUDE.md, settings, restart, delete, rename endpoints now validate paths' },
+      { title: 'Route Protection', description: 'Files, logs, diff, and env routes now use path validation middleware' },
+      { title: 'Security Logging', description: 'All blocked path traversal attempts logged with IP, path, and event type' },
+    ],
+  },
+  {
     version: '1.0.6',
     date: '2026-01-17',
     type: 'major',

@@ -1,13 +1,15 @@
 /**
  * Files API Routes
  * File browser, preview, and log viewing endpoints
+ * SECURITY: Uses path validation to prevent path traversal attacks
  */
 
 import { Router } from 'express';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
-import { createLogger } from '../services/logger.js';
+import { createLogger, logSecurityEvent } from '../services/logger.js';
+import { validateAndResolvePath, validatePathMiddleware } from '../utils/pathSecurity.js';
 
 const log = createLogger('files');
 
@@ -34,12 +36,20 @@ export function createFilesRouter(prisma) {
   };
 
   // List files in directory (tree structure)
-  router.get('/:projectPath(*)', async (req, res) => {
+  // SECURITY: Validates path stays within PROJECTS_DIR
+  router.get('/:projectPath(*)', validatePathMiddleware, async (req, res) => {
     try {
       const projectPath = decodeURIComponent(req.params.projectPath);
-      const fullPath = projectPath.startsWith('/')
-        ? projectPath
-        : path.join(PROJECTS_DIR, projectPath);
+      const fullPath = validateAndResolvePath(projectPath, [PROJECTS_DIR]);
+
+      if (!fullPath) {
+        logSecurityEvent({
+          event: 'file_list_path_traversal_blocked',
+          projectPath,
+          ip: req.ip,
+        });
+        return res.status(400).json({ error: 'Invalid path' });
+      }
 
       const buildTree = async (dirPath, depth = 0, maxDepth = 10) => {
         if (depth > maxDepth) return [];
@@ -97,12 +107,20 @@ export function createFilesRouter(prisma) {
   });
 
   // Get file content
-  router.get('/:filePath(*)/content', async (req, res) => {
+  // SECURITY: Validates path stays within PROJECTS_DIR
+  router.get('/:filePath(*)/content', validatePathMiddleware, async (req, res) => {
     try {
       const filePath = decodeURIComponent(req.params.filePath);
-      const fullPath = filePath.startsWith('/')
-        ? filePath
-        : path.join(PROJECTS_DIR, filePath);
+      const fullPath = validateAndResolvePath(filePath, [PROJECTS_DIR]);
+
+      if (!fullPath) {
+        logSecurityEvent({
+          event: 'file_read_path_traversal_blocked',
+          filePath,
+          ip: req.ip,
+        });
+        return res.status(400).json({ error: 'Invalid path' });
+      }
 
       const stats = await fs.stat(fullPath);
 
@@ -128,14 +146,22 @@ export function createLogsRouter(prisma) {
   const PROJECTS_DIR = process.env.PROJECTS_DIR || path.join(process.env.HOME || '/home', 'Projects');
 
   // Tail log file
-  router.get('/:logPath(*)', async (req, res) => {
+  // SECURITY: Validates path stays within PROJECTS_DIR
+  router.get('/:logPath(*)', validatePathMiddleware, async (req, res) => {
     try {
       const logPath = decodeURIComponent(req.params.logPath);
       const lines = parseInt(req.query.lines) || 500;
 
-      const fullPath = logPath.startsWith('/')
-        ? logPath
-        : path.join(PROJECTS_DIR, logPath);
+      const fullPath = validateAndResolvePath(logPath, [PROJECTS_DIR]);
+
+      if (!fullPath) {
+        logSecurityEvent({
+          event: 'log_read_path_traversal_blocked',
+          logPath,
+          ip: req.ip,
+        });
+        return res.status(400).json({ error: 'Invalid path', lines: [] });
+      }
 
       // Check if file exists
       await fs.access(fullPath);
@@ -174,14 +200,22 @@ export function createDiffRouter(prisma) {
   const PROJECTS_DIR = process.env.PROJECTS_DIR || path.join(process.env.HOME || '/home', 'Projects');
 
   // Get git diff for project
-  router.get('/:projectPath(*)', async (req, res) => {
+  // SECURITY: Validates path stays within PROJECTS_DIR
+  router.get('/:projectPath(*)', validatePathMiddleware, async (req, res) => {
     try {
       const projectPath = decodeURIComponent(req.params.projectPath);
       const commit = req.query.commit;
 
-      const fullPath = projectPath.startsWith('/')
-        ? projectPath
-        : path.join(PROJECTS_DIR, projectPath);
+      const fullPath = validateAndResolvePath(projectPath, [PROJECTS_DIR]);
+
+      if (!fullPath) {
+        logSecurityEvent({
+          event: 'diff_path_traversal_blocked',
+          projectPath,
+          ip: req.ip,
+        });
+        return res.status(400).json({ error: 'Invalid path', diff: '' });
+      }
 
       // Build git diff command
       const args = commit
