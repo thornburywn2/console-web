@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                             Console.web v1.0.11                              │
+│                             Console.web v1.0.12                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
 │  │  Terminal   │  │   Admin     │  │  Projects   │  │  Sidebars   │        │
@@ -151,6 +151,28 @@ npm run build && npm start
 | **Containers** | Dockerode |
 | **Observability** | OpenTelemetry, Jaeger, Loki, Prometheus, Grafana |
 | **Security** | Helmet, express-rate-limit, Zod, Sentry |
+
+---
+
+## [1.0.12] - 2026-01-17
+
+### Component Modularization Complete
+
+Completed modularization of all large components into well-organized directory structures with extracted sub-components, constants, and utilities.
+
+#### Modular Component Architecture
+- **Memory Bank Module**: `MemoryCard` component with `MEMORY_TYPES` and `SCOPE_COLORS` constants
+- **Prompt Library Module**: `PromptCard`, `PromptEditor`, `VariableInput` with `extractVariables` utility
+- **Create Project Module**: `StepIndicator`, `Toggle`, `InputField`, `TemplateCard`, `SummaryItem` components
+- **Voice Command Module**: `VoiceSettingsPanel`, `VoiceHistoryPanel`, `AudioVisualization`, `CommandConfirmation`
+- **About Module**: `StatCard`, `CapabilityCard`, `DevToolCard` with comprehensive feature constants
+- **MCP Server Module**: Transport labels and icons with modular structure
+
+#### Benefits
+- Improved code navigation and maintainability
+- Consistent barrel export patterns (`index.js`) across all modules
+- Reusable sub-components for future development
+- Clear separation of concerns between components and constants
 
 ---
 

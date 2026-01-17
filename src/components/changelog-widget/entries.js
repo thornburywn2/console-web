@@ -4,6 +4,26 @@
 
 export const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.12',
+    date: '2026-01-17',
+    type: 'patch',
+    title: 'Component Modularization Complete',
+    highlights: [
+      'All large components now use modular directory structure',
+      'Extracted reusable sub-components and constants',
+      'Improved code maintainability and navigation',
+      'Consistent barrel export patterns across modules',
+    ],
+    features: [
+      { title: 'Memory Bank Module', description: 'MemoryCard component with MEMORY_TYPES and SCOPE_COLORS constants extracted' },
+      { title: 'Prompt Library Module', description: 'PromptCard, PromptEditor, VariableInput components with extractVariables utility' },
+      { title: 'Create Project Module', description: 'StepIndicator, Toggle, InputField, TemplateCard, SummaryItem with TEMPLATES and STEPS constants' },
+      { title: 'Voice Command Module', description: 'VoiceSettingsPanel, VoiceHistoryPanel, AudioVisualization, CommandConfirmation components' },
+      { title: 'About Module', description: 'StatCard, CapabilityCard, DevToolCard with comprehensive feature constants' },
+      { title: 'MCP Server Module', description: 'Transport labels and icons with modular directory structure' },
+    ],
+  },
+  {
     version: '1.0.11',
     date: '2026-01-17',
     type: 'major',
