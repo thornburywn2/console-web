@@ -3,9 +3,14 @@
  * Manage and use reusable prompts with variable interpolation
  */
 
-import { useState, useEffect, useMemo } from 'react';
-
-const API_BASE = '/api/prompts';
+import { useState, useEffect } from 'react';
+import {
+  API_BASE,
+  extractVariables,
+  PromptEditor,
+  VariableInput,
+  PromptCard,
+} from './prompt-library';
 
 export default function PromptLibrary({
   isOpen,
@@ -162,16 +167,9 @@ export default function PromptLibrary({
     });
   };
 
-  // Extract variables from content
-  const extractVariables = (content) => {
-    const matches = content.match(/\{\{(\w+)\}\}/g) || [];
-    return [...new Set(matches.map(m => m.slice(2, -2)))];
-  };
-
   if (!isOpen) return null;
 
   const isEditing = editingPrompt || isCreating;
-  const contentVariables = extractVariables(formData.content);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -262,141 +260,21 @@ export default function PromptLibrary({
             {/* Prompts List or Editor */}
             <div className="flex-1 overflow-y-auto p-3">
               {isEditing ? (
-                /* Editor Form */
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-medium text-secondary mb-1">Name</label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg text-sm"
-                      style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)' }}
-                      placeholder="Prompt name"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-secondary mb-1">Category</label>
-                      <input
-                        type="text"
-                        value={formData.category}
-                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                        className="w-full px-3 py-2 rounded-lg text-sm"
-                        style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)' }}
-                        placeholder="e.g., coding, writing"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-secondary mb-1">Description</label>
-                      <input
-                        type="text"
-                        value={formData.description}
-                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                        className="w-full px-3 py-2 rounded-lg text-sm"
-                        style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)' }}
-                        placeholder="Short description"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-secondary mb-1">
-                      Content <span className="text-muted">(use {'{{variable}}'} for variables)</span>
-                    </label>
-                    <textarea
-                      value={formData.content}
-                      onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg text-sm font-mono min-h-[200px] resize-y"
-                      style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)' }}
-                      placeholder="Write your prompt here. Use {{variableName}} for dynamic content."
-                    />
-                    {contentVariables.length > 0 && (
-                      <div className="mt-2 flex items-center gap-2 text-xs text-muted">
-                        <span>Variables:</span>
-                        {contentVariables.map(v => (
-                          <span key={v} className="px-1.5 py-0.5 rounded bg-accent/20 text-accent">{v}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2">
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={formData.isFavorite}
-                        onChange={(e) => setFormData({ ...formData, isFavorite: e.target.checked })}
-                        className="rounded"
-                      />
-                      <span className="text-secondary">Add to favorites</span>
-                    </label>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => { setEditingPrompt(null); setIsCreating(false); }}
-                        className="px-4 py-2 text-sm text-secondary hover:text-primary"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={editingPrompt ? handleUpdate : handleCreate}
-                        disabled={!formData.name.trim() || !formData.content.trim()}
-                        className="px-4 py-2 bg-accent/20 text-accent rounded-lg text-sm hover:bg-accent/30 disabled:opacity-50"
-                      >
-                        {editingPrompt ? 'Update' : 'Create'} Prompt
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <PromptEditor
+                  formData={formData}
+                  setFormData={setFormData}
+                  editingPrompt={editingPrompt}
+                  onSave={editingPrompt ? handleUpdate : handleCreate}
+                  onCancel={() => { setEditingPrompt(null); setIsCreating(false); }}
+                />
               ) : executingPrompt ? (
-                /* Variable Input for Execution */
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 mb-4">
-                    <button onClick={() => setExecutingPrompt(null)} className="p-1 hover:bg-white/10 rounded">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                      </svg>
-                    </button>
-                    <h3 className="font-medium text-primary">{executingPrompt.name}</h3>
-                  </div>
-
-                  {extractVariables(executingPrompt.content).length > 0 ? (
-                    <>
-                      <p className="text-sm text-secondary">Fill in the variables:</p>
-                      {extractVariables(executingPrompt.content).map(varName => (
-                        <div key={varName}>
-                          <label className="block text-xs font-medium text-secondary mb-1">{varName}</label>
-                          <input
-                            type="text"
-                            value={executeVariables[varName] || ''}
-                            onChange={(e) => setExecuteVariables({ ...executeVariables, [varName]: e.target.value })}
-                            className="w-full px-3 py-2 rounded-lg text-sm"
-                            style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)' }}
-                            placeholder={`Enter ${varName}...`}
-                          />
-                        </div>
-                      ))}
-                    </>
-                  ) : (
-                    <p className="text-sm text-secondary">This prompt has no variables. Ready to use!</p>
-                  )}
-
-                  <div className="flex justify-end gap-2 pt-4">
-                    <button
-                      onClick={() => setExecutingPrompt(null)}
-                      className="px-4 py-2 text-sm text-secondary hover:text-primary"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => handleExecute(executingPrompt)}
-                      className="px-4 py-2 bg-accent/20 text-accent rounded-lg text-sm hover:bg-accent/30"
-                    >
-                      Use Prompt
-                    </button>
-                  </div>
-                </div>
+                <VariableInput
+                  prompt={executingPrompt}
+                  variables={executeVariables}
+                  setVariables={setExecuteVariables}
+                  onExecute={() => handleExecute(executingPrompt)}
+                  onCancel={() => setExecutingPrompt(null)}
+                />
               ) : loading ? (
                 <div className="flex items-center justify-center py-12">
                   <svg className="w-6 h-6 animate-spin text-accent" fill="none" viewBox="0 0 24 24">
@@ -417,61 +295,14 @@ export default function PromptLibrary({
               ) : (
                 <div className="space-y-2">
                   {prompts.map(prompt => (
-                    <div
+                    <PromptCard
                       key={prompt.id}
-                      className="p-3 rounded-lg group hover:bg-white/5 transition-colors"
-                      style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)' }}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-primary">{prompt.name}</span>
-                            {prompt.isFavorite && <span className="text-yellow-400">⭐</span>}
-                            {prompt.category && (
-                              <span className="text-2xs px-1.5 py-0.5 rounded bg-accent/10 text-accent">
-                                {prompt.category}
-                              </span>
-                            )}
-                          </div>
-                          {prompt.description && (
-                            <p className="text-xs text-secondary mt-1">{prompt.description}</p>
-                          )}
-                          <p className="text-xs text-muted mt-1 line-clamp-2 font-mono">
-                            {prompt.content.slice(0, 100)}...
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => setExecutingPrompt(prompt)}
-                            className="px-2 py-1 text-xs bg-accent/20 text-accent rounded hover:bg-accent/30"
-                          >
-                            Use
-                          </button>
-                          <button
-                            onClick={() => handleToggleFavorite(prompt)}
-                            className="p-1 hover:bg-white/10 rounded"
-                            title={prompt.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                          >
-                            {prompt.isFavorite ? '⭐' : '☆'}
-                          </button>
-                          <button
-                            onClick={() => startEdit(prompt)}
-                            className="p-1 hover:bg-white/10 rounded text-xs"
-                            title="Edit"
-                          >
-                            ✎
-                          </button>
-                          <button
-                            onClick={() => handleDelete(prompt.id)}
-                            className="p-1 hover:bg-red-500/20 rounded text-xs text-red-400"
-                            title="Delete"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                      prompt={prompt}
+                      onUse={setExecutingPrompt}
+                      onToggleFavorite={handleToggleFavorite}
+                      onEdit={startEdit}
+                      onDelete={handleDelete}
+                    />
                   ))}
                 </div>
               )}

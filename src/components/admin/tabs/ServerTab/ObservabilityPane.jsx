@@ -5,14 +5,13 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { formatTime } from '../../utils';
-
-// Internal tab constants
-const OTEL_TABS = {
-  STACK: 'stack',
-  TRACES: 'traces',
-  LOGS: 'logs',
-};
+import {
+  OTEL_TABS,
+  StackStatusCards,
+  ServiceCard,
+  TraceResult,
+  LogEntry,
+} from './observability';
 
 export function ObservabilityPane() {
   const [activeTab, setActiveTab] = useState(OTEL_TABS.STACK);
@@ -195,28 +194,6 @@ export function ObservabilityPane() {
     }
   }, [activeTab, fetchLabels]);
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'running':
-      case 'healthy':
-        return 'text-hacker-green';
-      case 'stopped':
-      case 'unhealthy':
-        return 'text-hacker-error';
-      default:
-        return 'text-hacker-warning';
-    }
-  };
-
-  const getLogLevelColor = (line) => {
-    const lower = line.toLowerCase();
-    if (lower.includes('error') || lower.includes('fatal')) return 'text-red-400';
-    if (lower.includes('warn')) return 'text-yellow-400';
-    if (lower.includes('info')) return 'text-blue-400';
-    if (lower.includes('debug')) return 'text-gray-400';
-    return 'text-hacker-text';
-  };
-
   return (
     <div className="space-y-6">
       {/* Internal Tab Navigation */}
@@ -247,30 +224,7 @@ export function ObservabilityPane() {
       {activeTab === OTEL_TABS.STACK && (
         <div className="space-y-6">
           {/* Stack Health Summary */}
-          {stackStatus && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="hacker-card text-center">
-                <div className="stat-value">{stackStatus.total || 3}</div>
-                <div className="stat-label">TOTAL SERVICES</div>
-              </div>
-              <div className="hacker-card text-center">
-                <div className="stat-value text-hacker-green">{stackStatus.running || 0}</div>
-                <div className="stat-label">RUNNING</div>
-              </div>
-              <div className="hacker-card text-center">
-                <div className={`stat-value ${stackStatus.healthy ? 'text-hacker-green' : 'text-hacker-error'}`}>
-                  {stackStatus.healthy ? 'YES' : 'NO'}
-                </div>
-                <div className="stat-label">HEALTHY</div>
-              </div>
-              <div className="hacker-card text-center">
-                <div className={`stat-value ${stackStatus.configured ? 'text-hacker-green' : 'text-hacker-warning'}`}>
-                  {stackStatus.configured ? 'YES' : 'NO'}
-                </div>
-                <div className="stat-label">CONFIGURED</div>
-              </div>
-            </div>
-          )}
+          <StackStatusCards stackStatus={stackStatus} />
 
           {/* Stack Controls */}
           <div className="hacker-card">
@@ -319,41 +273,7 @@ export function ObservabilityPane() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {stackStatus?.services ? (
                 Object.entries(stackStatus.services).map(([key, service]) => (
-                  <div key={key} className="hacker-card bg-hacker-surface/30">
-                    <div className="flex items-center justify-between mb-3">
-                      <h5 className="text-sm font-semibold text-hacker-cyan flex items-center gap-2">
-                        <span>
-                          {key === 'jaeger' ? '\u{1F50D}' : key === 'loki' ? '\u{1F4DC}' : '\u{1F4E1}'}
-                        </span>
-                        {service.name || key.toUpperCase()}
-                      </h5>
-                      <span className={`hacker-badge text-[10px] ${
-                        service.running ? 'hacker-badge-green' : 'hacker-badge-error'
-                      }`}>
-                        {service.status?.toUpperCase() || 'UNKNOWN'}
-                      </span>
-                    </div>
-                    <div className="text-xs text-hacker-text-dim font-mono space-y-1">
-                      {service.container && <p>Container: {service.container}</p>}
-                      {service.ports && <p>Port: {service.ports}</p>}
-                      {service.uptime && <p>Uptime: {service.uptime}</p>}
-                      {service.cpu && <p>CPU: {service.cpu}%</p>}
-                      {service.memory?.percent && <p>Memory: {service.memory.percent}%</p>}
-                    </div>
-                    <div className="mt-3">
-                      <div className="hacker-progress h-1">
-                        <div
-                          className="hacker-progress-bar"
-                          style={{
-                            width: service.running ? '100%' : '0%',
-                            background: service.running
-                              ? 'linear-gradient(90deg, #00cc33, #00ff41)'
-                              : 'linear-gradient(90deg, #cc3333, #ff3333)'
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
+                  <ServiceCard key={key} serviceKey={key} service={service} />
                 ))
               ) : (
                 <div className="col-span-full text-center">
@@ -463,20 +383,7 @@ export function ObservabilityPane() {
             {traces.length > 0 ? (
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {traces.map((trace, idx) => (
-                  <div key={trace.traceID || idx} className="hacker-card bg-hacker-surface/30 p-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-hacker-cyan font-mono">
-                        {trace.traceID?.substring(0, 16) || 'Unknown'}...
-                      </span>
-                      <span className="text-xs text-hacker-text-dim">
-                        {trace.spans?.[0]?.operationName || 'Unknown operation'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between mt-2 text-xs text-hacker-text-dim">
-                      <span>Spans: {trace.spans?.length || 0}</span>
-                      <span>Duration: {(trace.spans?.[0]?.duration / 1000 || 0).toFixed(2)}ms</span>
-                    </div>
-                  </div>
+                  <TraceResult key={trace.traceID || idx} trace={trace} />
                 ))}
               </div>
             ) : (
@@ -552,17 +459,7 @@ export function ObservabilityPane() {
             {logResults.length > 0 ? (
               <div className="space-y-1 max-h-96 overflow-y-auto font-mono text-xs">
                 {logResults.map((entry, idx) => (
-                  <div
-                    key={idx}
-                    className="flex gap-2 p-2 bg-hacker-surface/30 rounded hover:bg-hacker-surface/50"
-                  >
-                    <span className="text-hacker-text-dim whitespace-nowrap">
-                      {new Date(Number(entry.timestamp) / 1000000).toLocaleTimeString()}
-                    </span>
-                    <span className={`flex-1 break-all ${getLogLevelColor(entry.line)}`}>
-                      {entry.line}
-                    </span>
-                  </div>
+                  <LogEntry key={idx} entry={entry} />
                 ))}
               </div>
             ) : (
