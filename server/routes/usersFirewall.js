@@ -25,6 +25,7 @@ import {
   firewallLoggingSchema,
   validateBody
 } from '../utils/validation.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('users-firewall');
 const execAsync = promisify(exec);
@@ -96,7 +97,11 @@ export function createUsersFirewallRouter(prisma) {
         lastValidated: settings.lastValidated
       });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get Authentik settings',
+        operation: 'get authentik settings',
+        requestId: req.id,
+      });
     }
   });
 
@@ -143,7 +148,11 @@ export function createUsersFirewallRouter(prisma) {
         enabled: settings.enabled
       });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update Authentik settings',
+        operation: 'update authentik settings',
+        requestId: req.id,
+      });
     }
   });
 
@@ -224,7 +233,11 @@ export function createUsersFirewallRouter(prisma) {
       });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to list authentik users');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list Authentik users',
+        operation: 'list authentik users',
+        requestId: req.id,
+      });
     }
   });
 
@@ -253,7 +266,11 @@ export function createUsersFirewallRouter(prisma) {
       });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to get authentik user');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get Authentik user',
+        operation: 'get authentik user',
+        requestId: req.id,
+      });
     }
   });
 
@@ -301,7 +318,11 @@ export function createUsersFirewallRouter(prisma) {
       });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to create authentik user');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create Authentik user',
+        operation: 'create authentik user',
+        requestId: req.id,
+      });
     }
   });
 
@@ -337,7 +358,11 @@ export function createUsersFirewallRouter(prisma) {
       });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to update authentik user');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update Authentik user',
+        operation: 'update authentik user',
+        requestId: req.id,
+      });
     }
   });
 
@@ -361,7 +386,11 @@ export function createUsersFirewallRouter(prisma) {
       res.json({ success: true });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to set password');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to set password',
+        operation: 'set authentik password',
+        requestId: req.id,
+      });
     }
   });
 
@@ -381,7 +410,11 @@ export function createUsersFirewallRouter(prisma) {
       res.json({ success: true, isActive });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to toggle user status');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to toggle user status',
+        operation: 'toggle authentik user status',
+        requestId: req.id,
+      });
     }
   });
 
@@ -399,7 +432,11 @@ export function createUsersFirewallRouter(prisma) {
       res.json({ success: true });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to delete authentik user');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to delete Authentik user',
+        operation: 'delete authentik user',
+        requestId: req.id,
+      });
     }
   });
 
@@ -422,7 +459,11 @@ export function createUsersFirewallRouter(prisma) {
       });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to list authentik groups');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list Authentik groups',
+        operation: 'list authentik groups',
+        requestId: req.id,
+      });
     }
   });
 
@@ -486,7 +527,11 @@ export function createUsersFirewallRouter(prisma) {
       res.json({ users, count: users.length });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to list server users');
-      res.status(500).json({ error: 'Failed to list users' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list users',
+        operation: 'list server users',
+        requestId: req.id,
+      });
     }
   });
 
@@ -537,7 +582,11 @@ export function createUsersFirewallRouter(prisma) {
       });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to create server user');
-      res.status(500).json({ error: error.message || 'Failed to create user' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create user',
+        operation: 'create server user',
+        requestId: req.id,
+      });
     }
   });
 
@@ -588,7 +637,11 @@ export function createUsersFirewallRouter(prisma) {
       res.json({ success: true, username });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to update server user');
-      res.status(500).json({ error: error.message || 'Failed to update user' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update user',
+        operation: 'update server user',
+        requestId: req.id,
+      });
     }
   });
 
@@ -610,7 +663,11 @@ export function createUsersFirewallRouter(prisma) {
       res.json({ success: true });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to set password');
-      res.status(500).json({ error: error.message || 'Failed to set password' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to set password',
+        operation: 'set server user password',
+        requestId: req.id,
+      });
     }
   });
 
@@ -637,7 +694,11 @@ export function createUsersFirewallRouter(prisma) {
       res.json({ success: true, username, homeRemoved: removeHome === 'true' });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to delete server user');
-      res.status(500).json({ error: error.message || 'Failed to delete user' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to delete user',
+        operation: 'delete server user',
+        requestId: req.id,
+      });
     }
   });
 
@@ -666,7 +727,11 @@ export function createUsersFirewallRouter(prisma) {
       res.json({ groups, count: groups.length });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to list server groups');
-      res.status(500).json({ error: 'Failed to list groups' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list groups',
+        operation: 'list server groups',
+        requestId: req.id,
+      });
     }
   });
 
@@ -757,7 +822,11 @@ export function createUsersFirewallRouter(prisma) {
       });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to get firewall status');
-      res.status(500).json({ error: 'Failed to get firewall status', details: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get firewall status',
+        operation: 'get firewall status',
+        requestId: req.id,
+      });
     }
   });
 
@@ -791,7 +860,11 @@ export function createUsersFirewallRouter(prisma) {
       res.json({ rules, count: rules.length });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to list firewall rules');
-      res.status(500).json({ error: 'Failed to list firewall rules' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list firewall rules',
+        operation: 'list firewall rules',
+        requestId: req.id,
+      });
     }
   });
 
@@ -807,7 +880,11 @@ export function createUsersFirewallRouter(prisma) {
       res.json({ success: true, message: 'Firewall enabled' });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to enable firewall');
-      res.status(500).json({ error: 'Failed to enable firewall' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to enable firewall',
+        operation: 'enable firewall',
+        requestId: req.id,
+      });
     }
   });
 
@@ -823,7 +900,11 @@ export function createUsersFirewallRouter(prisma) {
       res.json({ success: true, message: 'Firewall disabled' });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to disable firewall');
-      res.status(500).json({ error: 'Failed to disable firewall' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to disable firewall',
+        operation: 'disable firewall',
+        requestId: req.id,
+      });
     }
   });
 
@@ -891,7 +972,11 @@ export function createUsersFirewallRouter(prisma) {
       });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to add firewall rule');
-      res.status(500).json({ error: error.message || 'Failed to add firewall rule' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to add firewall rule',
+        operation: 'add firewall rule',
+        requestId: req.id,
+      });
     }
   });
 
@@ -934,7 +1019,11 @@ export function createUsersFirewallRouter(prisma) {
       res.json({ success: true, message: `Rule ${number} deleted` });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to delete firewall rule');
-      res.status(500).json({ error: error.message || 'Failed to delete rule' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to delete firewall rule',
+        operation: 'delete firewall rule',
+        requestId: req.id,
+      });
     }
   });
 
@@ -959,7 +1048,11 @@ export function createUsersFirewallRouter(prisma) {
       res.json({ success: true, direction, policy });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to set default policy');
-      res.status(500).json({ error: 'Failed to set default policy' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to set default policy',
+        operation: 'set firewall default policy',
+        requestId: req.id,
+      });
     }
   });
 
@@ -975,7 +1068,11 @@ export function createUsersFirewallRouter(prisma) {
       res.json({ success: true, message: 'Firewall reset to defaults. Remember to re-enable and add essential rules!' });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to reset firewall');
-      res.status(500).json({ error: 'Failed to reset firewall' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to reset firewall',
+        operation: 'reset firewall',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1000,7 +1097,11 @@ export function createUsersFirewallRouter(prisma) {
       res.json({ success: true, level });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to set logging level');
-      res.status(500).json({ error: 'Failed to set logging level' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to set logging level',
+        operation: 'set firewall logging level',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1021,7 +1122,11 @@ export function createUsersFirewallRouter(prisma) {
       res.json({ apps });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to list app profiles');
-      res.status(500).json({ error: 'Failed to list application profiles' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list application profiles',
+        operation: 'list firewall app profiles',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1047,7 +1152,11 @@ export function createUsersFirewallRouter(prisma) {
       });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to get app info');
-      res.status(500).json({ error: 'Failed to get app info' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get app info',
+        operation: 'get firewall app info',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1164,7 +1273,11 @@ export function createUsersFirewallRouter(prisma) {
       });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to fetch firewall logs');
-      res.status(500).json({ error: 'Failed to fetch firewall logs' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch firewall logs',
+        operation: 'fetch firewall logs',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1195,7 +1308,11 @@ export function createUsersFirewallRouter(prisma) {
       }
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to ensure SSH rule');
-      res.status(500).json({ error: 'Failed to ensure SSH rule' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to ensure SSH rule',
+        operation: 'ensure SSH rule',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1339,7 +1456,11 @@ export function createUsersFirewallRouter(prisma) {
       });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to sync project ports to firewall');
-      res.status(500).json({ error: error.message || 'Failed to sync project ports' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to sync project ports',
+        operation: 'sync project ports',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1435,7 +1556,11 @@ export function createUsersFirewallRouter(prisma) {
       });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to get project ports');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get project ports',
+        operation: 'get project ports',
+        requestId: req.id,
+      });
     }
   });
 

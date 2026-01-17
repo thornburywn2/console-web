@@ -10,6 +10,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createLogger } from '../services/logger.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const sysLog = createLogger('system');
 
@@ -165,8 +166,11 @@ export function createSystemRouter() {
         ...gitInfo,
       });
     } catch (error) {
-      sysLog.error({ error: error.message, requestId: req.id }, 'version check error');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to check version',
+        operation: 'version check',
+        requestId: req.id,
+      });
     }
   });
 
@@ -284,7 +288,11 @@ export function createSystemRouter() {
 
       res.json({ commits });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch changelog',
+        operation: 'get changelog',
+        requestId: req.id,
+      });
     }
   });
 

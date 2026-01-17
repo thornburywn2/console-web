@@ -5,6 +5,7 @@
 
 import { Router } from 'express';
 import { createLogger } from '../services/logger.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('contexts');
 
@@ -40,8 +41,12 @@ export function createContextsRouter(prisma) {
 
       res.json(contexts);
     } catch (error) {
-      log.error({ error: error.message, projectName: req.params.projectName, requestId: req.id }, 'failed to fetch contexts');
-      res.status(500).json({ error: 'Failed to fetch contexts' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch contexts',
+        operation: 'fetch contexts',
+        requestId: req.id,
+        context: { projectName: req.params.projectName }
+      });
     }
   });
 
@@ -83,8 +88,12 @@ export function createContextsRouter(prisma) {
 
       res.status(201).json(newContext);
     } catch (error) {
-      log.error({ error: error.message, projectName: req.params.projectName, requestId: req.id }, 'failed to add context');
-      res.status(500).json({ error: 'Failed to add context' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to add context',
+        operation: 'add context',
+        requestId: req.id,
+        context: { projectName: req.params.projectName }
+      });
     }
   });
 
@@ -125,8 +134,12 @@ export function createContextsRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, projectName: req.params.projectName, contextId: req.params.contextId, requestId: req.id }, 'failed to remove context');
-      res.status(500).json({ error: 'Failed to remove context' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to remove context',
+        operation: 'remove context',
+        requestId: req.id,
+        context: { projectName: req.params.projectName, contextId: req.params.contextId }
+      });
     }
   });
 
@@ -151,8 +164,12 @@ export function createContextsRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, projectName: req.params.projectName, requestId: req.id }, 'failed to reorder contexts');
-      res.status(500).json({ error: 'Failed to reorder contexts' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to reorder contexts',
+        operation: 'reorder contexts',
+        requestId: req.id,
+        context: { projectName: req.params.projectName }
+      });
     }
   });
 

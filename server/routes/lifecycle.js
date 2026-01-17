@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import scanManager from '../services/scanManager.js';
 import { createLogger } from '../services/logger.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('lifecycle');
 
@@ -243,7 +244,11 @@ router.post('/settings/reload', async (req, res) => {
     const settings = await scanManager.loadScanSettings(prisma);
     res.json({ success: true, settings });
   } else {
-    res.status(500).json({ error: 'Database not available' });
+    return sendSafeError(res, new Error('Database not available'), {
+      userMessage: 'Database not available',
+      operation: 'reload scan settings',
+      requestId: req.id
+    });
   }
 });
 

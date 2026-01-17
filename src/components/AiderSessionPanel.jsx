@@ -72,40 +72,43 @@ export function AiderSessionPanel({ projectPath, socket, onModeChange }) {
   }, [socket, session?.id]);
 
   const checkStatus = async () => {
+    setError(null);
     try {
       const res = await fetch(`${API_URL}/api/aider/status`);
-      if (res.ok) {
-        const data = await res.json();
-        setStatus(data);
-      }
+      if (!res.ok) throw new Error('Failed to check Aider status');
+      const data = await res.json();
+      setStatus(data);
     } catch (err) {
       console.error('Failed to check Aider status:', err);
+      setError('Failed to check Aider status');
     }
   };
 
   const loadModels = async () => {
+    setError(null);
     try {
       const res = await fetch(`${API_URL}/api/aider/models`);
-      if (res.ok) {
-        const data = await res.json();
-        setModels(data);
-      }
+      if (!res.ok) throw new Error('Failed to load models');
+      const data = await res.json();
+      setModels(data);
     } catch (err) {
       console.error('Failed to load models:', err);
+      setError('Failed to load models');
     }
   };
 
   const loadConfig = async () => {
+    setError(null);
     try {
       const res = await fetch(`${API_URL}/api/aider/config`);
-      if (res.ok) {
-        const data = await res.json();
-        setConfig(data);
-        if (data.defaultModel) setSelectedModel(data.defaultModel);
-        if (data.defaultProvider) setSelectedProvider(data.defaultProvider);
-      }
+      if (!res.ok) throw new Error('Failed to load config');
+      const data = await res.json();
+      setConfig(data);
+      if (data.defaultModel) setSelectedModel(data.defaultModel);
+      if (data.defaultProvider) setSelectedProvider(data.defaultProvider);
     } catch (err) {
       console.error('Failed to load config:', err);
+      setError('Failed to load configuration');
     }
   };
 
@@ -150,14 +153,16 @@ export function AiderSessionPanel({ projectPath, socket, onModeChange }) {
     if (!session) return;
 
     setLoading(true);
+    setError(null);
     try {
-      await fetch(`${API_URL}/api/aider/sessions/${session.id}`, {
+      const res = await fetch(`${API_URL}/api/aider/sessions/${session.id}`, {
         method: 'DELETE'
       });
+      if (!res.ok) throw new Error('Failed to stop session');
       setSession(null);
       setOutput(prev => [...prev, { type: 'info', content: 'Session stopped', timestamp: Date.now() }]);
     } catch (err) {
-      setError(err.message);
+      setError('Failed to stop session');
     } finally {
       setLoading(false);
     }
@@ -169,28 +174,32 @@ export function AiderSessionPanel({ projectPath, socket, onModeChange }) {
     const message = input.trim();
     setInput('');
     setOutput(prev => [...prev, { type: 'input', content: `> ${message}`, timestamp: Date.now() }]);
+    setError(null);
 
     try {
-      await fetch(`${API_URL}/api/aider/sessions/${session.id}/input`, {
+      const res = await fetch(`${API_URL}/api/aider/sessions/${session.id}/input`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ input: message })
       });
+      if (!res.ok) throw new Error('Failed to send input');
     } catch (err) {
-      setError(err.message);
+      setError('Failed to send input');
     }
   };
 
   const toggleVoice = async () => {
     if (!session) return;
 
+    setError(null);
     const endpoint = session.voiceActive ? 'stop' : 'start';
     try {
-      await fetch(`${API_URL}/api/aider/sessions/${session.id}/voice/${endpoint}`, {
+      const res = await fetch(`${API_URL}/api/aider/sessions/${session.id}/voice/${endpoint}`, {
         method: 'POST'
       });
+      if (!res.ok) throw new Error('Failed to toggle voice');
     } catch (err) {
-      setError(err.message);
+      setError('Failed to toggle voice');
     }
   };
 
@@ -199,6 +208,13 @@ export function AiderSessionPanel({ projectPath, socket, onModeChange }) {
       e.preventDefault();
       sendInput();
     }
+  };
+
+  const handleRetry = () => {
+    setError(null);
+    checkStatus();
+    loadModels();
+    loadConfig();
   };
 
   const formatUptime = (ms) => {
@@ -335,9 +351,14 @@ export function AiderSessionPanel({ projectPath, socket, onModeChange }) {
 
       {/* Error Display */}
       {error && (
-        <div className="p-3 bg-red-500/10 border-b border-red-500/30 text-red-400 text-sm">
-          {error}
-          <button onClick={() => setError(null)} className="ml-2 hover:underline">Dismiss</button>
+        <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-4 mx-3 mt-3">
+          <p className="text-red-400">{error}</p>
+          <button
+            onClick={handleRetry}
+            className="mt-2 px-3 py-1 bg-red-500/20 hover:bg-red-500/30 rounded text-sm text-red-400"
+          >
+            Retry
+          </button>
         </div>
       )}
 

@@ -13,6 +13,7 @@ import {
   getAgentsByTrigger
 } from '../data/agentCatalog.js';
 import { createLogger } from '../services/logger.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('marketplace');
 
@@ -28,8 +29,11 @@ export function createMarketplaceRouter(prisma) {
       const categories = getCategoriesWithCounts();
       res.json(categories);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch categories');
-      res.status(500).json({ error: 'Failed to fetch categories' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch categories',
+        operation: 'fetch categories',
+        requestId: req.id,
+      });
     }
   });
 
@@ -86,8 +90,12 @@ export function createMarketplaceRouter(prisma) {
 
       res.json(agents);
     } catch (error) {
-      log.error({ error: error.message, category: req.query.category, requestId: req.id }, 'failed to fetch agents');
-      res.status(500).json({ error: 'Failed to fetch agents' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch agents',
+        operation: 'fetch agents',
+        requestId: req.id,
+        context: { category: req.query.category },
+      });
     }
   });
 
@@ -114,8 +122,12 @@ export function createMarketplaceRouter(prisma) {
         installedAgentId: installed?.id || null
       });
     } catch (error) {
-      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to fetch agent');
-      res.status(500).json({ error: 'Failed to fetch agent' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch agent',
+        operation: 'fetch agent',
+        requestId: req.id,
+        context: { agentId: req.params.id },
+      });
     }
   });
 
@@ -191,8 +203,12 @@ export function createMarketplaceRouter(prisma) {
         message: `${catalogAgent.name} installed successfully`
       });
     } catch (error) {
-      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to install agent');
-      res.status(500).json({ error: 'Failed to install agent' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to install agent',
+        operation: 'install agent',
+        requestId: req.id,
+        context: { agentId: req.params.id },
+      });
     }
   });
 
@@ -221,8 +237,12 @@ export function createMarketplaceRouter(prisma) {
         message: 'Agent uninstalled successfully'
       });
     } catch (error) {
-      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to uninstall agent');
-      res.status(500).json({ error: 'Failed to uninstall agent' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to uninstall agent',
+        operation: 'uninstall agent',
+        requestId: req.id,
+        context: { agentId: req.params.id },
+      });
     }
   });
 
@@ -264,8 +284,11 @@ export function createMarketplaceRouter(prisma) {
 
       res.json(enriched);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch installed agents');
-      res.status(500).json({ error: 'Failed to fetch installed agents' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch installed agents',
+        operation: 'fetch installed agents',
+        requestId: req.id,
+      });
     }
   });
 
@@ -328,8 +351,12 @@ export function createMarketplaceRouter(prisma) {
         agent: updated
       });
     } catch (error) {
-      log.error({ error: error.message, agentId: req.params.id, requestId: req.id }, 'failed to update agent');
-      res.status(500).json({ error: 'Failed to update agent' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update agent',
+        operation: 'update agent',
+        requestId: req.id,
+        context: { agentId: req.params.id },
+      });
     }
   });
 
@@ -377,8 +404,11 @@ export function createMarketplaceRouter(prisma) {
           .map(([category, count]) => ({ category, count }))
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch marketplace stats');
-      res.status(500).json({ error: 'Failed to fetch stats' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch stats',
+        operation: 'fetch marketplace stats',
+        requestId: req.id,
+      });
     }
   });
 

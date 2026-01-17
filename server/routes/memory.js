@@ -5,6 +5,7 @@
 
 import { Router } from 'express';
 import { createLogger } from '../services/logger.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('memory');
 
@@ -102,8 +103,11 @@ export function createMemoryRouter(prisma) {
         }
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch memories');
-      res.status(500).json({ error: 'Failed to fetch memories' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch memories',
+        operation: 'fetch memories',
+        requestId: req.id
+      });
     }
   });
 
@@ -159,8 +163,12 @@ export function createMemoryRouter(prisma) {
 
       res.json(context);
     } catch (error) {
-      log.error({ error: error.message, projectId: req.query.projectId, requestId: req.id }, 'failed to fetch memory context');
-      res.status(500).json({ error: 'Failed to fetch context' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch context',
+        operation: 'fetch memory context',
+        requestId: req.id,
+        context: { projectId: req.query.projectId }
+      });
     }
   });
 
@@ -188,8 +196,12 @@ export function createMemoryRouter(prisma) {
 
       res.json(memory);
     } catch (error) {
-      log.error({ error: error.message, memoryId: req.params.id, requestId: req.id }, 'failed to fetch memory');
-      res.status(500).json({ error: 'Failed to fetch memory' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch memory',
+        operation: 'fetch memory',
+        requestId: req.id,
+        context: { memoryId: req.params.id }
+      });
     }
   });
 
@@ -252,8 +264,12 @@ export function createMemoryRouter(prisma) {
 
       res.status(201).json(memory);
     } catch (error) {
-      log.error({ error: error.message, scope: req.body.scope, requestId: req.id }, 'failed to create memory');
-      res.status(500).json({ error: 'Failed to create memory' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create memory',
+        operation: 'create memory',
+        requestId: req.id,
+        context: { scope: req.body.scope }
+      });
     }
   });
 
@@ -304,8 +320,12 @@ export function createMemoryRouter(prisma) {
 
       res.json(memory);
     } catch (error) {
-      log.error({ error: error.message, memoryId: req.params.id, requestId: req.id }, 'failed to update memory');
-      res.status(500).json({ error: 'Failed to update memory' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update memory',
+        operation: 'update memory',
+        requestId: req.id,
+        context: { memoryId: req.params.id }
+      });
     }
   });
 
@@ -320,8 +340,12 @@ export function createMemoryRouter(prisma) {
 
       res.json({ success: true, id: req.params.id });
     } catch (error) {
-      log.error({ error: error.message, memoryId: req.params.id, requestId: req.id }, 'failed to delete memory');
-      res.status(500).json({ error: 'Failed to delete memory' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to delete memory',
+        operation: 'delete memory',
+        requestId: req.id,
+        context: { memoryId: req.params.id }
+      });
     }
   });
 
@@ -358,8 +382,11 @@ export function createMemoryRouter(prisma) {
 
       res.status(201).json({ created: created.count });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to bulk create memories');
-      res.status(500).json({ error: 'Failed to bulk create memories' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to bulk create memories',
+        operation: 'bulk create memories',
+        requestId: req.id
+      });
     }
   });
 
@@ -393,8 +420,11 @@ export function createMemoryRouter(prisma) {
         }
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to cleanup memories');
-      res.status(500).json({ error: 'Failed to cleanup memories' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to cleanup memories',
+        operation: 'cleanup memories',
+        requestId: req.id
+      });
     }
   });
 
@@ -440,8 +470,11 @@ export function createMemoryRouter(prisma) {
         recentlyUsed
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch memory stats');
-      res.status(500).json({ error: 'Failed to fetch stats' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch stats',
+        operation: 'fetch memory stats',
+        requestId: req.id
+      });
     }
   });
 
@@ -458,8 +491,11 @@ export function createMemoryRouter(prisma) {
 
       res.json(categories.map(c => c.category).filter(Boolean));
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch memory categories');
-      res.status(500).json({ error: 'Failed to fetch categories' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch categories',
+        operation: 'fetch memory categories',
+        requestId: req.id
+      });
     }
   });
 

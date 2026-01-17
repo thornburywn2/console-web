@@ -10,6 +10,7 @@ import BulkActionBar from './components/BulkActionBar';
 import HomeDashboard from './components/HomeDashboard';
 import { OfflineIndicator } from './components/OfflineMode';
 import FavoritesBar from './components/FavoritesBar';
+import { ErrorBoundary } from './components/admin/shared/ErrorBoundary';
 
 // Core hooks (always needed)
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
@@ -722,18 +723,20 @@ function App() {
 
       {/* Left Sidebar - Widget-based project navigation */}
       {!focusMode && (
-        <LeftSidebar
-          projects={projects}
-          selectedProject={selectedProject}
-          onSelectProject={handleSelectProject}
-          onKillSession={handleKillSession}
-          onRefresh={fetchProjects}
-          isLoading={isLoading}
-          onOpenAdmin={handleOpenAdmin}
-          onCreateProject={() => setShowCreateProject(true)}
-          onOpenGitHubRepos={() => setShowGitHubRepos(true)}
-          projectsDir={projectsDir}
-        />
+        <ErrorBoundary tabName="Left Sidebar">
+          <LeftSidebar
+            projects={projects}
+            selectedProject={selectedProject}
+            onSelectProject={handleSelectProject}
+            onKillSession={handleKillSession}
+            onRefresh={fetchProjects}
+            isLoading={isLoading}
+            onOpenAdmin={handleOpenAdmin}
+            onCreateProject={() => setShowCreateProject(true)}
+            onOpenGitHubRepos={() => setShowGitHubRepos(true)}
+            projectsDir={projectsDir}
+          />
+        </ErrorBoundary>
       )}
 
       {/* Main Content */}
@@ -752,7 +755,7 @@ function App() {
                 style={{ color: 'var(--text-muted)', background: 'var(--bg-glass)' }}
                 title="About Console.web"
               >
-                v1.0.12
+                v1.0.13
               </button>
             </div>
             {selectedProject && (
@@ -855,38 +858,44 @@ function App() {
 
           {/* Show HomeDashboard when showHomeDashboard is true, otherwise show Terminal */}
           {showHomeDashboard || !selectedProject ? (
-            <HomeDashboard
-              onSelectProject={(project) => {
-                setShowHomeDashboard(false);
-                handleSelectProject(project);
-              }}
-              projects={projects}
-            />
+            <ErrorBoundary tabName="Home Dashboard">
+              <HomeDashboard
+                onSelectProject={(project) => {
+                  setShowHomeDashboard(false);
+                  handleSelectProject(project);
+                }}
+                projects={projects}
+              />
+            </ErrorBoundary>
           ) : (
-            <Terminal
-              socket={socket}
-              isReady={terminalReady}
-              onInput={handleTerminalInput}
-              onResize={handleTerminalResize}
-              projectPath={selectedProject.path}
-            />
+            <ErrorBoundary tabName="Terminal">
+              <Terminal
+                socket={socket}
+                isReady={terminalReady}
+                onInput={handleTerminalInput}
+                onResize={handleTerminalResize}
+                projectPath={selectedProject.path}
+              />
+            </ErrorBoundary>
           )}
         </div>
       </main>
 
       {/* Right Sidebar - Dashboard Widgets */}
       {!focusMode && (
-        <RightSidebar
-          selectedProject={selectedProject}
-          projects={projects}
-          onKillSession={handleKillSession}
-          onSelectProject={handleSelectProject}
-          onOpenAdmin={() => setShowAdmin(true)}
-          onOpenCheckpoints={() => setShowCheckpointPanel(true)}
-          onOpenGitHubSettings={() => setShowGitHubSettings(true)}
-          onRefresh={fetchProjects}
-          socket={socket}
-        />
+        <ErrorBoundary tabName="Right Sidebar">
+          <RightSidebar
+            selectedProject={selectedProject}
+            projects={projects}
+            onKillSession={handleKillSession}
+            onSelectProject={handleSelectProject}
+            onOpenAdmin={() => setShowAdmin(true)}
+            onOpenCheckpoints={() => setShowCheckpointPanel(true)}
+            onOpenGitHubSettings={() => setShowGitHubSettings(true)}
+            onRefresh={fetchProjects}
+            socket={socket}
+          />
+        </ErrorBoundary>
       )}
 
       {/* Admin Dashboard Modal */}

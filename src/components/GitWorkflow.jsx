@@ -33,14 +33,17 @@ export default function GitWorkflow({
   const fetchStatus = useCallback(async () => {
     if (!projectPath) return;
     setLoading(true);
+    setError(null);
     try {
       const response = await fetch('/api/git/' + encodeURIComponent(projectPath) + '/status');
-      if (response.ok) {
-        const data = await response.json();
-        setStatus(data);
+      if (!response.ok) {
+        throw new Error('Failed to fetch git status');
       }
+      const data = await response.json();
+      setStatus(data);
     } catch (err) {
       console.error('Failed to fetch git status:', err);
+      setError('Failed to load git status. Please check if this is a valid git repository.');
     } finally {
       setLoading(false);
     }
@@ -99,18 +102,21 @@ export default function GitWorkflow({
   // Generate AI commit message
   const generateCommitMessage = async () => {
     setLoading(true);
+    setError(null);
     try {
       const response = await fetch('/api/ai/commit-message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectPath }),
       });
-      if (response.ok) {
-        const data = await response.json();
-        setCommitMessage(data.message || '');
+      if (!response.ok) {
+        throw new Error('Failed to generate commit message');
       }
+      const data = await response.json();
+      setCommitMessage(data.message || '');
     } catch (err) {
       console.error('Failed to generate commit message:', err);
+      setError('Failed to generate commit message. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -210,6 +216,22 @@ export default function GitWorkflow({
 
         {/* Content */}
         <div className="flex-1 overflow-auto p-4 space-y-4">
+          {/* Error display with retry */}
+          {error && !output && (
+            <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-4">
+              <p className="text-red-400">{error}</p>
+              <button
+                onClick={() => {
+                  setError(null);
+                  fetchStatus();
+                }}
+                className="mt-2 px-3 py-1 bg-red-500/20 hover:bg-red-500/30 rounded text-sm text-red-400"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
           {/* Repository status */}
           {status && (
             <div className="grid grid-cols-2 gap-4">

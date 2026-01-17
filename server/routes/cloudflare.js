@@ -19,6 +19,7 @@ import {
   websocketToggleSchema,
   validateBody
 } from '../utils/validation.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('cloudflare');
 const execAsync = promisify(exec);
@@ -628,8 +629,11 @@ export function createCloudflareRouter(prisma) {
         hasApiToken: !!settings.apiToken
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get cloudflare settings');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get Cloudflare settings',
+        operation: 'get cloudflare settings',
+        requestId: req.id,
+      });
     }
   });
 
@@ -717,8 +721,11 @@ export function createCloudflareRouter(prisma) {
         zoneName: settings.zoneName
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to save cloudflare settings');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to save Cloudflare settings',
+        operation: 'save cloudflare settings',
+        requestId: req.id,
+      });
     }
   });
 
@@ -743,8 +750,11 @@ export function createCloudflareRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to remove cloudflare settings');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to remove Cloudflare settings',
+        operation: 'remove cloudflare settings',
+        requestId: req.id,
+      });
     }
   });
 
@@ -758,8 +768,11 @@ export function createCloudflareRouter(prisma) {
       const config = await getTunnelConfig();
       res.json({ success: true, config });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get tunnel config');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get tunnel configuration',
+        operation: 'get tunnel config',
+        requestId: req.id,
+      });
     }
   });
 
@@ -774,8 +787,11 @@ export function createCloudflareRouter(prisma) {
       );
       res.json({ success: true, tunnel: data.result });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get tunnel info');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get tunnel information',
+        operation: 'get tunnel info',
+        requestId: req.id,
+      });
     }
   });
 
@@ -791,8 +807,11 @@ export function createCloudflareRouter(prisma) {
       });
       res.json({ routes });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to list routes');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list routes',
+        operation: 'list routes',
+        requestId: req.id,
+      });
     }
   });
 
@@ -847,8 +866,11 @@ export function createCloudflareRouter(prisma) {
         suggestedHostname
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get project routes');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get project routes',
+        operation: 'get project routes',
+        requestId: req.id,
+      });
     }
   });
 
@@ -983,8 +1005,11 @@ export function createCloudflareRouter(prisma) {
         viteConfig: viteResult
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to publish route');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to publish route',
+        operation: 'publish route',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1048,8 +1073,11 @@ export function createCloudflareRouter(prisma) {
         authentikRemoved: route.authentikEnabled
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to unpublish route');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to unpublish route',
+        operation: 'unpublish route',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1138,8 +1166,11 @@ export function createCloudflareRouter(prisma) {
         viteConfig: viteResult
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to update route port');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update route port',
+        operation: 'update route port',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1222,8 +1253,11 @@ export function createCloudflareRouter(prisma) {
         restartResult
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to update route websocket setting');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update WebSocket setting',
+        operation: 'update route websocket setting',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1235,8 +1269,11 @@ export function createCloudflareRouter(prisma) {
       const result = await restartCloudflared();
       res.json(result);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to restart cloudflared');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to restart cloudflared',
+        operation: 'restart cloudflared',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1349,8 +1386,11 @@ export function createCloudflareRouter(prisma) {
         warnings: zoneError ? ['Zone access limited - DNS records may need manual creation'] : []
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to validate cloudflare config');
-      res.status(500).json({ valid: false, error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to validate Cloudflare configuration',
+        operation: 'validate cloudflare config',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1496,8 +1536,11 @@ export function createCloudflareRouter(prisma) {
         details: { synced, skipped, errors }
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to sync cloudflare routes');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to sync Cloudflare routes',
+        operation: 'sync cloudflare routes',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1717,8 +1760,11 @@ export function createCloudflareRouter(prisma) {
         }
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get mapped routes');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get mapped routes',
+        operation: 'get mapped routes',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1746,8 +1792,11 @@ export function createCloudflareRouter(prisma) {
         count: orphanedRoutes.length
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get orphaned routes');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get orphaned routes',
+        operation: 'get orphaned routes',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1825,8 +1874,11 @@ export function createCloudflareRouter(prisma) {
         restartResult
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to clean up orphaned route');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to clean up orphaned route',
+        operation: 'clean up orphaned route',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1947,8 +1999,11 @@ export function createCloudflareRouter(prisma) {
         restartResult
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to bulk clean orphaned routes');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to bulk clean orphaned routes',
+        operation: 'bulk clean orphaned routes',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1990,12 +2045,10 @@ export function createCloudflareRouter(prisma) {
         tunnelName: settings.tunnelName
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get tunnel status');
-      res.status(500).json({
-        error: error.message,
-        status: 'error',
-        connections: 0,
-        ingressCount: 0
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get tunnel status',
+        operation: 'get tunnel status',
+        requestId: req.id,
       });
     }
   });
@@ -2016,8 +2069,11 @@ export function createCloudflareRouter(prisma) {
         total: data.result_info?.total_count || 0
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get DNS records');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get DNS records',
+        operation: 'get DNS records',
+        requestId: req.id,
+      });
     }
   });
 
@@ -2039,8 +2095,11 @@ export function createCloudflareRouter(prisma) {
         timeseries: data.result?.timeseries || []
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get analytics');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get analytics',
+        operation: 'get analytics',
+        requestId: req.id,
+      });
     }
   });
 
@@ -2069,8 +2128,11 @@ export function createCloudflareRouter(prisma) {
         // Never return apiToken
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get authentik settings');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get Authentik settings',
+        operation: 'get authentik settings',
+        requestId: req.id,
+      });
     }
   });
 
@@ -2132,8 +2194,11 @@ export function createCloudflareRouter(prisma) {
         lastValidated: settings.lastValidated
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to save authentik settings');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to save Authentik settings',
+        operation: 'save authentik settings',
+        requestId: req.id,
+      });
     }
   });
 
@@ -2145,8 +2210,11 @@ export function createCloudflareRouter(prisma) {
       await prisma.authentikSettings.deleteMany({});
       res.json({ success: true, message: 'Authentik configuration cleared' });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to clear authentik settings');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to clear Authentik settings',
+        operation: 'clear authentik settings',
+        requestId: req.id,
+      });
     }
   });
 
@@ -2187,8 +2255,11 @@ export function createCloudflareRouter(prisma) {
         email: user.email
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to validate authentik');
-      res.status(500).json({ valid: false, error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to validate Authentik',
+        operation: 'validate authentik',
+        requestId: req.id,
+      });
     }
   });
 
@@ -2204,8 +2275,11 @@ export function createCloudflareRouter(prisma) {
         outposts: outposts.results || []
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch authentik outposts');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch Authentik outposts',
+        operation: 'fetch authentik outposts',
+        requestId: req.id,
+      });
     }
   });
 
@@ -2270,8 +2344,11 @@ export function createCloudflareRouter(prisma) {
         });
       }
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to update route authentik protection');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update route Authentik protection',
+        operation: 'update route authentik protection',
+        requestId: req.id,
+      });
     }
   });
 

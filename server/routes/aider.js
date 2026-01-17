@@ -8,6 +8,7 @@
 import express from 'express';
 import { aiderManager } from '../services/aiderManager.js';
 import { createLogger } from '../services/logger.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('aider');
 
@@ -35,8 +36,11 @@ export function createAiderRouter(prisma, io) {
         totalSessions: sessions.length
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get Aider status');
-      res.status(500).json({ error: 'Failed to get Aider status' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get Aider status',
+        operation: 'get Aider status',
+        requestId: req.id,
+      });
     }
   });
 
@@ -61,8 +65,11 @@ export function createAiderRouter(prisma, io) {
 
       res.json(result);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get Aider models');
-      res.status(500).json({ error: 'Failed to get models' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get models',
+        operation: 'get Aider models',
+        requestId: req.id,
+      });
     }
   });
 
@@ -79,8 +86,11 @@ export function createAiderRouter(prisma, io) {
       const sessions = aiderManager.listSessions();
       res.json(sessions);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to list Aider sessions');
-      res.status(500).json({ error: 'Failed to list sessions' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list sessions',
+        operation: 'list Aider sessions',
+        requestId: req.id,
+      });
     }
   });
 
@@ -146,8 +156,11 @@ export function createAiderRouter(prisma, io) {
         session: session.getInfo()
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to create Aider session');
-      res.status(500).json({ error: error.message || 'Failed to create session' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create session',
+        operation: 'create Aider session',
+        requestId: req.id,
+      });
     }
   });
 
@@ -165,8 +178,12 @@ export function createAiderRouter(prisma, io) {
 
       res.json(session.getInfo());
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to get Aider session');
-      res.status(500).json({ error: 'Failed to get session' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get session',
+        operation: 'get Aider session',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -186,8 +203,12 @@ export function createAiderRouter(prisma, io) {
 
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to remove Aider session');
-      res.status(500).json({ error: 'Failed to remove session' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to remove session',
+        operation: 'remove Aider session',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -213,8 +234,12 @@ export function createAiderRouter(prisma, io) {
 
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to send input to Aider');
-      res.status(500).json({ error: error.message || 'Failed to send input' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to send input',
+        operation: 'send input to Aider',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -243,8 +268,12 @@ export function createAiderRouter(prisma, io) {
         filesAdded: session.filesAdded
       });
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to add files to Aider');
-      res.status(500).json({ error: error.message || 'Failed to add files' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to add files',
+        operation: 'add files to Aider',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -273,8 +302,12 @@ export function createAiderRouter(prisma, io) {
         filesAdded: session.filesAdded
       });
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to remove files from Aider');
-      res.status(500).json({ error: error.message || 'Failed to remove files' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to remove files',
+        operation: 'remove files from Aider',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -301,8 +334,12 @@ export function createAiderRouter(prisma, io) {
         status: 'starting'
       });
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to start Aider voice');
-      res.status(500).json({ error: error.message || 'Failed to start voice' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to start voice',
+        operation: 'start Aider voice',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -325,8 +362,12 @@ export function createAiderRouter(prisma, io) {
         status: 'stopped'
       });
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to stop Aider voice');
-      res.status(500).json({ error: error.message || 'Failed to stop voice' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to stop voice',
+        operation: 'stop Aider voice',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -371,8 +412,11 @@ export function createAiderRouter(prisma, io) {
 
       res.json(config);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get Aider config');
-      res.status(500).json({ error: 'Failed to get config' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get config',
+        operation: 'get Aider config',
+        requestId: req.id,
+      });
     }
   });
 
@@ -413,8 +457,11 @@ export function createAiderRouter(prisma, io) {
 
       res.json(config);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to update Aider config');
-      res.status(500).json({ error: 'Failed to update config' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update config',
+        operation: 'update Aider config',
+        requestId: req.id,
+      });
     }
   });
 
@@ -446,8 +493,12 @@ export function createAiderRouter(prisma, io) {
         total: session.history.length
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get Aider history');
-      res.status(500).json({ error: 'Failed to get history' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get history',
+        operation: 'get Aider history',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -467,8 +518,12 @@ export function createAiderRouter(prisma, io) {
 
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to clear Aider history');
-      res.status(500).json({ error: 'Failed to clear history' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to clear history',
+        operation: 'clear Aider history',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 

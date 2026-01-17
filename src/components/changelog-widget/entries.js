@@ -4,6 +4,26 @@
 
 export const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.13',
+    date: '2026-01-17',
+    type: 'major',
+    title: 'Stability Hardening - Phase 1 Complete',
+    highlights: [
+      'Error handling standardized across 300+ catch blocks in 24 route files',
+      'Frontend components now show error states with retry buttons',
+      'Error Boundaries wrap all critical UI components',
+      'Silent failures eliminated with debug logging',
+    ],
+    features: [
+      { title: 'sendSafeError Pattern', description: 'All 24 route files updated with sendSafeError() for consistent error responses and logging' },
+      { title: 'Frontend Error States', description: '6 components (ProjectsTab, OverviewPane, DockerPane, AiderSessionPanel, DatabaseBrowser, GitWorkflow) now show error UI with retry' },
+      { title: 'Error Boundaries', description: 'Terminal, LeftSidebar, RightSidebar, HomeDashboard, and all widgets wrapped in ErrorBoundary' },
+      { title: 'Silent Catch Fixes', description: 'infrastructure.js silent catches converted to debug-logged best-effort operations' },
+      { title: 'Test Fixes', description: 'agentSchema tests fixed - all 148 backend tests passing' },
+      { title: 'Stability Roadmap', description: 'STABILITY-ROADMAP.md created for tracking 5-phase hardening effort' },
+    ],
+  },
+  {
     version: '1.0.12',
     date: '2026-01-17',
     type: 'patch',

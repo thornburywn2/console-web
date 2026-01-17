@@ -19,6 +19,7 @@ import { promisify } from 'util';
 import { exec } from 'child_process';
 import scanManager from '../services/scanManager.js';
 import { createLogger } from '../services/logger.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('github');
 
@@ -506,8 +507,11 @@ export function createGithubRouter(prisma) {
         lastValidated: settings.lastValidated
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to check github auth');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to check GitHub authentication',
+        operation: 'check GitHub auth',
+        requestId: req.id,
+      });
     }
   });
 
@@ -573,13 +577,15 @@ export function createGithubRouter(prisma) {
         tokenScopes: settings.tokenScopes
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to authenticate github');
-
       if (error.status === 401) {
         return res.status(401).json({ error: 'Invalid access token' });
       }
 
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to authenticate with GitHub',
+        operation: 'authenticate GitHub',
+        requestId: req.id,
+      });
     }
   });
 
@@ -603,8 +609,11 @@ export function createGithubRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to disconnect github');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to disconnect from GitHub',
+        operation: 'disconnect GitHub',
+        requestId: req.id,
+      });
     }
   });
 
@@ -661,13 +670,15 @@ export function createGithubRouter(prisma) {
         perPage: parseInt(per_page)
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to list github repos');
-
       if (error.message === 'GitHub not authenticated') {
         return res.status(401).json({ error: 'GitHub not authenticated' });
       }
 
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list GitHub repositories',
+        operation: 'list GitHub repos',
+        requestId: req.id,
+      });
     }
   });
 
@@ -724,8 +735,11 @@ export function createGithubRouter(prisma) {
         perPage: parseInt(per_page)
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to search github repos');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to search GitHub repositories',
+        operation: 'search GitHub repos',
+        requestId: req.id,
+      });
     }
   });
 
@@ -767,8 +781,11 @@ export function createGithubRouter(prisma) {
         }
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get project github info');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get project GitHub info',
+        operation: 'get project GitHub info',
+        requestId: req.id,
+      });
     }
   });
 
@@ -847,8 +864,11 @@ export function createGithubRouter(prisma) {
         repo: githubRepo
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to link github repo');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to link GitHub repository',
+        operation: 'link GitHub repo',
+        requestId: req.id,
+      });
     }
   });
 
@@ -977,8 +997,6 @@ export function createGithubRouter(prisma) {
         sanitizedFiles: sanitizedFiles.length > 0 ? sanitizedFiles : undefined
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to create github repo');
-
       // Try to restore original files on error
       if (originalContents.size > 0) {
         try {
@@ -988,7 +1006,11 @@ export function createGithubRouter(prisma) {
         }
       }
 
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create GitHub repository',
+        operation: 'create GitHub repo',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1025,8 +1047,11 @@ export function createGithubRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to unlink github repo');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to unlink GitHub repository',
+        operation: 'unlink GitHub repo',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1106,8 +1131,11 @@ export function createGithubRouter(prisma) {
         }
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to clone github repo');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to clone GitHub repository',
+        operation: 'clone GitHub repo',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1138,8 +1166,11 @@ export function createGithubRouter(prisma) {
         lastSyncedAt: new Date()
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get sync status');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get sync status',
+        operation: 'get sync status',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1281,8 +1312,6 @@ export function createGithubRouter(prisma) {
         }
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to push to github');
-
       // Try to restore original files on error
       if (originalContents.size > 0) {
         try {
@@ -1292,7 +1321,11 @@ export function createGithubRouter(prisma) {
         }
       }
 
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to push to GitHub',
+        operation: 'push to GitHub',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1321,8 +1354,11 @@ export function createGithubRouter(prisma) {
 
       res.json({ success: true, branch });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to pull from github');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to pull from GitHub',
+        operation: 'pull from GitHub',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1349,8 +1385,11 @@ export function createGithubRouter(prisma) {
 
       res.json({ success: true, ...status });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch from github');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch from GitHub',
+        operation: 'fetch from GitHub',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1389,8 +1428,11 @@ export function createGithubRouter(prisma) {
         }))
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to list workflows');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list workflows',
+        operation: 'list workflows',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1468,8 +1510,11 @@ export function createGithubRouter(prisma) {
         }))
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to list workflow runs');
-      res.status(500).json({ error: error.message });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list workflow runs',
+        operation: 'list workflow runs',
+        requestId: req.id,
+      });
     }
   });
 

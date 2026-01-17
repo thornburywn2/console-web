@@ -256,19 +256,37 @@ describe('Validation Schemas', () => {
     it('should accept valid agent', () => {
       const result = agentSchema.safeParse({
         name: 'Build Agent',
-        trigger: 'manual',
-        actions: [{ type: 'run_command' }],
+        triggerType: 'MANUAL',
+        actions: [{ type: 'shell', config: {} }],
       });
       expect(result.success).toBe(true);
     });
 
     it('should accept all trigger types', () => {
-      const triggers = ['manual', 'schedule', 'file_change', 'git_event', 'session_event', 'webhook'];
-      triggers.forEach((trigger) => {
+      const triggers = [
+        'GIT_PRE_COMMIT', 'GIT_POST_COMMIT', 'GIT_PRE_PUSH', 'GIT_POST_MERGE', 'GIT_POST_CHECKOUT',
+        'FILE_CHANGE',
+        'SESSION_START', 'SESSION_END', 'SESSION_ERROR', 'SESSION_IDLE', 'SESSION_RECONNECT', 'SESSION_COMMAND_COMPLETE',
+        'SYSTEM_RESOURCE', 'SYSTEM_SERVICE', 'SYSTEM_ALERT', 'SYSTEM_UPTIME',
+        'MANUAL'
+      ];
+      triggers.forEach((triggerType) => {
         const result = agentSchema.safeParse({
           name: 'Test',
-          trigger,
-          actions: [{ type: 'test' }],
+          triggerType,
+          actions: [{ type: 'shell', config: {} }],
+        });
+        expect(result.success).toBe(true);
+      });
+    });
+
+    it('should accept all action types', () => {
+      const actionTypes = ['shell', 'api', 'mcp'];
+      actionTypes.forEach((type) => {
+        const result = agentSchema.safeParse({
+          name: 'Test',
+          triggerType: 'MANUAL',
+          actions: [{ type, config: {} }],
         });
         expect(result.success).toBe(true);
       });
@@ -277,8 +295,17 @@ describe('Validation Schemas', () => {
     it('should reject invalid trigger type', () => {
       const result = agentSchema.safeParse({
         name: 'Test',
-        trigger: 'invalid_trigger',
-        actions: [{ type: 'test' }],
+        triggerType: 'INVALID_TRIGGER',
+        actions: [{ type: 'shell', config: {} }],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject invalid action type', () => {
+      const result = agentSchema.safeParse({
+        name: 'Test',
+        triggerType: 'MANUAL',
+        actions: [{ type: 'invalid_action', config: {} }],
       });
       expect(result.success).toBe(false);
     });
@@ -286,7 +313,7 @@ describe('Validation Schemas', () => {
     it('should reject empty actions array', () => {
       const result = agentSchema.safeParse({
         name: 'Test',
-        trigger: 'manual',
+        triggerType: 'MANUAL',
         actions: [],
       });
       expect(result.success).toBe(false);

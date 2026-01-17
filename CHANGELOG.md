@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                             Console.web v1.0.12                              │
+│                             Console.web v1.0.13                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
 │  │  Terminal   │  │   Admin     │  │  Projects   │  │  Sidebars   │        │
@@ -151,6 +151,37 @@ npm run build && npm start
 | **Containers** | Dockerode |
 | **Observability** | OpenTelemetry, Jaeger, Loki, Prometheus, Grafana |
 | **Security** | Helmet, express-rate-limit, Zod, Sentry |
+
+---
+
+## [1.0.13] - 2026-01-17
+
+### Stability Hardening - Phase 1 Complete
+
+Comprehensive error handling standardization across the entire codebase. This release completes Phase 1 of the stability roadmap, establishing consistent error handling patterns that will be the foundation for future hardening phases.
+
+#### Backend Error Handling (300+ catch blocks)
+- **sendSafeError() Pattern**: All 24 route files now use consistent error responses with sanitized messages
+- **Route Files Updated**: aider.js (15), tabby.js (14), claudeFlow.js (15), codePuppy.js (39), github.js (16), cloudflare.js (27), mcp.js (19), infrastructure.js (28), checkpoints.js (8), contexts.js (4), browser.js (14), marketplace.js (9), memory.js (10), plans.js (13), shortcuts.js (4), system.js (2), voice.js (22), lifecycle.js (1), usersFirewall.js (28), project-tags.js (15), projectTemplates.js (8)
+- **Silent Catch Fixes**: 3 locations in infrastructure.js converted from silent to debug-logged
+
+#### Frontend Error States
+- **ProjectsTab.jsx**: Error state with !res.ok check and retry button
+- **OverviewPane.jsx**: Error state with partial error handling for stale data
+- **DockerPane.jsx**: Promise.allSettled for partial failures, partialErrors and actionError states
+- **AiderSessionPanel.jsx**: 6 functions enhanced with error handling, handleRetry added
+- **DatabaseBrowser.jsx**: Error states for both embedded and modal modes
+- **GitWorkflow.jsx**: Enhanced fetchStatus and generateCommitMessage with error UI
+
+#### Error Boundaries
+- **App.jsx**: Terminal, LeftSidebar, RightSidebar, HomeDashboard wrapped
+- **HomeDashboard.jsx**: Each widget individually wrapped in ErrorBoundary
+- **Existing**: GlobalErrorBoundary (main.jsx), Admin tabs (admin/shared/ErrorBoundary.jsx)
+
+#### Infrastructure
+- **Test Fixes**: agentSchema validation tests updated (triggerType, action types)
+- **All 148 Backend Tests**: Passing
+- **STABILITY-ROADMAP.md**: Created comprehensive 5-phase tracking document
 
 ---
 

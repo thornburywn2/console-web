@@ -11,6 +11,7 @@ import { parseCommand, getAllCommands, getAllCommandsFlat } from '../utils/comma
 import { whisperService } from '../services/whisperService.js';
 import { voiceAIService } from '../services/voiceAIService.js';
 import { createLogger } from '../services/logger.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('voice');
 
@@ -73,8 +74,11 @@ export function createVoiceRouter(prisma) {
 
       res.json(settings);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch voice settings');
-      res.status(500).json({ error: 'Failed to fetch voice settings' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch voice settings',
+        operation: 'fetch voice settings',
+        requestId: req.id,
+      });
     }
   });
 
@@ -109,8 +113,11 @@ export function createVoiceRouter(prisma) {
 
       res.json(settings);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to update voice settings');
-      res.status(500).json({ error: 'Failed to update voice settings' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update voice settings',
+        operation: 'update voice settings',
+        requestId: req.id,
+      });
     }
   });
 
@@ -161,8 +168,11 @@ export function createVoiceRouter(prisma) {
         suggestions: parsed.suggestions || []
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to process voice command');
-      res.status(500).json({ error: 'Failed to process voice command' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to process voice command',
+        operation: 'process voice command',
+        requestId: req.id,
+      });
     }
   });
 
@@ -196,8 +206,11 @@ export function createVoiceRouter(prisma) {
         action: command.action
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to execute voice command');
-      res.status(500).json({ error: 'Failed to execute voice command' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to execute voice command',
+        operation: 'execute voice command',
+        requestId: req.id,
+      });
     }
   });
 
@@ -234,8 +247,11 @@ export function createVoiceRouter(prisma) {
         offset: parseInt(offset)
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch voice history');
-      res.status(500).json({ error: 'Failed to fetch voice history' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch voice history',
+        operation: 'fetch voice history',
+        requestId: req.id,
+      });
     }
   });
 
@@ -259,8 +275,11 @@ export function createVoiceRouter(prisma) {
         deleted: result.count
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to clear voice history');
-      res.status(500).json({ error: 'Failed to clear voice history' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to clear voice history',
+        operation: 'clear voice history',
+        requestId: req.id,
+      });
     }
   });
 
@@ -282,8 +301,11 @@ export function createVoiceRouter(prisma) {
         res.json(getAllCommands());
       }
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch voice commands');
-      res.status(500).json({ error: 'Failed to fetch voice commands' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch voice commands',
+        operation: 'fetch voice commands',
+        requestId: req.id,
+      });
     }
   });
 
@@ -306,8 +328,11 @@ export function createVoiceRouter(prisma) {
 
       res.json(macros);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch voice macros');
-      res.status(500).json({ error: 'Failed to fetch voice macros' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch voice macros',
+        operation: 'fetch voice macros',
+        requestId: req.id,
+      });
     }
   });
 
@@ -337,8 +362,11 @@ export function createVoiceRouter(prisma) {
 
       res.json(macro);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to create voice macro');
-      res.status(500).json({ error: 'Failed to create voice macro' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create voice macro',
+        operation: 'create voice macro',
+        requestId: req.id,
+      });
     }
   });
 
@@ -364,8 +392,11 @@ export function createVoiceRouter(prisma) {
 
       res.json(macro);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to update voice macro');
-      res.status(500).json({ error: 'Failed to update voice macro' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update voice macro',
+        operation: 'update voice macro',
+        requestId: req.id,
+      });
     }
   });
 
@@ -393,8 +424,12 @@ export function createVoiceRouter(prisma) {
         macro
       });
     } catch (error) {
-      log.error({ error: error.message, macroId: req.params.id, requestId: req.id }, 'failed to execute voice macro');
-      res.status(500).json({ error: 'Failed to execute voice macro' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to execute voice macro',
+        operation: 'execute voice macro',
+        requestId: req.id,
+        context: { macroId: req.params.id },
+      });
     }
   });
 
@@ -410,8 +445,12 @@ export function createVoiceRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, macroId: req.params.id, requestId: req.id }, 'failed to delete voice macro');
-      res.status(500).json({ error: 'Failed to delete voice macro' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to delete voice macro',
+        operation: 'delete voice macro',
+        requestId: req.id,
+        context: { macroId: req.params.id },
+      });
     }
   });
 
@@ -428,8 +467,11 @@ export function createVoiceRouter(prisma) {
       const status = await whisperService.getStatus();
       res.json(status);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get Whisper status');
-      res.status(500).json({ error: 'Failed to get Whisper status' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get Whisper status',
+        operation: 'get Whisper status',
+        requestId: req.id,
+      });
     }
   });
 
@@ -445,8 +487,11 @@ export function createVoiceRouter(prisma) {
         status: await whisperService.getStatus()
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to initialize Whisper');
-      res.status(500).json({ error: 'Failed to initialize Whisper' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to initialize Whisper',
+        operation: 'initialize Whisper',
+        requestId: req.id,
+      });
     }
   });
 
@@ -459,8 +504,11 @@ export function createVoiceRouter(prisma) {
       const models = whisperService.getModels();
       res.json(models);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get Whisper models');
-      res.status(500).json({ error: 'Failed to get Whisper models' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get Whisper models',
+        operation: 'get Whisper models',
+        requestId: req.id,
+      });
     }
   });
 
@@ -489,8 +537,12 @@ export function createVoiceRouter(prisma) {
         status: await whisperService.getStatus()
       });
     } catch (error) {
-      log.error({ error: error.message, model: req.body.model, requestId: req.id }, 'failed to set Whisper model');
-      res.status(500).json({ error: error.message || 'Failed to set Whisper model' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to set Whisper model',
+        operation: 'set Whisper model',
+        requestId: req.id,
+        context: { model: req.body.model },
+      });
     }
   });
 
@@ -548,8 +600,11 @@ export function createVoiceRouter(prisma) {
         command: parsed
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to transcribe with Whisper');
-      res.status(500).json({ error: error.message || 'Failed to transcribe audio' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to transcribe audio',
+        operation: 'transcribe with Whisper',
+        requestId: req.id,
+      });
     }
   });
 
@@ -573,8 +628,12 @@ export function createVoiceRouter(prisma) {
         path: modelPath
       });
     } catch (error) {
-      log.error({ error: error.message, model: req.body.model, requestId: req.id }, 'failed to download Whisper model');
-      res.status(500).json({ error: error.message || 'Failed to download model' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to download model',
+        operation: 'download Whisper model',
+        requestId: req.id,
+        context: { model: req.body.model },
+      });
     }
   });
 
@@ -700,8 +759,11 @@ export function createVoiceRouter(prisma) {
         aiSelected: true
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to disambiguate command');
-      res.status(500).json({ error: 'Failed to disambiguate' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to disambiguate',
+        operation: 'disambiguate command',
+        requestId: req.id,
+      });
     }
   });
 
@@ -760,8 +822,12 @@ export function createVoiceRouter(prisma) {
         ...result
       });
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.body.sessionId, requestId: req.id }, 'voice conversation failed');
-      res.status(500).json({ error: 'Conversation failed' });
+      return sendSafeError(res, error, {
+        userMessage: 'Conversation failed',
+        operation: 'voice conversation',
+        requestId: req.id,
+        context: { sessionId: req.body.sessionId },
+      });
     }
   });
 

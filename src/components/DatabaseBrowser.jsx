@@ -29,19 +29,23 @@ export default function DatabaseBrowser({ isOpen, onClose, embedded = false }) {
   const [runningQuery, setRunningQuery] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [showQueryEditor, setShowQueryEditor] = useState(false);
+  const [error, setError] = useState(null);
 
   const pageSize = 25;
 
   const fetchTables = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const response = await fetch('/api/db/tables');
-      if (response.ok) {
-        const data = await response.json();
-        setTables(data.tables || []);
+      if (!response.ok) {
+        throw new Error('Failed to fetch tables');
       }
-    } catch (error) {
-      console.error('Failed to fetch tables:', error);
+      const data = await response.json();
+      setTables(data.tables || []);
+    } catch (err) {
+      console.error('Failed to fetch tables:', err);
+      setError('Failed to load database tables. Please check your connection.');
     } finally {
       setLoading(false);
     }
@@ -50,6 +54,7 @@ export default function DatabaseBrowser({ isOpen, onClose, embedded = false }) {
   const fetchTableData = useCallback(async () => {
     if (!selectedTable) return;
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams({
         page: String(page),
@@ -58,14 +63,16 @@ export default function DatabaseBrowser({ isOpen, onClose, embedded = false }) {
         ...(filter && { filter })
       });
       const response = await fetch(`/api/db/tables/${selectedTable}/data?${params}`);
-      if (response.ok) {
-        const data = await response.json();
-        setColumns(data.columns || []);
-        setRows(data.rows || []);
-        setTotalRows(data.totalRows || 0);
+      if (!response.ok) {
+        throw new Error('Failed to fetch table data');
       }
-    } catch (error) {
-      console.error('Failed to fetch table data:', error);
+      const data = await response.json();
+      setColumns(data.columns || []);
+      setRows(data.rows || []);
+      setTotalRows(data.totalRows || 0);
+    } catch (err) {
+      console.error('Failed to fetch table data:', err);
+      setError(`Failed to load data for table "${selectedTable}".`);
     } finally {
       setLoading(false);
     }
@@ -123,31 +130,41 @@ export default function DatabaseBrowser({ isOpen, onClose, embedded = false }) {
   };
 
   const handleSaveRecord = async (record) => {
+    setError(null);
     try {
-      await fetch(`/api/db/tables/${selectedTable}/update`, {
+      const response = await fetch(`/api/db/tables/${selectedTable}/update`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(record)
       });
+      if (!response.ok) {
+        throw new Error('Failed to save record');
+      }
       fetchTableData();
       setEditingRecord(null);
-    } catch (error) {
-      console.error('Failed to save record:', error);
+    } catch (err) {
+      console.error('Failed to save record:', err);
+      setError('Failed to save record. Please try again.');
     }
   };
 
   const handleDeleteRecord = async (record) => {
     if (!confirm('Delete this record?')) return;
+    setError(null);
     try {
-      await fetch(`/api/db/tables/${selectedTable}/delete`, {
+      const response = await fetch(`/api/db/tables/${selectedTable}/delete`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(record)
       });
+      if (!response.ok) {
+        throw new Error('Failed to delete record');
+      }
       fetchTableData();
       setEditingRecord(null);
-    } catch (error) {
-      console.error('Failed to delete record:', error);
+    } catch (err) {
+      console.error('Failed to delete record:', err);
+      setError('Failed to delete record. Please try again.');
     }
   };
 
@@ -158,6 +175,19 @@ export default function DatabaseBrowser({ isOpen, onClose, embedded = false }) {
   // Embedded content for inline use
   const embeddedContent = (
     <div className="space-y-4">
+      {/* Error display */}
+      {error && (
+        <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4">
+          <p className="text-red-400 text-sm">{error}</p>
+          <button
+            onClick={() => { setError(null); fetchTables(); }}
+            className="mt-2 px-3 py-1 bg-red-500/20 hover:bg-red-500/30 rounded text-sm text-red-400"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* SQL Editor toggle */}
       <button
         onClick={() => setShowQueryEditor(!showQueryEditor)}
@@ -236,6 +266,19 @@ export default function DatabaseBrowser({ isOpen, onClose, embedded = false }) {
             </button>
           </div>
         </div>
+
+        {/* Error display */}
+        {error && (
+          <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mx-4 mt-4">
+            <p className="text-red-400">{error}</p>
+            <button
+              onClick={() => { setError(null); selectedTable ? fetchTableData() : fetchTables(); }}
+              className="mt-2 px-3 py-1 bg-red-500/20 hover:bg-red-500/30 rounded text-sm text-red-400"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* Content */}
         <div className="flex-1 overflow-hidden flex">

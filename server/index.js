@@ -135,6 +135,9 @@ import {
   flush as flushSentry,
 } from './services/sentry.js';
 
+// Import safe error response utility
+import { sendSafeError } from './utils/errorResponse.js';
+
 // Initialize Sentry before everything else
 initSentry();
 
@@ -4009,8 +4012,11 @@ app.get('/api/dashboard', async (req, res) => {
       shpoolSessions
     });
   } catch (error) {
-    log.error({ error: error.message }, 'dashboard API error');
-    res.status(500).json({ error: 'Failed to load dashboard data' });
+    return sendSafeError(res, error, {
+      userMessage: 'Failed to load dashboard data',
+      operation: 'get dashboard',
+      requestId: req.id,
+    });
   }
 });
 

@@ -5,6 +5,7 @@
 
 import { Router } from 'express';
 import { createLogger } from '../services/logger.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('plans');
 
@@ -54,8 +55,11 @@ export function createPlansRouter(prisma) {
         pagination: { total, limit: parseInt(limit), offset: parseInt(offset) }
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch plans');
-      res.status(500).json({ error: 'Failed to fetch plans' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch plans',
+        operation: 'fetch plans',
+        requestId: req.id
+      });
     }
   });
 
@@ -79,8 +83,12 @@ export function createPlansRouter(prisma) {
 
       res.json(plan);
     } catch (error) {
-      log.error({ error: error.message, planId: req.params.id, requestId: req.id }, 'failed to fetch plan');
-      res.status(500).json({ error: 'Failed to fetch plan' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch plan',
+        operation: 'fetch plan',
+        requestId: req.id,
+        context: { planId: req.params.id }
+      });
     }
   });
 
@@ -135,8 +143,11 @@ export function createPlansRouter(prisma) {
 
       res.status(201).json(plan);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to create plan');
-      res.status(500).json({ error: 'Failed to create plan' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create plan',
+        operation: 'create plan',
+        requestId: req.id
+      });
     }
   });
 
@@ -187,8 +198,12 @@ export function createPlansRouter(prisma) {
 
       res.json(plan);
     } catch (error) {
-      log.error({ error: error.message, planId: req.params.id, requestId: req.id }, 'failed to update plan');
-      res.status(500).json({ error: 'Failed to update plan' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update plan',
+        operation: 'update plan',
+        requestId: req.id,
+        context: { planId: req.params.id }
+      });
     }
   });
 
@@ -203,8 +218,12 @@ export function createPlansRouter(prisma) {
 
       res.json({ success: true, id: req.params.id });
     } catch (error) {
-      log.error({ error: error.message, planId: req.params.id, requestId: req.id }, 'failed to delete plan');
-      res.status(500).json({ error: 'Failed to delete plan' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to delete plan',
+        operation: 'delete plan',
+        requestId: req.id,
+        context: { planId: req.params.id }
+      });
     }
   });
 
@@ -264,8 +283,12 @@ export function createPlansRouter(prisma) {
 
       res.status(201).json(step);
     } catch (error) {
-      log.error({ error: error.message, planId: req.params.id, requestId: req.id }, 'failed to add step');
-      res.status(500).json({ error: 'Failed to add step' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to add step',
+        operation: 'add plan step',
+        requestId: req.id,
+        context: { planId: req.params.id }
+      });
     }
   });
 
@@ -322,8 +345,12 @@ export function createPlansRouter(prisma) {
 
       res.json(step);
     } catch (error) {
-      log.error({ error: error.message, stepId: req.params.stepId, requestId: req.id }, 'failed to update step');
-      res.status(500).json({ error: 'Failed to update step' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update step',
+        operation: 'update plan step',
+        requestId: req.id,
+        context: { planId: req.params.planId, stepId: req.params.stepId }
+      });
     }
   });
 
@@ -358,8 +385,12 @@ export function createPlansRouter(prisma) {
 
       res.json({ success: true, id: stepId });
     } catch (error) {
-      log.error({ error: error.message, stepId: req.params.stepId, requestId: req.id }, 'failed to delete step');
-      res.status(500).json({ error: 'Failed to delete step' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to delete step',
+        operation: 'delete plan step',
+        requestId: req.id,
+        context: { planId: req.params.planId, stepId: req.params.stepId }
+      });
     }
   });
 
@@ -393,8 +424,12 @@ export function createPlansRouter(prisma) {
 
       res.json(plan);
     } catch (error) {
-      log.error({ error: error.message, planId: req.params.id, requestId: req.id }, 'failed to reorder steps');
-      res.status(500).json({ error: 'Failed to reorder steps' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to reorder steps',
+        operation: 'reorder plan steps',
+        requestId: req.id,
+        context: { planId: req.params.id }
+      });
     }
   });
 
@@ -426,8 +461,12 @@ export function createPlansRouter(prisma) {
 
       res.json(plan);
     } catch (error) {
-      log.error({ error: error.message, planId: req.params.id, requestId: req.id }, 'failed to start execution');
-      res.status(500).json({ error: 'Failed to start execution' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to start execution',
+        operation: 'start plan execution',
+        requestId: req.id,
+        context: { planId: req.params.id }
+      });
     }
   });
 
@@ -446,8 +485,12 @@ export function createPlansRouter(prisma) {
 
       res.json(plan);
     } catch (error) {
-      log.error({ error: error.message, planId: req.params.id, requestId: req.id }, 'failed to pause execution');
-      res.status(500).json({ error: 'Failed to pause' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to pause',
+        operation: 'pause plan execution',
+        requestId: req.id,
+        context: { planId: req.params.id }
+      });
     }
   });
 
@@ -478,8 +521,12 @@ export function createPlansRouter(prisma) {
 
       res.json(plan);
     } catch (error) {
-      log.error({ error: error.message, planId: req.params.id, requestId: req.id }, 'failed to cancel execution');
-      res.status(500).json({ error: 'Failed to cancel' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to cancel',
+        operation: 'cancel plan execution',
+        requestId: req.id,
+        context: { planId: req.params.id }
+      });
     }
   });
 
@@ -540,8 +587,12 @@ export function createPlansRouter(prisma) {
 
       res.json({ diagram: mermaid, steps: plan.steps });
     } catch (error) {
-      log.error({ error: error.message, planId: req.params.id, requestId: req.id }, 'failed to generate diagram');
-      res.status(500).json({ error: 'Failed to generate diagram' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to generate diagram',
+        operation: 'generate plan diagram',
+        requestId: req.id,
+        context: { planId: req.params.id }
+      });
     }
   });
 

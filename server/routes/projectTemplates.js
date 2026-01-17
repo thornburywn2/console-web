@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import { getTemplateService } from '../services/templateService.js';
 import { createLogger } from '../services/logger.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('project-templates');
 
@@ -23,7 +24,11 @@ export function createProjectTemplatesRouter() {
       res.json({ templates });
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to list templates');
-      res.status(500).json({ error: 'Failed to list templates' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list templates',
+        operation: 'list templates',
+        requestId: req.id,
+      });
     }
   });
 
@@ -39,10 +44,13 @@ export function createProjectTemplatesRouter() {
     } catch (error) {
       log.error({ error: error.message, templateId: req.params.id, requestId: req.id }, 'failed to get template');
       if (error.message.includes('not found')) {
-        res.status(404).json({ error: error.message });
-      } else {
-        res.status(500).json({ error: 'Failed to get template' });
+        return res.status(404).json({ error: error.message });
       }
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get template',
+        operation: 'get template',
+        requestId: req.id,
+      });
     }
   });
 
@@ -75,12 +83,15 @@ export function createProjectTemplatesRouter() {
     } catch (error) {
       log.error({ error: error.message, templateId: req.body.templateId, projectName: req.body.variables?.PROJECT_NAME, requestId: req.id }, 'failed to create project');
       if (error.message.includes('already exists')) {
-        res.status(409).json({ error: error.message });
+        return res.status(409).json({ error: error.message });
       } else if (error.message.includes('not found')) {
-        res.status(404).json({ error: error.message });
-      } else {
-        res.status(500).json({ error: 'Failed to create project' });
+        return res.status(404).json({ error: error.message });
       }
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create project',
+        operation: 'create project',
+        requestId: req.id,
+      });
     }
   });
 
@@ -100,7 +111,11 @@ export function createProjectTemplatesRouter() {
       res.json(result);
     } catch (error) {
       log.error({ error: error.message, projectPath: req.body.projectPath, requestId: req.id }, 'failed to migrate project');
-      res.status(500).json({ error: 'Failed to migrate project' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to migrate project',
+        operation: 'migrate project',
+        requestId: req.id,
+      });
     }
   });
 
@@ -118,7 +133,11 @@ export function createProjectTemplatesRouter() {
       res.json(result);
     } catch (error) {
       log.error({ error: error.message, project: req.params.project || req.body.projectPath, requestId: req.id }, 'failed to check compliance');
-      res.status(500).json({ error: 'Failed to check compliance' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to check compliance',
+        operation: 'check compliance',
+        requestId: req.id,
+      });
     }
   });
 
@@ -132,7 +151,11 @@ export function createProjectTemplatesRouter() {
       res.json(result);
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to get compliance overview');
-      res.status(500).json({ error: 'Failed to get compliance overview' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get compliance overview',
+        operation: 'get compliance overview',
+        requestId: req.id,
+      });
     }
   });
 
@@ -146,7 +169,11 @@ export function createProjectTemplatesRouter() {
       res.json(config);
     } catch (error) {
       log.error({ error: error.message, requestId: req.id }, 'failed to get compliance config');
-      res.status(500).json({ error: 'Failed to get compliance config' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get compliance config',
+        operation: 'get compliance config',
+        requestId: req.id,
+      });
     }
   });
 
@@ -166,7 +193,11 @@ export function createProjectTemplatesRouter() {
       res.json(result);
     } catch (error) {
       log.error({ error: error.message, project: req.params.project || req.body.projectPath, requestId: req.id }, 'failed to check compliance');
-      res.status(500).json({ error: 'Failed to check compliance' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to check compliance',
+        operation: 'check compliance path',
+        requestId: req.id,
+      });
     }
   });
 

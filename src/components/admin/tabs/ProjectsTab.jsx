@@ -15,19 +15,23 @@ export function ProjectsTab({
 }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [projectSortBy, setProjectSortBy] = useState('name');
   const [projectSortOrder, setProjectSortOrder] = useState('asc');
 
   const fetchProjects = useCallback(async () => {
     try {
+      setError(null);
       setLoading(true);
       const res = await fetch('/api/admin/projects-extended');
-      if (res.ok) {
-        const data = await res.json();
-        setProjects(data || []);
+      if (!res.ok) {
+        throw new Error(`Server responded with ${res.status}: ${res.statusText}`);
       }
+      const data = await res.json();
+      setProjects(data || []);
     } catch (err) {
       console.error('Error fetching projects:', err);
+      setError('Failed to load projects. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -138,6 +142,18 @@ export function ProjectsTab({
             )}
           </div>
         </div>
+
+        {error && (
+          <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-4">
+            <p className="text-red-400">{error}</p>
+            <button
+              onClick={() => { setError(null); fetchProjects(); }}
+              className="mt-2 px-3 py-1 bg-red-500/30 hover:bg-red-500/50 rounded text-sm"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {sortedProjects.map(project => (

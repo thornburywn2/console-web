@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { ErrorBoundary } from './admin/shared/ErrorBoundary';
 import {
   LAST_ACCESSED_KEY,
   DASHBOARD_LAYOUT_KEY,
@@ -484,7 +485,9 @@ function HomeDashboard({ onSelectProject, projects = [] }) {
                 </div>
                 {/* Widget Content */}
                 <div className="p-3">
-                  {renderWidgetContent(widget)}
+                  <ErrorBoundary tabName={config.title}>
+                    {renderWidgetContent(widget)}
+                  </ErrorBoundary>
                 </div>
               </div>
             );

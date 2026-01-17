@@ -8,6 +8,7 @@
 import express from 'express';
 import { tabbyManager } from '../services/tabbyManager.js';
 import { createLogger } from '../services/logger.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('tabby');
 
@@ -36,8 +37,11 @@ export function createTabbyRouter(prisma, io) {
         image
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get Tabby status');
-      res.status(500).json({ error: 'Failed to get Tabby status' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get Tabby status',
+        operation: 'get Tabby status',
+        requestId: req.id,
+      });
     }
   });
 
@@ -50,8 +54,11 @@ export function createTabbyRouter(prisma, io) {
       const models = tabbyManager.getModels();
       res.json(models);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get Tabby models');
-      res.status(500).json({ error: 'Failed to get models' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get models',
+        operation: 'get Tabby models',
+        requestId: req.id,
+      });
     }
   });
 
@@ -112,8 +119,11 @@ export function createTabbyRouter(prisma, io) {
 
       res.json(result);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to start Tabby');
-      res.status(500).json({ error: error.message || 'Failed to start Tabby' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to start Tabby',
+        operation: 'start Tabby container',
+        requestId: req.id,
+      });
     }
   });
 
@@ -139,8 +149,11 @@ export function createTabbyRouter(prisma, io) {
 
       res.json(result);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to stop Tabby');
-      res.status(500).json({ error: error.message || 'Failed to stop Tabby' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to stop Tabby',
+        operation: 'stop Tabby container',
+        requestId: req.id,
+      });
     }
   });
 
@@ -153,8 +166,11 @@ export function createTabbyRouter(prisma, io) {
       const result = await tabbyManager.restart();
       res.json(result);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to restart Tabby');
-      res.status(500).json({ error: error.message || 'Failed to restart Tabby' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to restart Tabby',
+        operation: 'restart Tabby container',
+        requestId: req.id,
+      });
     }
   });
 
@@ -186,8 +202,11 @@ export function createTabbyRouter(prisma, io) {
 
       res.json(result);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to pull Tabby image');
-      res.status(500).json({ error: error.message || 'Failed to pull Tabby image' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to pull Tabby image',
+        operation: 'pull Tabby Docker image',
+        requestId: req.id,
+      });
     }
   });
 
@@ -205,8 +224,11 @@ export function createTabbyRouter(prisma, io) {
       const logs = await tabbyManager.getLogs(parseInt(tail));
       res.json({ logs });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get Tabby logs');
-      res.status(500).json({ error: 'Failed to get logs' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get logs',
+        operation: 'get Tabby logs',
+        requestId: req.id,
+      });
     }
   });
 
@@ -242,8 +264,11 @@ export function createTabbyRouter(prisma, io) {
 
       res.json(result);
     } catch (error) {
-      log.error({ error: error.message, model: req.body.model, requestId: req.id }, 'failed to update Tabby model');
-      res.status(500).json({ error: error.message || 'Failed to update model' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update model',
+        operation: 'update Tabby model',
+        requestId: req.id,
+      });
     }
   });
 
@@ -261,8 +286,11 @@ export function createTabbyRouter(prisma, io) {
       const result = await tabbyManager.testCompletion(code);
       res.json(result);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to test Tabby');
-      res.status(500).json({ error: error.message || 'Failed to test completion' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to test completion',
+        operation: 'test Tabby completion',
+        requestId: req.id,
+      });
     }
   });
 
@@ -298,8 +326,11 @@ export function createTabbyRouter(prisma, io) {
 
       res.json(config);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get Tabby config');
-      res.status(500).json({ error: 'Failed to get config' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get config',
+        operation: 'get Tabby config',
+        requestId: req.id,
+      });
     }
   });
 
@@ -340,8 +371,11 @@ export function createTabbyRouter(prisma, io) {
 
       res.json(config);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to update Tabby config');
-      res.status(500).json({ error: 'Failed to update config' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update config',
+        operation: 'update Tabby config',
+        requestId: req.id,
+      });
     }
   });
 
@@ -381,8 +415,11 @@ export function createTabbyRouter(prisma, io) {
         }
       });
     } catch (error) {
-      log.error({ error: error.message, ide: req.params.ide, requestId: req.id }, 'failed to generate IDE config');
-      res.status(500).json({ error: 'Failed to generate IDE config' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to generate IDE config',
+        operation: 'generate IDE config',
+        requestId: req.id,
+      });
     }
   });
 

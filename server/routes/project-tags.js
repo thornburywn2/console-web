@@ -5,6 +5,7 @@
 
 import { Router } from 'express';
 import { createLogger } from '../services/logger.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('project-tags');
 
@@ -38,8 +39,11 @@ export function createProjectTagsRouter(prisma) {
 
       res.json(tagsWithCount);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch project tags');
-      res.status(500).json({ error: 'Failed to fetch project tags' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch project tags',
+        operation: 'fetch all project tags',
+        requestId: req.id
+      });
     }
   });
 
@@ -71,8 +75,11 @@ export function createProjectTagsRouter(prisma) {
       if (error.code === 'P2002') {
         return res.status(409).json({ error: 'Tag name already exists' });
       }
-      log.error({ error: error.message, requestId: req.id }, 'failed to create project tag');
-      res.status(500).json({ error: 'Failed to create project tag' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create project tag',
+        operation: 'create project tag',
+        requestId: req.id
+      });
     }
   });
 
@@ -98,8 +105,12 @@ export function createProjectTagsRouter(prisma) {
       if (error.code === 'P2002') {
         return res.status(409).json({ error: 'Tag name already exists' });
       }
-      log.error({ error: error.message, tagId: req.params.id, requestId: req.id }, 'failed to update project tag');
-      res.status(500).json({ error: 'Failed to update project tag' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update project tag',
+        operation: 'update project tag',
+        requestId: req.id,
+        context: { tagId: req.params.id }
+      });
     }
   });
 
@@ -112,8 +123,12 @@ export function createProjectTagsRouter(prisma) {
       await prisma.projectTag.delete({ where: { id } });
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, tagId: req.params.id, requestId: req.id }, 'failed to delete project tag');
-      res.status(500).json({ error: 'Failed to delete project tag' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to delete project tag',
+        operation: 'delete project tag',
+        requestId: req.id,
+        context: { tagId: req.params.id }
+      });
     }
   });
 
@@ -159,8 +174,11 @@ export function createProjectTagsRouter(prisma) {
       const tags = assignments.map(a => a.tag);
       res.json(tags);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch project tags');
-      res.status(500).json({ error: 'Failed to fetch project tags' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch project tags',
+        operation: 'fetch project tags by path',
+        requestId: req.id
+      });
     }
   });
 
@@ -184,8 +202,11 @@ export function createProjectTagsRouter(prisma) {
       if (error.code === 'P2002') {
         return res.status(409).json({ error: 'Tag already assigned to project' });
       }
-      log.error({ error: error.message, projectId: req.params.projectId, requestId: req.id }, 'failed to assign tag to project');
-      res.status(500).json({ error: 'Failed to assign tag to project' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to assign tag to project',
+        operation: 'assign tag to project',
+        requestId: req.id
+      });
     }
   });
 
@@ -209,8 +230,11 @@ export function createProjectTagsRouter(prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, projectId: req.params.projectId, requestId: req.id }, 'failed to remove tag from project');
-      res.status(500).json({ error: 'Failed to remove tag from project' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to remove tag from project',
+        operation: 'remove tag from project',
+        requestId: req.id
+      });
     }
   });
 
@@ -247,8 +271,12 @@ export function createProjectTagsRouter(prisma) {
       const tags = assignments.map(a => a.tag);
       res.json(tags);
     } catch (error) {
-      log.error({ error: error.message, projectId: req.params.projectId, requestId: req.id }, 'failed to set project tags');
-      res.status(500).json({ error: 'Failed to set project tags' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to set project tags',
+        operation: 'set project tags',
+        requestId: req.id,
+        context: { projectId: req.params.projectId }
+      });
     }
   });
 
@@ -271,8 +299,11 @@ export function createProjectTagsRouter(prisma) {
         description: project.description || null,
       });
     } catch (error) {
-      log.error({ error: error.message, projectId: req.params.projectId, requestId: req.id }, 'failed to fetch project settings');
-      res.status(500).json({ error: 'Failed to fetch project settings' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch project settings',
+        operation: 'fetch project settings',
+        requestId: req.id
+      });
     }
   });
 
@@ -303,8 +334,11 @@ export function createProjectTagsRouter(prisma) {
         description: updatedProject.description,
       });
     } catch (error) {
-      log.error({ error: error.message, projectId: req.params.projectId, requestId: req.id }, 'failed to update project settings');
-      res.status(500).json({ error: 'Failed to update project settings' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update project settings',
+        operation: 'update project settings',
+        requestId: req.id
+      });
     }
   });
 
@@ -330,8 +364,11 @@ export function createProjectTagsRouter(prisma) {
 
       res.json(notes);
     } catch (error) {
-      log.error({ error: error.message, projectId: req.params.projectId, requestId: req.id }, 'failed to fetch project notes');
-      res.status(500).json({ error: 'Failed to fetch project notes' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch project notes',
+        operation: 'fetch project notes',
+        requestId: req.id
+      });
     }
   });
 
@@ -360,8 +397,11 @@ export function createProjectTagsRouter(prisma) {
 
       res.status(201).json(note);
     } catch (error) {
-      log.error({ error: error.message, projectId: req.params.projectId, requestId: req.id }, 'failed to create project note');
-      res.status(500).json({ error: 'Failed to create project note' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create project note',
+        operation: 'create project note',
+        requestId: req.id
+      });
     }
   });
 
@@ -384,8 +424,12 @@ export function createProjectTagsRouter(prisma) {
 
       res.json(note);
     } catch (error) {
-      log.error({ error: error.message, noteId: req.params.noteId, requestId: req.id }, 'failed to update project note');
-      res.status(500).json({ error: 'Failed to update project note' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update project note',
+        operation: 'update project note',
+        requestId: req.id,
+        context: { noteId: req.params.noteId }
+      });
     }
   });
 
@@ -398,8 +442,12 @@ export function createProjectTagsRouter(prisma) {
       await prisma.projectNote.delete({ where: { id: noteId } });
       res.json({ success: true });
     } catch (error) {
-      log.error({ error: error.message, noteId: req.params.noteId, requestId: req.id }, 'failed to delete project note');
-      res.status(500).json({ error: 'Failed to delete project note' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to delete project note',
+        operation: 'delete project note',
+        requestId: req.id,
+        context: { noteId: req.params.noteId }
+      });
     }
   });
 

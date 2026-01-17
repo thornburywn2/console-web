@@ -30,6 +30,7 @@ import {
   validateBody
 } from '../utils/validation.js';
 import { networkDiagLimiter, destructiveLimiter } from '../middleware/rateLimit.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('infrastructure');
 const execAsync = promisify(exec);
@@ -79,8 +80,11 @@ export function createInfrastructureRouter() {
 
       res.json({ packages, total });
     } catch (error) {
-      log.error({ error: error.message, search: req.query.search, requestId: req.id }, 'failed to list packages');
-      res.status(500).json({ error: 'Failed to list packages' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list packages',
+        operation: 'list packages',
+        requestId: req.id,
+      });
     }
   });
 
@@ -117,8 +121,11 @@ export function createInfrastructureRouter() {
         lastChecked: new Date().toISOString()
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to check for updates');
-      res.status(500).json({ error: 'Failed to check for updates' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to check for updates',
+        operation: 'check package updates',
+        requestId: req.id,
+      });
     }
   });
 
@@ -139,8 +146,11 @@ export function createInfrastructureRouter() {
         timestamp: new Date().toISOString()
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to upgrade packages');
-      res.status(500).json({ error: error.message || 'Failed to upgrade packages' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to upgrade packages',
+        operation: 'upgrade packages',
+        requestId: req.id,
+      });
     }
   });
 
@@ -166,8 +176,11 @@ export function createInfrastructureRouter() {
         errors: stderr
       });
     } catch (error) {
-      log.error({ error: error.message, packageName: req.body.packageName, requestId: req.id }, 'failed to install package');
-      res.status(500).json({ error: error.message || 'Failed to install package' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to install package',
+        operation: 'install package',
+        requestId: req.id,
+      });
     }
   });
 
@@ -199,8 +212,11 @@ export function createInfrastructureRouter() {
         errors: stderr
       });
     } catch (error) {
-      log.error({ error: error.message, packageName: req.body.packageName, requestId: req.id }, 'failed to remove package');
-      res.status(500).json({ error: error.message || 'Failed to remove package' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to remove package',
+        operation: 'remove package',
+        requestId: req.id,
+      });
     }
   });
 
@@ -229,8 +245,11 @@ export function createInfrastructureRouter() {
 
       res.json({ results, query: q });
     } catch (error) {
-      log.error({ error: error.message, query: req.query.q, requestId: req.id }, 'failed to search packages');
-      res.status(500).json({ error: 'Failed to search packages' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to search packages',
+        operation: 'search packages',
+        requestId: req.id,
+      });
     }
   });
 
@@ -291,8 +310,11 @@ export function createInfrastructureRouter() {
 
       res.json({ logs, count: logs.length });
     } catch (error) {
-      log.error({ error: error.message, unit: req.query.unit, requestId: req.id }, 'failed to fetch logs');
-      res.status(500).json({ error: 'Failed to fetch logs' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch logs',
+        operation: 'fetch logs',
+        requestId: req.id,
+      });
     }
   });
 
@@ -305,8 +327,11 @@ export function createInfrastructureRouter() {
       const units = stdout.trim().split('\n').filter(u => u.trim());
       res.json({ units });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to list log units');
-      res.status(500).json({ error: 'Failed to list log units' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list log units',
+        operation: 'list log units',
+        requestId: req.id,
+      });
     }
   });
 
@@ -322,8 +347,11 @@ export function createInfrastructureRouter() {
         raw: stdout.trim()
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get log disk usage');
-      res.status(500).json({ error: 'Failed to get disk usage' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get disk usage',
+        operation: 'get log disk usage',
+        requestId: req.id,
+      });
     }
   });
 
@@ -378,8 +406,11 @@ export function createInfrastructureRouter() {
 
       res.json({ processes, count: processes.length });
     } catch (error) {
-      log.error({ error: error.message, sort: req.query.sort, requestId: req.id }, 'failed to list processes');
-      res.status(500).json({ error: 'Failed to list processes' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list processes',
+        operation: 'list processes',
+        requestId: req.id,
+      });
     }
   });
 
@@ -427,8 +458,11 @@ export function createInfrastructureRouter() {
         openFiles: openFiles.stdout.trim()
       });
     } catch (error) {
-      log.error({ error: error.message, pid: req.params.pid, requestId: req.id }, 'failed to get process details');
-      res.status(500).json({ error: 'Failed to get process details' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get process details',
+        operation: 'get process details',
+        requestId: req.id,
+      });
     }
   });
 
@@ -485,8 +519,11 @@ export function createInfrastructureRouter() {
         name
       });
     } catch (error) {
-      log.error({ error: error.message, pid: req.params.pid, signal: req.body.signal, requestId: req.id }, 'failed to kill process');
-      res.status(500).json({ error: error.message || 'Failed to kill process' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to kill process',
+        operation: 'kill process',
+        requestId: req.id,
+      });
     }
   });
 
@@ -517,8 +554,11 @@ export function createInfrastructureRouter() {
         }))
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to list network interfaces');
-      res.status(500).json({ error: 'Failed to list network interfaces' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list network interfaces',
+        operation: 'list network interfaces',
+        requestId: req.id,
+      });
     }
   });
 
@@ -545,8 +585,11 @@ export function createInfrastructureRouter() {
 
       res.json({ connections, count: connections.length });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to list network connections');
-      res.status(500).json({ error: 'Failed to list connections' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list connections',
+        operation: 'list network connections',
+        requestId: req.id,
+      });
     }
   });
 
@@ -624,8 +667,11 @@ export function createInfrastructureRouter() {
         results: stdout.trim().split('\n').filter(r => r.trim())
       });
     } catch (error) {
-      log.error({ error: error.message, host: req.body.host, type: req.body.type, requestId: req.id }, 'failed to perform DNS lookup');
-      res.status(500).json({ error: 'DNS lookup failed' });
+      return sendSafeError(res, error, {
+        userMessage: 'DNS lookup failed',
+        operation: 'DNS lookup',
+        requestId: req.id,
+      });
     }
   });
 
@@ -684,8 +730,11 @@ export function createInfrastructureRouter() {
 
       res.json({ entries, raw: content });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to read hosts file');
-      res.status(500).json({ error: 'Failed to read hosts file' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to read hosts file',
+        operation: 'read hosts file',
+        requestId: req.id,
+      });
     }
   });
 
@@ -715,8 +764,11 @@ export function createInfrastructureRouter() {
 
       res.json({ sessions, count: sessions.length });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to list SSH sessions');
-      res.status(500).json({ error: 'Failed to list SSH sessions' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list SSH sessions',
+        operation: 'list SSH sessions',
+        requestId: req.id,
+      });
     }
   });
 
@@ -752,8 +804,11 @@ export function createInfrastructureRouter() {
 
       res.json({ attempts, count: attempts.length });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch failed login attempts');
-      res.status(500).json({ error: 'Failed to fetch failed login attempts' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch failed login attempts',
+        operation: 'fetch failed login attempts',
+        requestId: req.id,
+      });
     }
   });
 
@@ -777,14 +832,16 @@ export function createInfrastructureRouter() {
           const key = parts[1];
           const comment = parts.slice(2).join(' ') || `key-${index + 1}`;
 
-          // Generate fingerprint
+          // Generate fingerprint (best-effort, may fail for some key formats)
           let fingerprint = '';
           try {
             const { stdout } = require('child_process').execSync(
               `echo "${line}" | ssh-keygen -lf - 2>/dev/null`
             ).toString();
             fingerprint = stdout.split(/\s+/)[1] || '';
-          } catch {}
+          } catch (err) {
+            log.debug({ keyIndex: index }, 'could not generate SSH key fingerprint (non-critical)');
+          }
 
           return {
             index,
@@ -797,8 +854,11 @@ export function createInfrastructureRouter() {
 
       res.json({ keys, count: keys.length });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to list SSH keys');
-      res.status(500).json({ error: 'Failed to list SSH keys' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list SSH keys',
+        operation: 'list SSH keys',
+        requestId: req.id,
+      });
     }
   });
 
@@ -844,8 +904,11 @@ export function createInfrastructureRouter() {
         jails
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get fail2ban status');
-      res.json({ installed: false, running: false, jails: [] });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get fail2ban status',
+        operation: 'get fail2ban status',
+        requestId: req.id,
+      });
     }
   });
 
@@ -871,8 +934,11 @@ export function createInfrastructureRouter() {
 
       res.json({ success: true, jail, ip });
     } catch (error) {
-      log.error({ error: error.message, jail: req.body.jail, ip: req.body.ip, requestId: req.id }, 'failed to unban IP');
-      res.status(500).json({ error: 'Failed to unban IP' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to unban IP',
+        operation: 'unban IP',
+        requestId: req.id,
+      });
     }
   });
 
@@ -904,8 +970,11 @@ export function createInfrastructureRouter() {
 
       res.json({ ports, count: ports.length });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to list open ports');
-      res.status(500).json({ error: 'Failed to list open ports' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list open ports',
+        operation: 'list open ports',
+        requestId: req.id,
+      });
     }
   });
 
@@ -932,8 +1001,11 @@ export function createInfrastructureRouter() {
 
       res.json({ logins, count: logins.length });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch login history');
-      res.status(500).json({ error: 'Failed to fetch login history' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch login history',
+        operation: 'fetch login history',
+        requestId: req.id,
+      });
     }
   });
 
@@ -970,7 +1042,7 @@ export function createInfrastructureRouter() {
         })
         .filter(Boolean);
 
-      // Also get system cron jobs if sudo available
+      // Also get system cron jobs if sudo available (best-effort, requires sudo)
       let systemJobs = [];
       try {
         const { stdout: systemCron } = await execAsync('sudo cat /etc/crontab 2>/dev/null');
@@ -995,12 +1067,17 @@ export function createInfrastructureRouter() {
             return null;
           })
           .filter(Boolean);
-      } catch {}
+      } catch (err) {
+        log.debug('could not read system crontab (requires sudo, non-critical)');
+      }
 
       res.json({ jobs: [...jobs, ...systemJobs] });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to list cron jobs');
-      res.status(500).json({ error: 'Failed to list cron jobs' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list cron jobs',
+        operation: 'list cron jobs',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1019,8 +1096,9 @@ export function createInfrastructureRouter() {
 
       try {
         timers = JSON.parse(stdout);
-      } catch {
-        // Parse text output
+      } catch (err) {
+        // JSON output not available, parse text output instead
+        log.debug('systemctl JSON output not available, falling back to text parsing');
         const lines = stdout.trim().split('\n').slice(1, -2); // Skip header and footer
         timers = lines.map(line => {
           const parts = line.trim().split(/\s{2,}/);
@@ -1037,8 +1115,11 @@ export function createInfrastructureRouter() {
 
       res.json({ timers, count: timers.length });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to list systemd timers');
-      res.status(500).json({ error: 'Failed to list systemd timers' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list systemd timers',
+        operation: 'list systemd timers',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1079,8 +1160,11 @@ export function createInfrastructureRouter() {
 
       res.json({ success: true, timer: name, enabled });
     } catch (error) {
-      log.error({ error: error.message, timer: req.params.name, enabled: req.body.enabled, requestId: req.id }, 'failed to toggle timer');
-      res.status(500).json({ error: 'Failed to toggle timer' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to toggle timer',
+        operation: 'toggle timer',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1115,8 +1199,11 @@ export function createInfrastructureRouter() {
 
       res.json({ success: true, schedule, command });
     } catch (error) {
-      log.error({ error: error.message, schedule: req.body.schedule, requestId: req.id }, 'failed to add cron job');
-      res.status(500).json({ error: 'Failed to add cron job' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to add cron job',
+        operation: 'add cron job',
+        requestId: req.id,
+      });
     }
   });
 
@@ -1156,8 +1243,11 @@ export function createInfrastructureRouter() {
 
       res.json({ success: true, index: idx });
     } catch (error) {
-      log.error({ error: error.message, index: req.params.index, requestId: req.id }, 'failed to remove cron job');
-      res.status(500).json({ error: 'Failed to remove cron job' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to remove cron job',
+        operation: 'remove cron job',
+        requestId: req.id,
+      });
     }
   });
 

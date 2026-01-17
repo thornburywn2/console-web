@@ -9,6 +9,7 @@ import express from 'express';
 import os from 'os';
 import { claudeFlowManager } from '../services/claudeFlowManager.js';
 import { createLogger } from '../services/logger.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('claude-flow');
 
@@ -40,8 +41,11 @@ export function createClaudeFlowRouter(prisma, io) {
         templates: Object.keys(templates)
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to get Claude Flow status');
-      res.status(500).json({ error: 'Failed to get status' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get status',
+        operation: 'get Claude Flow status',
+        requestId: req.id,
+      });
     }
   });
 
@@ -55,8 +59,11 @@ export function createClaudeFlowRouter(prisma, io) {
       const result = await claudeFlowManager.install(global);
       res.json(result);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to install Claude Flow');
-      res.status(500).json({ error: error.message || 'Failed to install' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to install Claude Flow',
+        operation: 'install Claude Flow',
+        requestId: req.id,
+      });
     }
   });
 
@@ -72,8 +79,11 @@ export function createClaudeFlowRouter(prisma, io) {
       const result = await claudeFlowManager.initProject(projectPath);
       res.json(result);
     } catch (error) {
-      log.error({ error: error.message, project: req.params.project, requestId: req.id }, 'failed to initialize Claude Flow');
-      res.status(500).json({ error: error.message || 'Failed to initialize' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to initialize Claude Flow',
+        operation: 'initialize Claude Flow',
+        requestId: req.id,
+      });
     }
   });
 
@@ -90,7 +100,11 @@ export function createClaudeFlowRouter(prisma, io) {
       const roles = claudeFlowManager.getAgentRoles();
       res.json(roles);
     } catch (error) {
-      res.status(500).json({ error: 'Failed to get roles' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get roles',
+        operation: 'get agent roles',
+        requestId: req.id,
+      });
     }
   });
 
@@ -103,7 +117,11 @@ export function createClaudeFlowRouter(prisma, io) {
       const templates = claudeFlowManager.getSwarmTemplates();
       res.json(templates);
     } catch (error) {
-      res.status(500).json({ error: 'Failed to get templates' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get templates',
+        operation: 'get swarm templates',
+        requestId: req.id,
+      });
     }
   });
 
@@ -120,7 +138,11 @@ export function createClaudeFlowRouter(prisma, io) {
       const swarms = claudeFlowManager.listSwarms();
       res.json(swarms);
     } catch (error) {
-      res.status(500).json({ error: 'Failed to list swarms' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list swarms',
+        operation: 'list swarms',
+        requestId: req.id,
+      });
     }
   });
 
@@ -196,8 +218,11 @@ export function createClaudeFlowRouter(prisma, io) {
         swarm: swarm.getInfo()
       });
     } catch (error) {
-      log.error({ error: error.message, projectPath: req.body.projectPath, requestId: req.id }, 'failed to create swarm');
-      res.status(500).json({ error: error.message || 'Failed to create swarm' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create swarm',
+        operation: 'create swarm',
+        requestId: req.id,
+      });
     }
   });
 
@@ -215,7 +240,11 @@ export function createClaudeFlowRouter(prisma, io) {
 
       res.json(swarm.getInfo());
     } catch (error) {
-      res.status(500).json({ error: 'Failed to get swarm' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get swarm',
+        operation: 'get swarm',
+        requestId: req.id,
+      });
     }
   });
 
@@ -247,7 +276,11 @@ export function createClaudeFlowRouter(prisma, io) {
 
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed to remove swarm' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to remove swarm',
+        operation: 'remove swarm',
+        requestId: req.id,
+      });
     }
   });
 
@@ -272,7 +305,11 @@ export function createClaudeFlowRouter(prisma, io) {
       swarm.send(input);
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: error.message || 'Failed to send input' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to send input',
+        operation: 'send swarm input',
+        requestId: req.id,
+      });
     }
   });
 
@@ -300,7 +337,11 @@ export function createClaudeFlowRouter(prisma, io) {
         tasks: swarm.tasks
       });
     } catch (error) {
-      res.status(500).json({ error: error.message || 'Failed to add task' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to add task',
+        operation: 'add swarm task',
+        requestId: req.id,
+      });
     }
   });
 
@@ -328,7 +369,11 @@ export function createClaudeFlowRouter(prisma, io) {
         total: swarm.output.length
       });
     } catch (error) {
-      res.status(500).json({ error: 'Failed to get output' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get output',
+        operation: 'get swarm output',
+        requestId: req.id,
+      });
     }
   });
 
@@ -351,8 +396,11 @@ export function createClaudeFlowRouter(prisma, io) {
       const result = await claudeFlowManager.runQuickTask(projectPath, task, role);
       res.json(result);
     } catch (error) {
-      log.error({ error: error.message, projectPath: req.body.projectPath, requestId: req.id }, 'failed to run quick task');
-      res.status(500).json({ error: error.message || 'Failed to run task' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to run task',
+        operation: 'run quick task',
+        requestId: req.id,
+      });
     }
   });
 
@@ -376,7 +424,11 @@ export function createClaudeFlowRouter(prisma, io) {
 
       res.json(config);
     } catch (error) {
-      res.status(500).json({ error: 'Failed to load configuration' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to load configuration',
+        operation: 'load Claude Flow configuration',
+        requestId: req.id,
+      });
     }
   });
 

@@ -5,6 +5,7 @@
 
 import { Router } from 'express';
 import { createLogger } from '../services/logger.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('shortcuts');
 
@@ -71,8 +72,11 @@ export function createShortcutsRouter(prisma) {
 
       res.json(shortcuts);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch shortcuts');
-      res.status(500).json({ error: 'Failed to fetch shortcuts' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch shortcuts',
+        operation: 'fetch shortcuts',
+        requestId: req.id
+      });
     }
   });
 
@@ -113,8 +117,12 @@ export function createShortcutsRouter(prisma) {
 
       res.json(shortcut);
     } catch (error) {
-      log.error({ error: error.message, action: req.params.action, requestId: req.id }, 'failed to update shortcut');
-      res.status(500).json({ error: 'Failed to update shortcut' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update shortcut',
+        operation: 'update shortcut',
+        requestId: req.id,
+        context: { action: req.params.action }
+      });
     }
   });
 
@@ -138,8 +146,12 @@ export function createShortcutsRouter(prisma) {
         res.json({ message: 'Shortcut removed' });
       }
     } catch (error) {
-      log.error({ error: error.message, action: req.params.action, requestId: req.id }, 'failed to reset shortcut');
-      res.status(500).json({ error: 'Failed to reset shortcut' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to reset shortcut',
+        operation: 'reset shortcut',
+        requestId: req.id,
+        context: { action: req.params.action }
+      });
     }
   });
 
@@ -152,8 +164,11 @@ export function createShortcutsRouter(prisma) {
       await prisma.keyboardShortcut.deleteMany({});
       res.json(DEFAULT_SHORTCUTS.map(s => ({ ...s, isCustom: false, isEnabled: true })));
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to reset all shortcuts');
-      res.status(500).json({ error: 'Failed to reset shortcuts' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to reset shortcuts',
+        operation: 'reset all shortcuts',
+        requestId: req.id
+      });
     }
   });
 

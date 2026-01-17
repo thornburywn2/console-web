@@ -20,6 +20,7 @@ import os from 'os';
 import { codePuppyManager } from '../services/codePuppyManager.js';
 import { getInitializer } from '../services/codePuppyInitializer.js';
 import { createLogger } from '../services/logger.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('code-puppy');
 
@@ -86,8 +87,12 @@ export function createCodePuppyRouter(io, prisma) {
       const initializer = getInitializer();
       const status = await initializer.getStatus();
       res.json(status);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get initialization status',
+        operation: 'get init status',
+        requestId: req.id,
+      });
     }
   });
 
@@ -101,8 +106,12 @@ export function createCodePuppyRouter(io, prisma) {
       const options = req.body || {};
       const result = await initializer.initialize(options);
       res.json(result);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to initialize Code Puppy',
+        operation: 'initialize Code Puppy',
+        requestId: req.id,
+      });
     }
   });
 
@@ -115,8 +124,12 @@ export function createCodePuppyRouter(io, prisma) {
       const initializer = getInitializer();
       const result = initializer.initializeDirectories();
       res.json(result);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create directories',
+        operation: 'create directories',
+        requestId: req.id,
+      });
     }
   });
 
@@ -129,8 +142,12 @@ export function createCodePuppyRouter(io, prisma) {
       const initializer = getInitializer();
       const result = initializer.createDefaultConfig();
       res.json(result);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create default config',
+        operation: 'create default config',
+        requestId: req.id,
+      });
     }
   });
 
@@ -143,8 +160,12 @@ export function createCodePuppyRouter(io, prisma) {
       const initializer = getInitializer();
       const result = initializer.syncMcpServers();
       res.json(result);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to sync MCP servers',
+        operation: 'sync MCP servers',
+        requestId: req.id,
+      });
     }
   });
 
@@ -157,8 +178,12 @@ export function createCodePuppyRouter(io, prisma) {
       const initializer = getInitializer();
       const result = await initializer.updateUserSettings(req.body);
       res.json(result);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update user settings',
+        operation: 'update user settings',
+        requestId: req.id,
+      });
     }
   });
 
@@ -193,8 +218,12 @@ export function createCodePuppyRouter(io, prisma) {
           yoloMode: config.yolo_mode
         }
       });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get status',
+        operation: 'get status',
+        requestId: req.id,
+      });
     }
   });
 
@@ -206,8 +235,12 @@ export function createCodePuppyRouter(io, prisma) {
     try {
       const result = await codePuppyManager.installUv();
       res.json(result);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to install UV',
+        operation: 'install UV',
+        requestId: req.id,
+      });
     }
   });
 
@@ -223,8 +256,12 @@ export function createCodePuppyRouter(io, prisma) {
     try {
       const config = codePuppyManager.getConfig();
       res.json({ config });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get configuration',
+        operation: 'get configuration',
+        requestId: req.id,
+      });
     }
   });
 
@@ -237,8 +274,12 @@ export function createCodePuppyRouter(io, prisma) {
       codePuppyManager.updateConfig(req.body);
       const config = codePuppyManager.getConfig();
       res.json({ success: true, config });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update configuration',
+        operation: 'update configuration',
+        requestId: req.id,
+      });
     }
   });
 
@@ -251,8 +292,12 @@ export function createCodePuppyRouter(io, prisma) {
       const { value } = req.body;
       codePuppyManager.setConfigValue(req.params.key, value);
       res.json({ success: true, key: req.params.key, value });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update config value',
+        operation: 'update config value',
+        requestId: req.id,
+      });
     }
   });
 
@@ -270,8 +315,12 @@ export function createCodePuppyRouter(io, prisma) {
       const availability = codePuppyManager.checkProviderAvailability();
 
       res.json({ providers, availability });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get providers',
+        operation: 'get providers',
+        requestId: req.id,
+      });
     }
   });
 
@@ -283,8 +332,12 @@ export function createCodePuppyRouter(io, prisma) {
     try {
       const models = codePuppyManager.getExtraModels();
       res.json({ models });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get extra models',
+        operation: 'get extra models',
+        requestId: req.id,
+      });
     }
   });
 
@@ -301,8 +354,12 @@ export function createCodePuppyRouter(io, prisma) {
 
       const result = codePuppyManager.addExtraModel({ name, type, endpoint });
       res.json(result);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to add extra model',
+        operation: 'add extra model',
+        requestId: req.id,
+      });
     }
   });
 
@@ -314,8 +371,12 @@ export function createCodePuppyRouter(io, prisma) {
     try {
       const result = codePuppyManager.removeExtraModel(req.params.name);
       res.json(result);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to remove extra model',
+        operation: 'remove extra model',
+        requestId: req.id,
+      });
     }
   });
 
@@ -331,8 +392,12 @@ export function createCodePuppyRouter(io, prisma) {
     try {
       const agents = codePuppyManager.listAgents();
       res.json({ agents });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list agents',
+        operation: 'list agents',
+        requestId: req.id,
+      });
     }
   });
 
@@ -356,8 +421,12 @@ export function createCodePuppyRouter(io, prisma) {
       }
 
       res.json({ agent });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get agent',
+        operation: 'get agent',
+        requestId: req.id,
+      });
     }
   });
 
@@ -408,8 +477,12 @@ export function createCodePuppyRouter(io, prisma) {
     try {
       const tools = codePuppyManager.getAvailableTools();
       res.json({ tools });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get available tools',
+        operation: 'get available tools',
+        requestId: req.id,
+      });
     }
   });
 
@@ -430,8 +503,12 @@ export function createCodePuppyRouter(io, prisma) {
         builtin: builtinCommands,
         custom: customCommands
       });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get commands',
+        operation: 'get commands',
+        requestId: req.id,
+      });
     }
   });
 
@@ -447,8 +524,12 @@ export function createCodePuppyRouter(io, prisma) {
     try {
       const servers = codePuppyManager.getMcpServers();
       res.json({ servers });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get MCP servers',
+        operation: 'get MCP servers',
+        requestId: req.id,
+      });
     }
   });
 
@@ -465,8 +546,12 @@ export function createCodePuppyRouter(io, prisma) {
 
       const result = codePuppyManager.addMcpServer({ name, command, args, env });
       res.json(result);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to add MCP server',
+        operation: 'add MCP server',
+        requestId: req.id,
+      });
     }
   });
 
@@ -478,8 +563,12 @@ export function createCodePuppyRouter(io, prisma) {
     try {
       const result = codePuppyManager.removeMcpServer(req.params.name);
       res.json(result);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to remove MCP server',
+        operation: 'remove MCP server',
+        requestId: req.id,
+      });
     }
   });
 
@@ -572,8 +661,12 @@ export function createCodePuppyRouter(io, prisma) {
         results,
         currentServers: codePuppyManager.getMcpServers()
       });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to sync Claude MCP servers',
+        operation: 'sync Claude MCP servers',
+        requestId: req.id,
+      });
     }
   });
 
@@ -608,8 +701,12 @@ export function createCodePuppyRouter(io, prisma) {
         found: false,
         searchedPaths: claudeConfigPaths
       });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get Claude MCP config',
+        operation: 'get Claude MCP config',
+        requestId: req.id,
+      });
     }
   });
 
@@ -625,8 +722,12 @@ export function createCodePuppyRouter(io, prisma) {
     try {
       const sessions = codePuppyManager.listSessions();
       res.json({ sessions });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list sessions',
+        operation: 'list sessions',
+        requestId: req.id,
+      });
     }
   });
 
@@ -646,8 +747,12 @@ export function createCodePuppyRouter(io, prisma) {
         session: session.getInfo(),
         history: session.history.slice(-historyLimit)
       });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to get session',
+        operation: 'get session',
+        requestId: req.id,
+      });
     }
   });
 
@@ -699,8 +804,12 @@ export function createCodePuppyRouter(io, prisma) {
         success: true,
         session: session.getInfo()
       });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create session',
+        operation: 'create session',
+        requestId: req.id,
+      });
     }
   });
 
@@ -722,8 +831,12 @@ export function createCodePuppyRouter(io, prisma) {
 
       session.send(input);
       res.json({ success: true });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to send input to session',
+        operation: 'send session input',
+        requestId: req.id,
+      });
     }
   });
 
@@ -745,8 +858,12 @@ export function createCodePuppyRouter(io, prisma) {
 
       session.executeCommand(command, ...args);
       res.json({ success: true });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to execute command',
+        operation: 'execute session command',
+        requestId: req.id,
+      });
     }
   });
 
@@ -768,8 +885,12 @@ export function createCodePuppyRouter(io, prisma) {
 
       session.switchAgent(agent);
       res.json({ success: true, agent });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to switch agent',
+        operation: 'switch session agent',
+        requestId: req.id,
+      });
     }
   });
 
@@ -791,8 +912,12 @@ export function createCodePuppyRouter(io, prisma) {
 
       session.switchModel(model);
       res.json({ success: true, model });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to switch model',
+        operation: 'switch session model',
+        requestId: req.id,
+      });
     }
   });
 
@@ -810,8 +935,12 @@ export function createCodePuppyRouter(io, prisma) {
       const { keepCount = 10 } = req.body;
       session.truncateHistory(keepCount);
       res.json({ success: true });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to truncate session history',
+        operation: 'truncate session history',
+        requestId: req.id,
+      });
     }
   });
 
@@ -828,8 +957,12 @@ export function createCodePuppyRouter(io, prisma) {
 
       session.clearConversation();
       res.json({ success: true });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to clear session conversation',
+        operation: 'clear session conversation',
+        requestId: req.id,
+      });
     }
   });
 
@@ -847,8 +980,12 @@ export function createCodePuppyRouter(io, prisma) {
       const { enabled } = req.body;
       session.setDbos(enabled);
       res.json({ success: true, dbosEnabled: enabled });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to set DBOS mode',
+        operation: 'set session DBOS mode',
+        requestId: req.id,
+      });
     }
   });
 
@@ -870,8 +1007,12 @@ export function createCodePuppyRouter(io, prisma) {
 
       session.setConfig(key, value);
       res.json({ success: true, key, value });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to set session config',
+        operation: 'set session config',
+        requestId: req.id,
+      });
     }
   });
 
@@ -888,8 +1029,12 @@ export function createCodePuppyRouter(io, prisma) {
 
       await session.stop();
       res.json({ success: true });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to stop session',
+        operation: 'stop session',
+        requestId: req.id,
+      });
     }
   });
 
@@ -901,8 +1046,12 @@ export function createCodePuppyRouter(io, prisma) {
     try {
       await codePuppyManager.removeSession(req.params.id);
       res.json({ success: true });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to remove session',
+        operation: 'remove session',
+        requestId: req.id,
+      });
     }
   });
 
@@ -914,8 +1063,12 @@ export function createCodePuppyRouter(io, prisma) {
     try {
       await codePuppyManager.stopAll();
       res.json({ success: true });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to stop all sessions',
+        operation: 'stop all sessions',
+        requestId: req.id,
+      });
     }
   });
 
@@ -931,8 +1084,12 @@ export function createCodePuppyRouter(io, prisma) {
     try {
       const autosaves = codePuppyManager.listAutosaves();
       res.json({ autosaves });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to list autosaves',
+        operation: 'list autosaves',
+        requestId: req.id,
+      });
     }
   });
 

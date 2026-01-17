@@ -5,6 +5,7 @@
 
 import { Router } from 'express';
 import { createLogger } from '../services/logger.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('browser');
 
@@ -48,8 +49,11 @@ export function createBrowserRouter(prisma) {
         pagination: { total, limit: parseInt(limit), offset: parseInt(offset) }
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch browser sessions');
-      res.status(500).json({ error: 'Failed to fetch browser sessions' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch browser sessions',
+        operation: 'fetch browser sessions',
+        requestId: req.id,
+      });
     }
   });
 
@@ -73,8 +77,12 @@ export function createBrowserRouter(prisma) {
 
       res.json(session);
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to fetch browser session');
-      res.status(500).json({ error: 'Failed to fetch browser session' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch browser session',
+        operation: 'fetch browser session',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -102,8 +110,11 @@ export function createBrowserRouter(prisma) {
 
       res.status(201).json(session);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to create browser session');
-      res.status(500).json({ error: 'Failed to create browser session' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create browser session',
+        operation: 'create browser session',
+        requestId: req.id,
+      });
     }
   });
 
@@ -143,8 +154,12 @@ export function createBrowserRouter(prisma) {
 
       res.json(session);
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to update browser session');
-      res.status(500).json({ error: 'Failed to update browser session' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update browser session',
+        operation: 'update browser session',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -169,8 +184,12 @@ export function createBrowserRouter(prisma) {
 
       res.json(session);
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to navigate browser');
-      res.status(500).json({ error: 'Failed to navigate' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to navigate',
+        operation: 'navigate browser',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -186,8 +205,12 @@ export function createBrowserRouter(prisma) {
 
       res.json(session);
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to close browser session');
-      res.status(500).json({ error: 'Failed to close browser session' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to close browser session',
+        operation: 'close browser session',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -202,8 +225,12 @@ export function createBrowserRouter(prisma) {
 
       res.json({ success: true, id: req.params.id });
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to delete browser session');
-      res.status(500).json({ error: 'Failed to delete browser session' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to delete browser session',
+        operation: 'delete browser session',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -242,8 +269,12 @@ export function createBrowserRouter(prisma) {
 
       res.status(201).json(screenshot);
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to add screenshot');
-      res.status(500).json({ error: 'Failed to add screenshot' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to add screenshot',
+        operation: 'add screenshot',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -271,8 +302,12 @@ export function createBrowserRouter(prisma) {
         pagination: { total, limit: parseInt(limit), offset: parseInt(offset) }
       });
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to fetch screenshots');
-      res.status(500).json({ error: 'Failed to fetch screenshots' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch screenshots',
+        operation: 'fetch screenshots',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -287,8 +322,12 @@ export function createBrowserRouter(prisma) {
 
       res.json({ success: true, id: req.params.screenshotId });
     } catch (error) {
-      log.error({ error: error.message, screenshotId: req.params.screenshotId, requestId: req.id }, 'failed to delete screenshot');
-      res.status(500).json({ error: 'Failed to delete screenshot' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to delete screenshot',
+        operation: 'delete screenshot',
+        requestId: req.id,
+        context: { screenshotId: req.params.screenshotId },
+      });
     }
   });
 
@@ -325,8 +364,12 @@ export function createBrowserRouter(prisma) {
 
       res.json({ success: true, count: updatedLogs.length });
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to append console logs');
-      res.status(500).json({ error: 'Failed to append console logs' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to append console logs',
+        operation: 'append console logs',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -359,8 +402,12 @@ export function createBrowserRouter(prisma) {
 
       res.json({ success: true, count: updatedLogs.length });
     } catch (error) {
-      log.error({ error: error.message, sessionId: req.params.id, requestId: req.id }, 'failed to append network logs');
-      res.status(500).json({ error: 'Failed to append network logs' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to append network logs',
+        operation: 'append network logs',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
     }
   });
 
@@ -387,8 +434,11 @@ export function createBrowserRouter(prisma) {
 
       res.json({ success: true, deleted: result.count });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to clean up browser sessions');
-      res.status(500).json({ error: 'Failed to cleanup' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to cleanup',
+        operation: 'cleanup browser sessions',
+        requestId: req.id,
+      });
     }
   });
 

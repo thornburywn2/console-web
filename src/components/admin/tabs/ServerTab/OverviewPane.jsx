@@ -9,19 +9,24 @@ import { formatBytes, formatUptime } from '../../utils';
 export function OverviewPane() {
   const [systemInfo, setSystemInfo] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(new Date());
 
   const fetchSystemInfo = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
       const res = await fetch('/api/admin/system');
       if (res.ok) {
         const data = await res.json();
         setSystemInfo(data);
         setLastUpdated(new Date());
+      } else {
+        setError(`Failed to fetch system info (HTTP ${res.status})`);
       }
     } catch (err) {
       console.error('Error fetching system info:', err);
+      setError(err.message || 'Failed to connect to server');
     } finally {
       setLoading(false);
     }
@@ -33,6 +38,40 @@ export function OverviewPane() {
     return () => clearInterval(interval);
   }, [fetchSystemInfo]);
 
+  // Show error state with retry button
+  if (error && !systemInfo) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="hacker-card p-6 text-center border-hacker-error/50 bg-hacker-error/10">
+          <div className="text-4xl mb-4">&#9888;</div>
+          <h3 className="text-lg font-mono text-hacker-error mb-2">
+            Failed to Load System Info
+          </h3>
+          <p className="text-sm text-hacker-text-dim mb-4 font-mono">
+            {error}
+          </p>
+          <button
+            onClick={fetchSystemInfo}
+            disabled={loading}
+            className="hacker-btn"
+          >
+            {loading ? '[RETRYING...]' : '[RETRY]'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading spinner on initial load
+  if (!systemInfo && loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin w-8 h-8 border-2 border-hacker-green border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  // Handle edge case where neither data nor error exists
   if (!systemInfo) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -43,6 +82,20 @@ export function OverviewPane() {
 
   return (
     <div className="space-y-6">
+      {/* Error Banner (shown when refresh fails but we have stale data) */}
+      {error && systemInfo && (
+        <div className="hacker-card border-hacker-error/50 bg-hacker-error/10 flex items-center justify-between">
+          <p className="text-sm text-hacker-error font-mono">{error}</p>
+          <button
+            onClick={fetchSystemInfo}
+            disabled={loading}
+            className="hacker-btn text-xs"
+          >
+            {loading ? '[RETRYING...]' : '[RETRY]'}
+          </button>
+        </div>
+      )}
+
       {/* Quick Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="hacker-card text-center">

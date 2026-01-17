@@ -14,11 +14,19 @@ export function DockerPane() {
   const [networks, setNetworks] = useState([]);
   const [containerAction, setContainerAction] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [partialErrors, setPartialErrors] = useState([]);
 
   const fetchDockerData = useCallback(async () => {
     try {
       setLoading(true);
-      const [systemRes, containersRes, imagesRes, volumesRes, networksRes] = await Promise.all([
+      setError(null);
+      setPartialErrors([]);
+
+      const errors = [];
+
+      // Use Promise.allSettled to handle partial failures
+      const [systemRes, containersRes, imagesRes, volumesRes, networksRes] = await Promise.allSettled([
         fetch('/api/docker/system'),
         fetch('/api/docker/containers?all=true'),
         fetch('/api/docker/images'),
@@ -26,43 +34,86 @@ export function DockerPane() {
         fetch('/api/docker/networks')
       ]);
 
-      if (systemRes.ok) setDockerSystem(await systemRes.json());
-      if (containersRes.ok) {
-        const data = await containersRes.json();
-        // API returns array directly
+      // Process system info
+      if (systemRes.status === 'fulfilled' && systemRes.value.ok) {
+        setDockerSystem(await systemRes.value.json());
+      } else if (systemRes.status === 'rejected') {
+        errors.push('System info: Network error');
+      } else if (!systemRes.value.ok) {
+        errors.push(`System info: ${systemRes.value.status} ${systemRes.value.statusText}`);
+      }
+
+      // Process containers
+      if (containersRes.status === 'fulfilled' && containersRes.value.ok) {
+        const data = await containersRes.value.json();
         setContainers(Array.isArray(data) ? data : []);
+      } else if (containersRes.status === 'rejected') {
+        errors.push('Containers: Network error');
+      } else if (!containersRes.value.ok) {
+        errors.push(`Containers: ${containersRes.value.status} ${containersRes.value.statusText}`);
       }
-      if (imagesRes.ok) {
-        const data = await imagesRes.json();
-        // API returns array directly
+
+      // Process images
+      if (imagesRes.status === 'fulfilled' && imagesRes.value.ok) {
+        const data = await imagesRes.value.json();
         setImages(Array.isArray(data) ? data : []);
+      } else if (imagesRes.status === 'rejected') {
+        errors.push('Images: Network error');
+      } else if (!imagesRes.value.ok) {
+        errors.push(`Images: ${imagesRes.value.status} ${imagesRes.value.statusText}`);
       }
-      if (volumesRes.ok) {
-        const data = await volumesRes.json();
-        // API returns array directly
+
+      // Process volumes
+      if (volumesRes.status === 'fulfilled' && volumesRes.value.ok) {
+        const data = await volumesRes.value.json();
         setVolumes(Array.isArray(data) ? data : []);
+      } else if (volumesRes.status === 'rejected') {
+        errors.push('Volumes: Network error');
+      } else if (!volumesRes.value.ok) {
+        errors.push(`Volumes: ${volumesRes.value.status} ${volumesRes.value.statusText}`);
       }
-      if (networksRes.ok) {
-        const data = await networksRes.json();
-        // API returns array directly
+
+      // Process networks
+      if (networksRes.status === 'fulfilled' && networksRes.value.ok) {
+        const data = await networksRes.value.json();
         setNetworks(Array.isArray(data) ? data : []);
+      } else if (networksRes.status === 'rejected') {
+        errors.push('Networks: Network error');
+      } else if (!networksRes.value.ok) {
+        errors.push(`Networks: ${networksRes.value.status} ${networksRes.value.statusText}`);
+      }
+
+      // Set partial errors if some but not all requests failed
+      if (errors.length > 0 && errors.length < 5) {
+        setPartialErrors(errors);
+      } else if (errors.length === 5) {
+        // All requests failed - show full error
+        setError('Failed to connect to Docker. Is Docker daemon running?');
       }
     } catch (err) {
       console.error('Error fetching Docker data:', err);
+      setError(err.message || 'Failed to fetch Docker data');
     } finally {
       setLoading(false);
     }
   }, []);
 
+  const [actionError, setActionError] = useState(null);
+
   const handleContainerAction = useCallback(async (containerId, action) => {
     try {
       setContainerAction({ containerId, action });
+      setActionError(null);
       const res = await fetch(`/api/docker/containers/${containerId}/${action}`, { method: 'POST' });
       if (res.ok) {
         fetchDockerData();
+      } else {
+        const errorText = await res.text().catch(() => res.statusText);
+        setActionError(`Failed to ${action} container: ${errorText || res.status}`);
       }
     } catch (err) {
       console.error(`Error ${action} container:`, err);
+      setActionError(`Failed to ${action} container: ${err.message || 'Network error'}`);
     } finally {
       setContainerAction(null);
     }
@@ -77,6 +128,72 @@ export function DockerPane() {
 
   return (
     <div className="space-y-6">
+      {/* Full Error State */}
+      {error && (
+        <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-red-500 text-lg">!</span>
+              <div>
+                <div className="text-red-400 font-semibold text-sm">Docker Error</div>
+                <div className="text-red-300/80 text-xs font-mono mt-1">{error}</div>
+              </div>
+            </div>
+            <button
+              onClick={fetchDockerData}
+              disabled={loading}
+              className="px-3 py-1.5 text-xs font-mono bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 rounded transition-colors"
+            >
+              {loading ? 'RETRYING...' : 'RETRY'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Partial Error State */}
+      {partialErrors.length > 0 && (
+        <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <span className="text-yellow-500 text-sm mt-0.5">!</span>
+              <div>
+                <div className="text-yellow-400 font-semibold text-xs">Partial Data Load</div>
+                <div className="text-yellow-300/70 text-xs font-mono mt-1 space-y-0.5">
+                  {partialErrors.map((err, i) => (
+                    <div key={i}>{err}</div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={fetchDockerData}
+              disabled={loading}
+              className="px-2 py-1 text-[10px] font-mono bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 border border-yellow-500/30 rounded transition-colors flex-shrink-0"
+            >
+              {loading ? '...' : 'RETRY'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Action Error State */}
+      {actionError && (
+        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-red-500 text-sm">!</span>
+              <span className="text-red-300/80 text-xs font-mono">{actionError}</span>
+            </div>
+            <button
+              onClick={() => setActionError(null)}
+              className="text-red-400 hover:text-red-300 text-xs"
+            >
+              DISMISS
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Docker Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="hacker-card text-center">

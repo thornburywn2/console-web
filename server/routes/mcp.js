@@ -13,6 +13,7 @@ import MCP_CATALOG, {
   getCategoriesWithCounts
 } from '../data/mcpCatalog.js';
 import { createLogger } from '../services/logger.js';
+import { sendSafeError } from '../utils/errorResponse.js';
 
 const log = createLogger('mcp');
 
@@ -78,8 +79,11 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json(serversWithStatus);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch MCP servers');
-      res.status(500).json({ error: 'Failed to fetch MCP servers' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch MCP servers',
+        operation: 'fetch MCP servers',
+        requestId: req.id,
+      });
     }
   });
 
@@ -188,8 +192,11 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json(installedMap);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to check installed MCP servers');
-      res.status(500).json({ error: 'Failed to check installed servers' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to check installed servers',
+        operation: 'check installed MCP servers',
+        requestId: req.id,
+      });
     }
   });
 
@@ -290,8 +297,11 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.status(201).json(server);
     } catch (error) {
-      log.error({ error: error.message, catalogId: req.params.catalogId, requestId: req.id }, 'failed to install catalog server');
-      res.status(500).json({ error: 'Failed to install server from catalog' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to install server from catalog',
+        operation: 'install catalog server',
+        requestId: req.id,
+      });
     }
   });
 
@@ -330,8 +340,11 @@ export function createMCPRouter(prisma, mcpManager) {
         runtimeStatus: runtimeStatus[id]?.status || server.status
       });
     } catch (error) {
-      log.error({ error: error.message, serverId: req.params.id, requestId: req.id }, 'failed to fetch MCP server');
-      res.status(500).json({ error: 'Failed to fetch MCP server' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch MCP server',
+        operation: 'fetch MCP server',
+        requestId: req.id,
+      });
     }
   });
 
@@ -410,8 +423,11 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.status(201).json(server);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to create MCP server');
-      res.status(500).json({ error: 'Failed to create MCP server' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create MCP server',
+        operation: 'create MCP server',
+        requestId: req.id,
+      });
     }
   });
 
@@ -485,8 +501,11 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json(server);
     } catch (error) {
-      log.error({ error: error.message, serverId: req.params.id, requestId: req.id }, 'failed to update MCP server');
-      res.status(500).json({ error: 'Failed to update MCP server' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update MCP server',
+        operation: 'update MCP server',
+        requestId: req.id,
+      });
     }
   });
 
@@ -511,8 +530,11 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json({ success: true, id });
     } catch (error) {
-      log.error({ error: error.message, serverId: req.params.id, requestId: req.id }, 'failed to delete MCP server');
-      res.status(500).json({ error: 'Failed to delete MCP server' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to delete MCP server',
+        operation: 'delete MCP server',
+        requestId: req.id,
+      });
     }
   });
 
@@ -536,8 +558,11 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json({ success: true, status: 'CONNECTED' });
     } catch (error) {
-      log.error({ error: error.message, serverId: req.params.id, requestId: req.id }, 'failed to start MCP server');
-      res.status(500).json({ error: error.message || 'Failed to start MCP server' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to start MCP server',
+        operation: 'start MCP server',
+        requestId: req.id,
+      });
     }
   });
 
@@ -552,8 +577,11 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json({ success: true, status: 'DISCONNECTED' });
     } catch (error) {
-      log.error({ error: error.message, serverId: req.params.id, requestId: req.id }, 'failed to stop MCP server');
-      res.status(500).json({ error: 'Failed to stop MCP server' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to stop MCP server',
+        operation: 'stop MCP server',
+        requestId: req.id,
+      });
     }
   });
 
@@ -573,8 +601,11 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json({ success: true, status: 'CONNECTED' });
     } catch (error) {
-      log.error({ error: error.message, serverId: req.params.id, requestId: req.id }, 'failed to restart MCP server');
-      res.status(500).json({ error: error.message || 'Failed to restart MCP server' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to restart MCP server',
+        operation: 'restart MCP server',
+        requestId: req.id,
+      });
     }
   });
 
@@ -610,8 +641,11 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json(updated);
     } catch (error) {
-      log.error({ error: error.message, serverId: req.params.id, enabled: req.body.enabled, requestId: req.id }, 'failed to toggle MCP server');
-      res.status(500).json({ error: 'Failed to toggle MCP server' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to toggle MCP server',
+        operation: 'toggle MCP server',
+        requestId: req.id,
+      });
     }
   });
 
@@ -630,8 +664,11 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json({ success: true, tools });
     } catch (error) {
-      log.error({ error: error.message, serverId: req.params.id, requestId: req.id }, 'failed to discover MCP tools');
-      res.status(500).json({ error: error.message || 'Failed to discover tools' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to discover tools',
+        operation: 'discover MCP tools',
+        requestId: req.id,
+      });
     }
   });
 
@@ -659,8 +696,11 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json(tools);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch MCP tools');
-      res.status(500).json({ error: 'Failed to fetch tools' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch tools',
+        operation: 'fetch MCP tools',
+        requestId: req.id,
+      });
     }
   });
 
@@ -678,8 +718,11 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json(tools);
     } catch (error) {
-      log.error({ error: error.message, serverId: req.params.serverId, requestId: req.id }, 'failed to fetch server tools');
-      res.status(500).json({ error: 'Failed to fetch tools' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch server tools',
+        operation: 'fetch server tools',
+        requestId: req.id,
+      });
     }
   });
 
@@ -695,8 +738,11 @@ export function createMCPRouter(prisma, mcpManager) {
 
       res.json({ success: true, result });
     } catch (error) {
-      log.error({ error: error.message, toolName: req.body.tool, requestId: req.id }, 'failed to call MCP tool');
-      res.status(500).json({ error: error.message || 'Failed to call tool' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to call tool',
+        operation: 'call MCP tool',
+        requestId: req.id,
+      });
     }
   });
 
@@ -754,8 +800,11 @@ export function createMCPRouter(prisma, mcpManager) {
         }
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch MCP tool logs');
-      res.status(500).json({ error: 'Failed to fetch tool logs' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch tool logs',
+        operation: 'fetch MCP tool logs',
+        requestId: req.id,
+      });
     }
   });
 
@@ -780,8 +829,11 @@ export function createMCPRouter(prisma, mcpManager) {
         cutoffDate: cutoff
       });
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to clean up MCP logs');
-      res.status(500).json({ error: 'Failed to clean up logs' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to clean up logs',
+        operation: 'clean up MCP logs',
+        requestId: req.id,
+      });
     }
   });
 
@@ -797,8 +849,11 @@ export function createMCPRouter(prisma, mcpManager) {
       const status = mcpManager.getStatus();
       res.json(status);
     } catch (error) {
-      log.error({ error: error.message, requestId: req.id }, 'failed to fetch MCP manager status');
-      res.status(500).json({ error: 'Failed to fetch manager status' });
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch manager status',
+        operation: 'fetch MCP manager status',
+        requestId: req.id,
+      });
     }
   });
 
