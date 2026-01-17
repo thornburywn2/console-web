@@ -27,7 +27,9 @@
     "sanitize:verbose": "bash scripts/sanitize-push.sh --verbose",
     "sanitize:fix": "bash scripts/sanitize-push.sh --fix",
     "setup:hooks": "bash scripts/setup-hooks.sh",
-    "prepush": "npm run sanitize"
+    "prepush": "npm run sanitize",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
@@ -97,7 +99,17 @@
     "vitest": "^3.2.4",
     "xterm": "^5.3.0",
     "xterm-addon-fit": "^0.8.0",
-    "xterm-addon-web-links": "^0.9.0"
+    "xterm-addon-web-links": "^0.9.0",
+    "storybook": "^10.1.11",
+    "@storybook/react-vite": "^10.1.11",
+    "@chromatic-com/storybook": "^5.0.0",
+    "@storybook/addon-vitest": "^10.1.11",
+    "@storybook/addon-a11y": "^10.1.11",
+    "@storybook/addon-docs": "^10.1.11",
+    "@storybook/addon-onboarding": "^10.1.11",
+    "prop-types": "^15.8.1",
+    "playwright": "^1.57.0",
+    "@vitest/browser": "^3.2.4"
   },
   "engines": {
     "node": ">=18.0.0"

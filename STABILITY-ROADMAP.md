@@ -161,22 +161,28 @@ Routes updated (24 files, 300+ catch blocks):
 
 > **Test Count:** 36 tests (18 tests x 2 browsers: Chromium, Firefox)
 
-### 3.3 Install & Configure Storybook
-- [ ] **3.3.1** Install Storybook for React/Vite
-- [ ] **3.3.2** Create .storybook config
-- [ ] **3.3.3** Add Storybook scripts to package.json
-- [ ] **3.3.4** Create stories for shared components
+### 3.3 Install & Configure Storybook ✅
+- [x] **3.3.1** Install Storybook for React/Vite ✅ (Storybook 10.1.11)
+- [x] **3.3.2** Create .storybook config ✅ (main.js, preview.js, vitest.setup.js)
+- [x] **3.3.3** Add Storybook scripts to package.json ✅ (storybook, build-storybook)
+- [x] **3.3.4** Create stories for shared components ✅ (4 components: TabButton, SubTabBar, TabContainer, ErrorBoundary)
 
 ### 3.4 Increase Unit Test Coverage to 30% (Started)
 - [ ] **3.4.1** Add tests for useSessionManagement hook
-- [ ] **3.4.2** Add tests for useTheme hook
+- [x] **3.4.2** Add tests for useTheme hook ✅ (17 tests)
 - [ ] **3.4.3** Add tests for useKeyboardShortcuts hook
-- [ ] **3.4.4** Add tests for api.js service
+- [x] **3.4.4** Add tests for api.js service ✅ (33 tests)
 - [ ] **3.4.5** Add tests for Terminal component
 - [ ] **3.4.6** Add tests for AdminDashboard component
 - [ ] **3.4.7** Add tests for HomeDashboard component
 - [ ] **3.4.8** Enable coverage gating in CI (30% threshold)
 - [x] **3.4.9** Add tests for useApiQuery hook ✅ (16 tests)
+
+> **Storybook:** 4 component stories (TabButton, SubTabBar, TabContainer, ErrorBoundary)
+>
+> **Coverage Progress:**
+> - src/hooks: 24.8% (useApiQuery 92.69%, useAuth 95.62%, useTheme 97.59%)
+> - src/services: 90.1% (api.js 90.1%)
 
 ---
 
@@ -378,6 +384,26 @@ Routes updated (24 files, 300+ catch blocks):
     - Scans, Firewall, Fail2Ban, scan results, firewall rules
   - **Total:** 36 E2E tests (18 tests x 2 browsers)
 - **Phase 3 Status:** 3/4 sections complete
+
+### Session 8 (2026-01-17)
+- **Phase 3.3 Complete - Storybook Setup:**
+  - ✅ Installed Storybook 10.1.11 for React/Vite
+  - ✅ Created .storybook config (main.js, preview.js, vitest.setup.js)
+  - ✅ Added Tailwind CSS import and dark background preset
+  - ✅ Added npm scripts: `npm run storybook`, `npm run build-storybook`
+  - ✅ Created 4 component stories:
+    - `TabButton.stories.jsx` - 5 stories (Default, Active, Inactive, WithoutIcon, Interactive)
+    - `SubTabBar.stories.jsx` - 8 stories (colors, badges, dividers, refresh, server example)
+    - `TabContainer.stories.jsx` - 4 stories (default, custom class, nested)
+    - `ErrorBoundary.stories.jsx` - 8 stories (various error states, fallback UI)
+  - Removed default example stories
+  - Storybook builds successfully
+- **Phase 3.4 Progress - Unit Tests:**
+  - ✅ Added `useTheme.test.js` - 17 tests (97.59% coverage)
+  - ✅ Added `api.test.js` - 33 tests (90.1% coverage)
+  - Fixed vitest config after Storybook install (separated Storybook tests)
+  - Coverage summary: src/hooks 24.8%, src/services 90.1%
+- **Phase 3 Status:** Still 3/4 (More unit tests needed for 30% target)
 
 ---
 
