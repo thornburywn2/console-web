@@ -14,14 +14,19 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Mic, MicOff, Volume2, VolumeX, Settings, History,
-  X, Check, ChevronDown, ChevronUp, Loader2, AlertCircle,
-  Command, Wand2
+  Mic, MicOff, Settings, History,
+  ChevronUp, AlertCircle, Wand2
 } from 'lucide-react';
 import { useVoiceRecognition, checkVoiceSupport } from '../hooks/useVoiceRecognition';
 import { useVoiceFeedback } from '../hooks/useVoiceFeedback';
-import { useVoiceActivityDetection, AudioLevelIndicator } from '../hooks/useVoiceActivityDetection.jsx';
-import { VoiceDisambiguationDialog, VoiceDisambiguationInline } from './VoiceDisambiguationDialog';
+import { useVoiceActivityDetection } from '../hooks/useVoiceActivityDetection.jsx';
+import { VoiceDisambiguationDialog } from './VoiceDisambiguationDialog';
+import {
+  VoiceSettingsPanel,
+  VoiceHistoryPanel,
+  AudioVisualization,
+  CommandConfirmation
+} from './voice-command';
 
 /**
  * Main Voice Command Panel Component
@@ -488,43 +493,12 @@ export function VoiceCommandPanel({
 
         {/* Audio Level Visualization */}
         {isListening && (
-          <div className="mt-4 space-y-2">
-            {/* Real-time audio level bar */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500 w-12">Level:</span>
-              <AudioLevelIndicator
-                level={audioLevel}
-                peak={peakLevel}
-                threshold={settings.confidenceThreshold * 0.03}
-                width={180}
-                height={6}
-                showThreshold={true}
-              />
-              {isSpeaking && (
-                <span className="text-xs text-green-400 font-medium">Speaking</span>
-              )}
-            </div>
-
-            {/* Animated bars for visual feedback */}
-            <div className="flex items-center justify-center gap-1">
-              {[...Array(7)].map((_, i) => {
-                // Use audio level to drive bar heights
-                const baseHeight = 8;
-                const levelBoost = audioLevel * 200 * (1 + Math.sin(Date.now() / 100 + i) * 0.3);
-                const height = Math.max(baseHeight, Math.min(32, baseHeight + levelBoost));
-
-                return (
-                  <div
-                    key={i}
-                    className={`w-1 rounded-full transition-all duration-75 ${
-                      isSpeaking ? 'bg-green-400' : 'bg-blue-400'
-                    }`}
-                    style={{ height: `${height}px` }}
-                  />
-                );
-              })}
-            </div>
-          </div>
+          <AudioVisualization
+            audioLevel={audioLevel}
+            peakLevel={peakLevel}
+            threshold={settings.confidenceThreshold * 0.03}
+            isSpeaking={isSpeaking}
+          />
         )}
 
         {/* Transcription Display */}
@@ -551,188 +525,36 @@ export function VoiceCommandPanel({
 
         {/* Command Confirmation Dialog */}
         {showConfirm && parsedCommand && (
-          <div className="mt-4 p-3 bg-blue-500/10 rounded-lg border border-blue-500/30">
-            <p className="text-xs text-gray-400 mb-1">Recognized command:</p>
-            <p className="text-sm font-mono text-white mb-2">
-              {parsedCommand.command || parsedCommand.description}
-            </p>
-            {parsedCommand.description && parsedCommand.command && (
-              <p className="text-xs text-gray-400 mb-2">{parsedCommand.description}</p>
-            )}
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-400">
-                {(parsedCommand.confidence * 100).toFixed(0)}% confident
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={cancelCommand}
-                  className="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 rounded flex items-center gap-1"
-                >
-                  <X size={12} />
-                  Cancel
-                </button>
-                <button
-                  onClick={() => executeCommand(parsedCommand)}
-                  className="px-3 py-1.5 text-xs bg-blue-500 hover:bg-blue-600 rounded flex items-center gap-1"
-                >
-                  <Check size={12} />
-                  Execute
-                </button>
-              </div>
-            </div>
-
-            {/* Suggestions for low confidence */}
-            {parsedCommand.suggestions?.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-white/10">
-                <p className="text-xs text-gray-400 mb-2">Did you mean:</p>
-                <div className="space-y-1">
-                  {parsedCommand.suggestions.slice(0, 3).map((s, i) => (
-                    <button
-                      key={i}
-                      onClick={() => {
-                        playSelectSound();
-                        setHistory(prev => [...prev.slice(-19), {
-                          transcript: s.description,
-                          command: s,
-                          timestamp: new Date().toISOString(),
-                          success: true
-                        }]);
-                        executeCommand(s);
-                      }}
-                      className="w-full text-left px-2 py-1 text-xs text-gray-300 hover:bg-white/10 rounded"
-                    >
-                      {s.description}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <CommandConfirmation
+            command={parsedCommand}
+            onExecute={executeCommand}
+            onCancel={cancelCommand}
+            onSelectSuggestion={(s) => {
+              playSelectSound();
+              setHistory(prev => [...prev.slice(-19), {
+                transcript: s.description,
+                command: s,
+                timestamp: new Date().toISOString(),
+                success: true
+              }]);
+              executeCommand(s);
+            }}
+          />
         )}
       </div>
 
       {/* Settings Panel */}
       {showSettings && (
-        <div className="px-4 pb-4 border-t border-white/10 pt-4">
-          <h4 className="text-xs font-medium text-gray-400 mb-3">Voice Settings</h4>
-          <div className="space-y-3">
-            {/* Enable Voice */}
-            <label className="flex items-center justify-between">
-              <span className="text-sm">Enable voice</span>
-              <input
-                type="checkbox"
-                checked={settings.enabled}
-                onChange={(e) => saveSettings({ enabled: e.target.checked })}
-                className="w-4 h-4 rounded"
-              />
-            </label>
-
-            {/* Auto Execute */}
-            <label className="flex items-center justify-between">
-              <span className="text-sm">Auto-execute high confidence</span>
-              <input
-                type="checkbox"
-                checked={settings.autoExecute}
-                onChange={(e) => saveSettings({ autoExecute: e.target.checked })}
-                className="w-4 h-4 rounded"
-              />
-            </label>
-
-            {/* Push to Talk */}
-            <label className="flex items-center justify-between">
-              <span className="text-sm">Push-to-talk</span>
-              <input
-                type="checkbox"
-                checked={settings.pushToTalk}
-                onChange={(e) => saveSettings({ pushToTalk: e.target.checked })}
-                className="w-4 h-4 rounded"
-              />
-            </label>
-
-            {/* Show Transcript */}
-            <label className="flex items-center justify-between">
-              <span className="text-sm">Show transcript</span>
-              <input
-                type="checkbox"
-                checked={settings.showTranscript}
-                onChange={(e) => saveSettings({ showTranscript: e.target.checked })}
-                className="w-4 h-4 rounded"
-              />
-            </label>
-
-            {/* Sound Feedback */}
-            <label className="flex items-center justify-between">
-              <span className="text-sm">Sound feedback</span>
-              <input
-                type="checkbox"
-                checked={settings.playFeedbackSounds}
-                onChange={(e) => {
-                  saveSettings({ playFeedbackSounds: e.target.checked });
-                  setFeedbackEnabled(e.target.checked);
-                }}
-                className="w-4 h-4 rounded"
-              />
-            </label>
-
-            {/* Confidence Threshold */}
-            <div>
-              <label className="flex items-center justify-between mb-1">
-                <span className="text-sm">Confidence threshold</span>
-                <span className="text-xs text-gray-400">
-                  {(settings.confidenceThreshold * 100).toFixed(0)}%
-                </span>
-              </label>
-              <input
-                type="range"
-                min="0.5"
-                max="0.95"
-                step="0.05"
-                value={settings.confidenceThreshold}
-                onChange={(e) => saveSettings({ confidenceThreshold: parseFloat(e.target.value) })}
-                className="w-full"
-              />
-            </div>
-
-            {/* Language */}
-            <div>
-              <label className="text-sm mb-1 block">Language</label>
-              <select
-                value={settings.language}
-                onChange={(e) => saveSettings({ language: e.target.value })}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm"
-              >
-                <option value="en-US">English (US)</option>
-                <option value="en-GB">English (UK)</option>
-                <option value="es-ES">Spanish</option>
-                <option value="fr-FR">French</option>
-                <option value="de-DE">German</option>
-                <option value="ja-JP">Japanese</option>
-                <option value="zh-CN">Chinese (Simplified)</option>
-              </select>
-            </div>
-          </div>
-        </div>
+        <VoiceSettingsPanel
+          settings={settings}
+          onSave={saveSettings}
+          onFeedbackChange={setFeedbackEnabled}
+        />
       )}
 
       {/* History Panel */}
       {showHistory && (
-        <div className="px-4 pb-4 border-t border-white/10 pt-4 max-h-48 overflow-y-auto">
-          <h4 className="text-xs font-medium text-gray-400 mb-3">Recent Commands</h4>
-          {history.length === 0 ? (
-            <p className="text-xs text-gray-500">No voice commands yet</p>
-          ) : (
-            <div className="space-y-2">
-              {history.slice(0, 10).map((item, i) => (
-                <div key={i} className="text-xs">
-                  <p className="text-gray-300 truncate">{item.transcript}</p>
-                  <p className="text-gray-500">
-                    {item.command?.description || item.command?.action}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <VoiceHistoryPanel history={history} />
       )}
 
       {/* Quick Commands Footer */}

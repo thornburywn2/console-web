@@ -4,245 +4,19 @@
  */
 
 import { useState, useEffect } from 'react';
-
-// Platform statistics
-const PLATFORM_STATS = [
-  { value: '114', label: 'React Components', icon: '{}' },
-  { value: '51', label: 'Database Models', icon: 'db' },
-  { value: '40+', label: 'API Endpoints', icon: '/>' },
-  { value: '22+', label: 'MCP Servers', icon: 'AI' },
-  { value: '13+', label: 'Automation Agents', icon: 'fx' },
-  { value: '11', label: 'Themes', icon: 'ui' },
-];
-
-// Infrastructure capabilities
-const INFRA_CAPABILITIES = [
-  {
-    category: 'Container Orchestration',
-    icon: 'docker',
-    color: '#2496ED',
-    items: [
-      { name: 'Container Lifecycle', desc: 'Start, stop, restart, remove containers' },
-      { name: 'Image Management', desc: 'Pull, tag, remove images with size tracking' },
-      { name: 'Volume Control', desc: 'Create, inspect, prune volumes' },
-      { name: 'Network Visibility', desc: 'Bridge, host, overlay network inspection' },
-      { name: 'Log Streaming', desc: 'Real-time container logs with filtering' },
-      { name: 'Resource Metrics', desc: 'CPU, memory, network I/O per container' },
-    ]
-  },
-  {
-    category: 'System Services',
-    icon: 'systemd',
-    color: '#30D158',
-    items: [
-      { name: 'Systemd Control', desc: 'Start, stop, restart, enable, disable units' },
-      { name: 'Service Status', desc: 'Active, inactive, failed state monitoring' },
-      { name: 'Journal Logs', desc: 'Journalctl integration with priority filtering' },
-      { name: 'Timer Management', desc: 'Systemd timers and scheduled tasks' },
-      { name: 'Unit Dependencies', desc: 'View service dependency trees' },
-      { name: 'Boot Analysis', desc: 'Startup time and bottleneck detection' },
-    ]
-  },
-  {
-    category: 'Security & Access',
-    icon: 'shield',
-    color: '#FF453A',
-    items: [
-      { name: 'UFW Firewall', desc: 'Enable/disable, add/remove rules, port management' },
-      { name: 'Fail2ban Monitor', desc: 'Banned IPs, jail status, unban actions' },
-      { name: 'SSH Sessions', desc: 'Active connections, failed login attempts' },
-      { name: 'User Management', desc: 'Linux users/groups, Authentik SSO users' },
-      { name: 'Security Scanning', desc: 'Semgrep, Gitleaks, Trivy integration' },
-      { name: 'Push Sanitization', desc: 'Pre-push hooks for secrets detection' },
-    ]
-  },
-  {
-    category: 'Monitoring & Metrics',
-    icon: 'chart',
-    color: '#BF5AF2',
-    items: [
-      { name: 'Real-time Stats', desc: 'CPU, memory, disk with 2-second refresh' },
-      { name: 'Process Manager', desc: 'htop-style list, kill processes' },
-      { name: 'Network Diagnostics', desc: 'Interfaces, ping, DNS, connections' },
-      { name: 'Disk Analysis', desc: 'Per-project storage consumption' },
-      { name: 'Uptime Tracking', desc: 'Service health checks and history' },
-      { name: 'Alert Rules', desc: 'Threshold-based notifications' },
-    ]
-  },
-];
-
-// Developer tools
-const DEV_TOOLS = [
-  {
-    name: 'Terminal Sessions',
-    icon: '>_',
-    features: ['xterm.js with 256-color', 'tmux persistence', 'Session folders & tags', 'Template quick-start', 'Team handoffs', 'Auto-reconnect'],
-    highlight: 'Sessions survive browser crashes, disconnects, and server restarts'
-  },
-  {
-    name: 'Git Workflow',
-    icon: 'git',
-    features: ['Visual status indicators', 'Commit & push', 'Branch management', 'Diff viewer', 'Ahead/behind tracking', 'GitHub integration'],
-    highlight: 'Clone repos, push to GitHub, view CI/CD status'
-  },
-  {
-    name: 'Project Management',
-    icon: '[]',
-    features: ['Browse & favorite', 'Completion metrics', 'CLAUDE.md editor', 'Template system', 'Checkpoints & rollback', 'Compliance checker'],
-    highlight: '6 project templates: Full-Stack, Frontend, Desktop, CLI, Infra, Mobile'
-  },
-  {
-    name: 'API Development',
-    icon: '{}',
-    features: ['Request builder', 'Auth headers', 'Response inspection', 'History tracking', 'Database browser', 'Query builder'],
-    highlight: 'Test endpoints, browse PostgreSQL tables, execute queries'
-  },
-];
-
-// AI & Automation
-const AI_FEATURES = [
-  { name: 'Agent Marketplace', count: '13+', desc: 'Pre-built agents for linting, testing, security, deployment' },
-  { name: 'Custom Agents', count: '5', desc: 'Trigger types: file, git, session, schedule, system' },
-  { name: 'MCP Servers', count: '22+', desc: 'Claude Code extensions across 6 categories' },
-  { name: 'AI Personas', count: '∞', desc: 'Custom system prompts for different workflows' },
-  { name: 'Voice Commands', count: 'Beta', desc: 'Browser-native speech recognition' },
-  { name: 'Memory Banks', count: '3', desc: 'Session, project, and global context layers' },
-];
-
-// Architecture layers
-const ARCHITECTURE = {
-  frontend: { name: 'Frontend', tech: 'React 18 + Vite + Tailwind', color: '#61DAFB' },
-  realtime: { name: 'Real-time', tech: 'Socket.IO + xterm.js', color: '#25C2A0' },
-  api: { name: 'API Layer', tech: 'Express + 40+ endpoints', color: '#68A063' },
-  services: { name: 'Services', tech: 'Prisma + Dockerode + node-pty', color: '#F7DF1E' },
-  data: { name: 'Data', tech: 'PostgreSQL + tmux sessions', color: '#336791' },
-  infra: { name: 'Infrastructure', tech: 'PM2 + Docker + Cloudflare', color: '#FF6B35' },
-};
-
-// Integration points
-const INTEGRATIONS = [
-  { name: 'Authentik', type: 'SSO', desc: 'OAuth2 authentication with user/group sync' },
-  { name: 'Cloudflare', type: 'Edge', desc: 'Tunnel publishing with automatic DNS' },
-  { name: 'GitHub', type: 'VCS', desc: 'Clone, push, Actions status' },
-  { name: 'Docker', type: 'Container', desc: 'Full API via socket' },
-  { name: 'PostgreSQL', type: 'Database', desc: 'Prisma ORM with 51 models' },
-  { name: 'Claude Code', type: 'AI', desc: 'MCP servers, persistent sessions' },
-];
-
-// API coverage
-const API_COVERAGE = [
-  { category: 'Core', endpoints: 8, examples: ['projects', 'settings', 'search'] },
-  { category: 'Sessions', endpoints: 12, examples: ['create', 'folders', 'tags', 'handoff'] },
-  { category: 'Infrastructure', endpoints: 15, examples: ['docker/*', 'services', 'firewall'] },
-  { category: 'Development', endpoints: 10, examples: ['git/*', 'files', 'database'] },
-  { category: 'AI & Agents', endpoints: 8, examples: ['agents', 'marketplace', 'personas'] },
-  { category: 'Monitoring', endpoints: 6, examples: ['metrics', 'uptime', 'network'] },
-];
-
-function StatCard({ stat }) {
-  return (
-    <div className="relative group">
-      <div
-        className="p-4 rounded-xl text-center transition-all duration-300 group-hover:scale-105"
-        style={{
-          background: 'linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%)',
-          border: '1px solid var(--border-subtle)',
-        }}
-      >
-        <div className="text-xs font-mono text-accent/60 mb-1">{stat.icon}</div>
-        <div className="text-3xl font-bold text-accent font-mono">{stat.value}</div>
-        <div className="text-xs text-muted mt-1">{stat.label}</div>
-      </div>
-    </div>
-  );
-}
-
-function CapabilityCard({ capability }) {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <div
-      className="rounded-xl overflow-hidden transition-all duration-300"
-      style={{
-        background: 'var(--bg-secondary)',
-        border: `1px solid ${capability.color}30`,
-      }}
-    >
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full p-4 flex items-center gap-4 text-left hover:bg-white/5 transition-colors"
-      >
-        <div
-          className="w-12 h-12 rounded-lg flex items-center justify-center text-lg font-bold"
-          style={{ background: `${capability.color}20`, color: capability.color }}
-        >
-          {capability.icon === 'docker' && '🐳'}
-          {capability.icon === 'systemd' && '⚙️'}
-          {capability.icon === 'shield' && '🛡️'}
-          {capability.icon === 'chart' && '📊'}
-        </div>
-        <div className="flex-1">
-          <h4 className="text-primary font-semibold">{capability.category}</h4>
-          <p className="text-xs text-muted">{capability.items.length} capabilities</p>
-        </div>
-        <svg
-          className={`w-5 h-5 text-muted transition-transform ${expanded ? 'rotate-180' : ''}`}
-          fill="none" stroke="currentColor" viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-      {expanded && (
-        <div className="px-4 pb-4 grid grid-cols-2 gap-2">
-          {capability.items.map((item, i) => (
-            <div
-              key={i}
-              className="p-3 rounded-lg"
-              style={{ background: 'var(--bg-tertiary)' }}
-            >
-              <div className="text-sm text-primary font-medium">{item.name}</div>
-              <div className="text-xs text-muted">{item.desc}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DevToolCard({ tool }) {
-  return (
-    <div
-      className="p-5 rounded-xl"
-      style={{
-        background: 'linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%)',
-        border: '1px solid var(--border-subtle)',
-      }}
-    >
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-10 h-10 rounded-lg bg-accent/20 flex items-center justify-center">
-          <span className="text-accent font-mono font-bold text-sm">{tool.icon}</span>
-        </div>
-        <h4 className="text-primary font-semibold">{tool.name}</h4>
-      </div>
-      <div className="grid grid-cols-2 gap-2 mb-4">
-        {tool.features.map((feature, i) => (
-          <div key={i} className="flex items-center gap-2 text-xs">
-            <span className="text-accent">+</span>
-            <span className="text-secondary">{feature}</span>
-          </div>
-        ))}
-      </div>
-      <div
-        className="p-3 rounded-lg text-xs"
-        style={{ background: 'var(--bg-accent)', border: '1px solid var(--border-accent)' }}
-      >
-        <span className="text-accent font-medium">Highlight:</span>
-        <span className="text-primary ml-2">{tool.highlight}</span>
-      </div>
-    </div>
-  );
-}
+import {
+  PLATFORM_STATS,
+  INFRA_CAPABILITIES,
+  DEV_TOOLS,
+  AI_FEATURES,
+  ARCHITECTURE,
+  INTEGRATIONS,
+  API_COVERAGE,
+  TABS,
+  StatCard,
+  CapabilityCard,
+  DevToolCard,
+} from './about';
 
 export default function AboutModal({ isOpen, onClose }) {
   const [activeTab, setActiveTab] = useState('overview');
@@ -257,14 +31,6 @@ export default function AboutModal({ isOpen, onClose }) {
   }, [isOpen]);
 
   if (!isOpen) return null;
-
-  const tabs = [
-    { id: 'overview', label: 'Overview', icon: '◉' },
-    { id: 'infrastructure', label: 'Infrastructure', icon: '⚙' },
-    { id: 'developer', label: 'Developer Tools', icon: '>' },
-    { id: 'ai', label: 'AI & Automation', icon: '◈' },
-    { id: 'architecture', label: 'Architecture', icon: '▣' },
-  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -326,7 +92,7 @@ export default function AboutModal({ isOpen, onClose }) {
           className="px-8 py-3 flex gap-2 overflow-x-auto scrollbar-hide"
           style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-tertiary)' }}
         >
-          {tabs.map(tab => (
+          {TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}

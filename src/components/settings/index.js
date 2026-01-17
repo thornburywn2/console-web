@@ -11,3 +11,5 @@ export { default as ShortcutsPane } from './ShortcutsPane';
 export { default as PersonasPane } from './PersonasPane';
 export { default as IntegrationsPane } from './IntegrationsPane';
 export { default as AuthPane } from './AuthPane';
+export { default as ScansPane } from './ScansPane';
+export { default as SystemPane } from './SystemPane';
