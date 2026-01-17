@@ -24,10 +24,14 @@ export const securityHeaders = helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],  // Required for xterm.js
-      styleSrc: ["'self'", "'unsafe-inline'"],  // Required for Tailwind CSS
+      // Scripts: self + inline/eval for xterm.js + Cloudflare Insights
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://static.cloudflareinsights.com"],
+      scriptSrcElem: ["'self'", "'unsafe-inline'", "https://static.cloudflareinsights.com"],
+      // Styles: self + inline for Tailwind + Google Fonts
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      styleSrcElem: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://fonts.googleapis.com", "data:"],
       connectSrc: ["'self'", "wss:", "ws:", "https:"],
       frameSrc: ["'none'"],
       objectSrc: ["'none'"],
