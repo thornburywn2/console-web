@@ -832,7 +832,7 @@ function findSuggestions(transcript) {
  */
 function getExamplePhrase(pattern) {
   // Simple extraction - remove regex syntax
-  let example = pattern.source
+  const example = pattern.source
     .replace(/\(\?:[^)]+\)/g, '') // Remove non-capturing groups
     .replace(/\\s\+/g, ' ')       // Replace \s+ with space
     .replace(/\\s\*/g, ' ')       // Replace \s* with space

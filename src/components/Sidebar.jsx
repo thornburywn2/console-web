@@ -144,7 +144,7 @@ function Sidebar({
 
   // Sort and filter projects
   const filteredProjects = useMemo(() => {
-    let filtered = projects.filter((project) =>
+    const filtered = projects.filter((project) =>
       project.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 

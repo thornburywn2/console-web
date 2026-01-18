@@ -833,7 +833,6 @@ export function createCloudflareRouter(prisma) {
       const projectConfig = getProjectConfig(projectPath);
 
       // Query routes by projectId, subdomain, OR matching port
-      let routes;
       const orConditions = [{ projectId }];
 
       if (projectConfig.port) {
@@ -843,7 +842,7 @@ export function createCloudflareRouter(prisma) {
         orConditions.push({ subdomain: projectConfig.subdomain });
       }
 
-      routes = await prisma.publishedRoute.findMany({
+      const routes = await prisma.publishedRoute.findMany({
         where: { OR: orConditions },
         orderBy: { createdAt: 'desc' }
       });
@@ -857,7 +856,9 @@ export function createCloudflareRouter(prisma) {
         if (settings?.zoneName && projectConfig.subdomain) {
           suggestedHostname = `${projectConfig.subdomain}.${settings.zoneName}`;
         }
-      } catch {}
+      } catch {
+        // Settings lookup failed, use default hostname
+      }
 
       res.json({
         routes,
@@ -1320,7 +1321,9 @@ export function createCloudflareRouter(prisma) {
             errorMessage: error.message
           }
         });
-      } catch (e) {}
+      } catch (_e) {
+        // Failed to update health status, ignore
+      }
 
       res.json({
         hostname: decodeURIComponent(req.params.hostname),
@@ -1589,9 +1592,13 @@ export function createCloudflareRouter(prisma) {
                 projectsByPath.set(fullPath, fsProject);
               }
             }
-          } catch {}
+          } catch {
+            // Individual stat failed, skip entry
+          }
         }
-      } catch {}
+      } catch {
+        // Projects directory read failed, continue with DB projects only
+      }
 
       // Get active ports (use ss to find what's listening)
       const portToProcess = new Map();
@@ -1628,7 +1635,9 @@ export function createCloudflareRouter(prisma) {
             portToProcess.set(port, { process: processName, pid });
           }
         }
-      } catch {}
+      } catch {
+        // Port detection failed, continue without process info
+      }
 
       // Map routes to projects
       const mappedRoutes = routes.map(route => {
@@ -1698,8 +1707,8 @@ export function createCloudflareRouter(prisma) {
 
         // Get port activity info
         const portInfo = portToProcess.get(route.localPort);
-        let portActive = !!portInfo;
-        let portProcess = portInfo?.process || null;
+        const portActive = !!portInfo;
+        const portProcess = portInfo?.process || null;
 
         // Method 4: Check if port is actively being used by a project (fallback)
         if (!matchedProject && portInfo?.pid) {
@@ -1723,7 +1732,9 @@ export function createCloudflareRouter(prisma) {
                 isOrphaned = false;
               }
             }
-          } catch {}
+          } catch {
+            // CWD detection failed, continue without match
+          }
         }
 
         return {
@@ -1917,9 +1928,13 @@ export function createCloudflareRouter(prisma) {
                 projectsByName.set(name.toLowerCase(), { id: name, name, path: fullPath });
               }
             }
-          } catch {}
+          } catch {
+            // Individual stat failed, skip entry
+          }
         }
-      } catch {}
+      } catch {
+        // Directory read failed, continue with DB projects only
+      }
 
       // Find orphaned routes
       const orphanedRoutes = routes.filter(route => {

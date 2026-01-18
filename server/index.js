@@ -14,6 +14,9 @@ import { readdirSync, statSync, existsSync, readFileSync, writeFileSync, mkdirSy
 import { join, basename, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execSync, execFileSync, exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 import { createReadStream } from 'fs';
 import { createInterface } from 'readline';
 import os from 'os';
@@ -1425,7 +1428,9 @@ function calculateProjectCompletion(projectPath) {
     try {
       const entries = readdirSync(projectPath);
       mdFileCount = entries.filter(e => e.endsWith('.md') && e !== 'README.md' && e !== 'CLAUDE.md').length;
-    } catch {}
+    } catch {
+      // Directory read failed, use default count
+    }
 
     if (hasDocsDir && mdFileCount > 2) scores.documentation = 1.0;
     else if (hasDocsDir || mdFileCount > 2) scores.documentation = 0.7;
@@ -2557,16 +2562,18 @@ app.post('/api/projects/:projectName/restart', validateProjectName, requireProje
     const sessionName = `project-${safeProjectName}`;
 
     // Check if shpool session exists and kill it
+    let sessionKilled = false;
     try {
       const { stdout: listOutput } = await execAsync('shpool list 2>/dev/null || echo ""');
       if (listOutput.includes(sessionName)) {
         await execAsync(`shpool kill "${sessionName}" 2>/dev/null`);
         log.info({ sessionName }, 'killed existing session');
+        sessionKilled = true;
         // Small delay to ensure session is fully killed
         await new Promise(resolve => setTimeout(resolve, 500));
       }
     } catch {
-      // Session might not exist
+      // Session might not exist, ignore error
     }
 
     // Look for common start scripts
@@ -2590,7 +2597,9 @@ app.post('/api/projects/:projectName/restart', validateProjectName, requireProje
         } else if (packageJson.scripts?.start) {
           startCmd = 'npm start';
         }
-      } catch {}
+      } catch {
+        // Invalid JSON, ignore
+      }
     }
 
     // If we found a start command, run it in the background
@@ -2613,7 +2622,7 @@ app.post('/api/projects/:projectName/restart', validateProjectName, requireProje
         success: true,
         projectName,
         sessionName,
-        killed: hasSession,
+        killed: sessionKilled,
         restarted: false,
         message: 'Session killed but no start script found to restart'
       });
@@ -3673,9 +3682,9 @@ app.get('/api/stack/services', async (req, res) => {
 app.get('/api/stack/health', async (req, res) => {
   try {
     let healthy = 0;
-    let degraded = 0;
+    const degraded = 0;
     let stopped = 0;
-    let unknown = 0;
+    const unknown = 0;
 
     for (const [key, service] of Object.entries(SOVEREIGN_SERVICES)) {
       try {
@@ -4053,7 +4062,9 @@ app.get('/api/dashboard', async (req, res) => {
             ahead = parseInt(parts[0]) || 0;
             behind = parseInt(parts[1]) || 0;
           }
-        } catch {}
+        } catch {
+          // No upstream tracking, ignore
+        }
 
         if (staged > 0 || unstaged > 0 || untracked > 0 || ahead > 0 || behind > 0) {
           gitStatuses.push({
@@ -4088,7 +4099,9 @@ app.get('/api/dashboard', async (req, res) => {
             });
           }
         }
-      } catch {}
+      } catch {
+        // Git operation failed for this project, skip
+      }
     }
 
     // Sort recent commits by timestamp
@@ -4099,7 +4112,9 @@ app.get('/api/dashboard', async (req, res) => {
     try {
       const portsResult = getActivePorts();
       activePorts = portsResult.ports || [];
-    } catch {}
+    } catch {
+      // Port detection failed, use empty array
+    }
 
     // Get disk usage for projects (sample top projects)
     const diskUsage = projects.slice(0, 15).map(p => ({
@@ -4125,7 +4140,9 @@ app.get('/api/dashboard', async (req, res) => {
         requests: acc.requests + 1,
         costEstimate: acc.costEstimate + ((r.inputTokens * 0.003 + r.outputTokens * 0.015) / 1000)
       }), aiUsage);
-    } catch {}
+    } catch {
+      // Database query failed, use default values
+    }
 
     // Get recent command history
     let recentCommands = [];
@@ -4137,14 +4154,17 @@ app.get('/api/dashboard', async (req, res) => {
           try {
             return JSON.parse(line);
           } catch {
+            // Invalid JSON line, skip
             return null;
           }
         }).filter(Boolean);
       }
-    } catch {}
+    } catch {
+      // History file read failed, use empty array
+    }
 
     // Get errors/warnings from security scans (if available)
-    let securityAlerts = [];
+    const securityAlerts = [];
     try {
       const scansDir = join(PROJECTS_DIR, '.scans');
       if (existsSync(scansDir)) {
@@ -4163,10 +4183,14 @@ app.get('/api/dashboard', async (req, res) => {
                   : scan.vulnerabilities.some(v => v.severity === 'HIGH') ? 'HIGH' : 'MEDIUM'
               });
             }
-          } catch {}
+          } catch {
+            // Invalid scan file, skip
+          }
         }
       }
-    } catch {}
+    } catch {
+      // Scan directory read failed, return empty alerts
+    }
 
     // NOTE: healthScores removed - HomeDashboard now derives health from
     // projectsExtended.completion for single source of truth (see calculateProjectCompletion)
@@ -4224,7 +4248,7 @@ app.delete('/api/admin/projects/:projectName', validateProjectName, requireProje
       log.info({ projectName }, 'permanently deleted project');
     } else {
       // Move to trash
-      const trashDir = join(homedir(), '.Trash');
+      const trashDir = join(os.homedir(), '.Trash');
       if (!existsSync(trashDir)) {
         mkdirSync(trashDir, { recursive: true });
       }
@@ -4475,7 +4499,7 @@ io.on('connection', (socket) => {
     }
 
     // Look up project settings from database
-    let projectSettings = { skipPermissions: false };
+    const projectSettings = { skipPermissions: false };
     try {
       const project = await prisma.project.findUnique({ where: { path: projectPath } });
       if (project) {
@@ -4486,7 +4510,7 @@ io.on('connection', (socket) => {
     }
 
     // Look up user settings for AI solution preference
-    let userSettings = {
+    const userSettings = {
       preferredAISolution: 'claude-code',
       codePuppyModel: null,
       codePuppyProvider: null,

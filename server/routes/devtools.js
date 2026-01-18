@@ -218,7 +218,7 @@ export function createEnvRouter() {
   // SECURITY: Validates path and filename to prevent path traversal
   router.get('/variables/:projectPath(*)/:filename', validatePathMiddleware, async (req, res) => {
     try {
-      let inputPath = decodeURIComponent(req.params.projectPath);
+      const inputPath = decodeURIComponent(req.params.projectPath);
       const filename = req.params.filename;
 
       // Validate filename (must be .env or start with .env)
@@ -269,7 +269,7 @@ export function createEnvRouter() {
   // SECURITY: Validates path and filename to prevent path traversal
   router.post('/save/:projectPath(*)/:filename', validatePathMiddleware, async (req, res) => {
     try {
-      let inputPath = decodeURIComponent(req.params.projectPath);
+      const inputPath = decodeURIComponent(req.params.projectPath);
       const filename = req.params.filename;
 
       // Validate filename (must be .env or start with .env)

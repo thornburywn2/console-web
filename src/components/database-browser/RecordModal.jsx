@@ -48,7 +48,9 @@ export default function RecordModal({ record, columns, onClose, onSave, onDelete
                   onChange={(e) => {
                     try {
                       handleFieldChange(col.name, JSON.parse(e.target.value));
-                    } catch {}
+                    } catch {
+                      // Invalid JSON, keep current value
+                    }
                   }}
                   className="w-full h-24 px-3 py-1.5 text-sm font-mono rounded resize-none"
                   style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)' }}

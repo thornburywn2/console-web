@@ -1358,7 +1358,7 @@ export function createUsersFirewallRouter(prisma) {
       });
 
       // Step 3: Also scan for listening ports on the system
-      let listeningPorts = [];
+      const listeningPorts = [];
       try {
         const ssResult = await execAsync('ss -tlnp 2>/dev/null | grep LISTEN || true', { timeout: 5000 });
         const lines = ssResult.stdout.trim().split('\n').filter(l => l.trim());
@@ -1477,7 +1477,7 @@ export function createUsersFirewallRouter(prisma) {
       });
 
       // Get listening ports
-      let listeningPorts = [];
+      const listeningPorts = [];
       try {
         const ssResult = await execAsync('ss -tlnp 2>/dev/null | grep LISTEN || true', { timeout: 5000 });
         const lines = ssResult.stdout.trim().split('\n').filter(l => l.trim());

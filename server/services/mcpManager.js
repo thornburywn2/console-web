@@ -131,7 +131,7 @@ class MCPManager extends EventEmitter {
 
     log.info({ serverName: server.name, transport: server.transport }, 'starting MCP server');
 
-    let serverState = {
+    const serverState = {
       transport: server.transport,
       status: 'CONNECTING',
       lastStatus: 'DISCONNECTED',

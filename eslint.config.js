@@ -97,7 +97,7 @@ export default [
 
   // Test files
   {
-    files: ['**/*.test.js', '**/*.spec.js', '**/test/**/*.js'],
+    files: ['**/*.test.js', '**/*.spec.js', '**/test/**/*.js', '**/*.test.jsx', '**/*.spec.jsx'],
     languageOptions: {
       globals: {
         ...globals.node,
@@ -110,6 +110,7 @@ export default [
         afterEach: 'readonly',
         beforeAll: 'readonly',
         afterAll: 'readonly',
+        global: 'writable',
       },
     },
     rules: {

@@ -51,7 +51,7 @@ const CONFIG = {
 };
 
 // State
-let state = {
+const state = {
   consecutiveFailures: 0,
   lastHealthCheck: null,
   lastRecoveryAttempt: null,

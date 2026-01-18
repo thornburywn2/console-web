@@ -18,7 +18,9 @@ export default function ResponseViewer({ response }) {
     } else if (typeof response.body === 'object') {
       prettyBody = JSON.stringify(response.body, null, 2);
     }
-  } catch {}
+  } catch {
+    // JSON parsing failed, use raw body
+  }
 
   const statusColor = response.status >= 200 && response.status < 300 ? '#2ecc71' :
                       response.status >= 400 ? '#e74c3c' : '#f39c12';

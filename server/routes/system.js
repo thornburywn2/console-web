@@ -124,7 +124,7 @@ export function createSystemRouter() {
       const currentVersion = packageJson.version;
 
       // Get git info
-      let gitInfo = {
+      const gitInfo = {
         branch: 'unknown',
         commit: 'unknown',
         remote: 'unknown',

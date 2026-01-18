@@ -49,7 +49,7 @@ export function createInfrastructureRouter() {
     try {
       const { search, limit = 100, offset = 0 } = req.query;
 
-      let cmd = 'dpkg-query -W -f=\'${Package}|${Version}|${Status}|${Installed-Size}|${Description}\\n\'';
+      const cmd = 'dpkg-query -W -f=\'${Package}|${Version}|${Status}|${Installed-Size}|${Description}\\n\'';
       const { stdout } = await execAsync(cmd, { maxBuffer: 10 * 1024 * 1024 });
 
       let packages = stdout.trim().split('\n')

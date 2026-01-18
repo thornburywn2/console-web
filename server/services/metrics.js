@@ -112,8 +112,8 @@ export class MetricsCollector {
     }
 
     // Network stats (if available)
-    let networkIn = 0;
-    let networkOut = 0;
+    const networkIn = 0;
+    const networkOut = 0;
     try {
       const interfaces = os.networkInterfaces();
       // Just return bytes from first non-internal interface

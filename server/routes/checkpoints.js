@@ -146,7 +146,7 @@ export function createCheckpointsRouter(prisma, projectsDir) {
       }
 
       // Get current working directory from session if available
-      let workingDir = projectPath;
+      const workingDir = projectPath;
 
       // Gather file snapshots if requested
       let fileSnapshots = null;

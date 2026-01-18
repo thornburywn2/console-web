@@ -46,7 +46,7 @@ export function createBackupsRouter(prisma) {
       const projectPath = decodeURIComponent(req.params.projectPath);
       const backupDir = getBackupDir(projectPath);
 
-      let backups = [];
+      const backups = [];
       try {
         const files = await fs.readdir(backupDir);
         for (const file of files) {
@@ -75,7 +75,7 @@ export function createBackupsRouter(prisma) {
       backups.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
       // Get schedule if exists
-      let schedules = [];
+      const schedules = [];
       try {
         const schedule = await prisma.scheduledTask.findFirst({
           where: {

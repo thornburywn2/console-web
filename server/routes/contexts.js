@@ -21,7 +21,7 @@ export function createContextsRouter(prisma) {
       const { projectName } = req.params;
 
       // Find or create project context
-      let projectContext = await prisma.projectContext.findUnique({
+      const projectContext = await prisma.projectContext.findUnique({
         where: { projectId: projectName }
       });
 

@@ -19,7 +19,7 @@ export function parseYaml(yaml) {
     if (!match) continue;
 
     const key = match[1].trim();
-    let value = match[2].trim();
+    const value = match[2].trim();
 
     // Pop stack to find parent
     while (stack.length > 1 && stack[stack.length - 1].indent >= indent) {

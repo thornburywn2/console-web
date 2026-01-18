@@ -38,7 +38,7 @@ export function createTeamsRouter(prisma) {
       const userRole = req.dbUser?.role || 'USER';
       const userTeamId = req.dbUser?.teamId;
 
-      let where = { isActive: true };
+      const where = { isActive: true };
 
       // Non-admins can only see their own team
       if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {

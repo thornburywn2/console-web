@@ -56,7 +56,7 @@ export default function ProjectsWidget({
 
   // Filter and sort projects
   const filteredProjects = useMemo(() => {
-    let filtered = projects.filter((project) =>
+    const filtered = projects.filter((project) =>
       project.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
     return filtered;
@@ -81,7 +81,9 @@ export default function ProjectsWidget({
         : [...prev, projectPath];
       try {
         localStorage.setItem(FAVORITES_KEY, JSON.stringify(newFavorites));
-      } catch {}
+      } catch {
+        // localStorage unavailable, favorites won't persist
+      }
       return newFavorites;
     });
   };
