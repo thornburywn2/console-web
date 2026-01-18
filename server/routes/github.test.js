@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { createGitHubRouter } from './github.js';
+import { createGithubRouter } from './github.js';
 
 // Mock logger
 vi.mock('../services/logger.js', () => ({
@@ -155,7 +155,7 @@ describe('GitHub Routes', () => {
       next();
     });
 
-    app.use('/api/github', createGitHubRouter(mockPrisma, '/home/user/Projects'));
+    app.use('/api/github', createGithubRouter(mockPrisma, '/home/user/Projects'));
   });
 
   afterEach(() => {
