@@ -311,14 +311,17 @@ Routes updated (24 files, 300+ catch blocks):
 - [x] Alerts configured and tested ✅ (Phase 4 complete)
 
 ### Testing
-- [ ] 80%+ code coverage (ongoing - 582 total tests, key modules 30-90%)
+- [ ] 80%+ code coverage (ongoing - 777 total tests, 15.25% overall, key modules 30-90%)
 - [x] E2E tests for critical paths ✅ (36 Playwright tests)
 - [x] Visual regression tests ✅ (Storybook with 4 component stories)
 - [x] CI blocks PRs with failing tests ✅ (GitHub Actions)
 - [ ] CI blocks PRs below coverage threshold (pending 80% target)
 - [x] Admin tab components tested ✅ (6 components: HistoryTab, ProjectsTab, OverviewPane, DockerPane, ServicesPane, FirewallPane)
-- [x] Modal components tested ✅ (3 components: KeyboardShortcutsModal, CreateProjectModal, AboutModal)
-- [x] Widget components tested ✅ (2 components: ChangelogWidget, TokenUsageWidget)
+- [x] Shared admin components tested ✅ (TabButton, SubTabBar, TabContainer, ErrorBoundary)
+- [x] Modal components tested ✅ (5 components: KeyboardShortcutsModal, CreateProjectModal, AboutModal, ThemePicker, FavoritesBar modal)
+- [x] Widget components tested ✅ (3 components: ChangelogWidget, TokenUsageWidget, SystemStats)
+- [x] Status indicators tested ✅ (AgentCard, GitHubStatusBadge, MCPStatusIndicator)
+- [x] Hooks tested ✅ (useAuth, useTheme, useKeyboardShortcuts, useApiQuery, useSessionManagement)
 
 ---
 
@@ -519,6 +522,30 @@ Routes updated (24 files, 300+ catch blocks):
   - Resumed after server reboot due to memory exhaustion
   - Working incrementally to avoid resource issues (16GB shared)
   - Sequential test runs instead of parallel to reduce memory usage
+
+### Session 12 (2026-01-18)
+- **Phase 5.3 Progress - Test Coverage (continued):**
+  - ✅ Fixed ErrorBoundary recovery test in admin/shared/index.test.jsx
+  - ✅ Added admin/shared/index.test.jsx (33 tests) - TabButton, SubTabBar, TabContainer, ErrorBoundary
+  - ✅ Added AgentCard.test.jsx (21 tests) - agent marketplace card
+  - ✅ Added FavoritesBar.test.jsx (19 tests) - favorites bar + widget
+  - ✅ Added SystemStats.test.jsx (19 tests) - system monitoring display
+  - ✅ Added ThemePicker.test.jsx (16 tests) - theme selection modal
+  - ✅ Added GitHubStatusBadge.test.jsx (27 tests) - GitHub sync status
+  - ✅ Added MCPStatusIndicator.test.jsx (26 tests) - MCP server status
+  - ✅ Added useSessionManagement.test.js (34 tests) - session management hook
+- **Test Count Progress:**
+  - Frontend: 434 → 629 tests (+195 new tests)
+  - Backend: 148 tests (unchanged)
+  - Total: 777 tests (629 + 148)
+- **Coverage Progress:**
+  - Overall: 12.81% → 15.25% (+2.44%)
+  - Hooks: 34.34% (useKeyboardShortcuts 100%, useAuth 95.62%, useTheme 97.59%, useSessionManagement added)
+  - Services: 93.37% (api.js 90.11%, responseSchemas.js 98.45%)
+- **Commits Made:**
+  - test(phase5.3): add UI component tests (+108 tests)
+  - test(phase5.3): add status indicator component tests (+53 tests)
+  - test(phase5.3): add useSessionManagement hook tests (+34 tests)
 
 ---
 
