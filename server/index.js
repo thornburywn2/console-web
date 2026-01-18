@@ -5001,3 +5001,23 @@ async function gracefulShutdown(signal) {
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Global error handlers for unhandled promise rejections and exceptions
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error({
+    type: 'unhandledRejection',
+    reason: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+  }, 'Unhandled Promise Rejection');
+  // Don't exit - log and continue (allows graceful recovery)
+});
+
+process.on('uncaughtException', (error) => {
+  logger.fatal({
+    type: 'uncaughtException',
+    error: error.message,
+    stack: error.stack,
+  }, 'Uncaught Exception - initiating graceful shutdown');
+  // Uncaught exceptions are critical - attempt graceful shutdown
+  gracefulShutdown('uncaughtException');
+});
