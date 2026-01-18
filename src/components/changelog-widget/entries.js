@@ -4,6 +4,25 @@
 
 export const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.20',
+    date: '2026-01-18',
+    type: 'major',
+    title: 'Enterprise Mission Control Roadmap',
+    highlights: [
+      'Enterprise upgrade roadmap with RBAC architecture',
+      'Multi-user role hierarchy design (SUPER_ADMIN/ADMIN/USER/VIEWER)',
+      'Mission Control three-pane layout specification',
+      'Agent observability drawer architecture',
+    ],
+    features: [
+      { title: 'ENTERPRISE_ROADMAP.md', description: 'Comprehensive enterprise upgrade plan with current state analysis, RBAC implementation strategy, and prioritization matrix' },
+      { title: 'Security Gap Analysis', description: 'Identified 350+ unprotected API endpoints and critical admin routes without authorization checks' },
+      { title: 'RBAC Design', description: 'Full role hierarchy with permission matrix for sessions, projects, infrastructure, agents, and collaboration features' },
+      { title: 'Database Schema Plan', description: 'User, Team, ProjectAssignment, and AuditLog models designed for multi-tenancy support' },
+      { title: 'Phase Implementation Plan', description: '5-phase roadmap: Security Foundation, Data Isolation, Mission Control UI, Audit & Teams, Polish & Quotas' },
+    ],
+  },
+  {
     version: '1.0.19',
     date: '2026-01-18',
     type: 'minor',

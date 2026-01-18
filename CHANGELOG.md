@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                             Console.web v1.0.19                              │
+│                             Console.web v1.0.20                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
 │  │  Terminal   │  │   Admin     │  │  Projects   │  │  Sidebars   │        │
@@ -151,6 +151,51 @@ npm run build && npm start
 | **Containers** | Dockerode |
 | **Observability** | OpenTelemetry, Jaeger, Loki, Prometheus, Grafana |
 | **Security** | Helmet, express-rate-limit, Zod, Sentry |
+
+---
+
+## [1.0.20] - 2026-01-18
+
+### Enterprise Mission Control Roadmap
+
+This release introduces the comprehensive enterprise upgrade roadmap, laying the foundation for multi-user RBAC (Role-Based Access Control) and the "Mission Control" interface redesign.
+
+#### ENTERPRISE_ROADMAP.md
+
+A complete architecture document including:
+
+- **Current State Analysis**: Detailed audit of authentication (Authentik SSO), session management (shpool + PostgreSQL), and 350+ API endpoints
+- **Security Gap Analysis**: Identified critical issues with unprotected admin routes, missing data isolation, and no authorization enforcement
+- **RBAC Design**: Four-tier role hierarchy (SUPER_ADMIN, ADMIN, USER, VIEWER) with granular permission matrix
+- **Database Schema**: User, Team, ProjectAssignment, and AuditLog models for multi-tenancy
+- **Implementation Phases**: 5-phase roadmap covering security foundation, data isolation, Mission Control UI, audit logging, and resource quotas
+
+#### Key Findings
+
+| Area | Status | Risk |
+|------|--------|------|
+| Authentication (Authentik) | Working | LOW |
+| Authorization (RBAC) | NOT IMPLEMENTED | CRITICAL |
+| Data Isolation | None | CRITICAL |
+| Admin Route Protection | Path-only | CRITICAL |
+| Audit Logging | None | HIGH |
+
+#### Mission Control UI Design
+
+Three-pane layout specification:
+- **Left Pane**: Project/session list filtered by permissions
+- **Center Pane**: Active terminal (xterm.js)
+- **Right Pane**: Agent Observability Drawer with tree/DAG visualization
+
+#### Phase 1 Priorities (Starting Now)
+
+1. Create User model synced from Authentik
+2. Add Role enum (SUPER_ADMIN, ADMIN, USER, VIEWER)
+3. Implement `requireRole()` middleware
+4. Protect admin routes (`/api/admin-*`)
+5. Protect infrastructure routes (`/api/infra/*`)
+6. Protect Docker routes (`/api/docker/*`)
+7. Fix JWT signature verification
 
 ---
 
