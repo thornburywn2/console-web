@@ -1,7 +1,7 @@
 # Console.web Stability Roadmap - Implementation Tracker
 
 **Created:** 2026-01-17
-**Last Updated:** 2026-01-17
+**Last Updated:** 2026-01-18
 **Status:** IN PROGRESS
 **Current Phase:** Phase 5 - Full Hardening (NEXT)
 
@@ -263,11 +263,11 @@ Routes updated (24 files, 300+ catch blocks):
 
 > **Note:** 80% coverage is a long-term goal. Current progress:
 > - Frontend: 881 tests passing (8 skipped)
-> - Backend: 392 tests passing
-> - Total: 1,273 tests
+> - Backend: 587 tests passing
+> - Total: 1,468 tests
 > - Key modules (hooks, services) have 30-90% coverage
 > - Test infrastructure in place (Vitest, Playwright, Storybook)
-> - 6 backend routes fully tested (sessions, teams, prompts, snippets, folders, tags)
+> - 11 backend routes fully tested (sessions, teams, prompts, snippets, folders, tags, notes, templates, themes, alerts, agents)
 
 ### 5.4 Implement Nonce-Based CSP ✅ COMPLETE
 - [x] **5.4.1** Research xterm.js CSP requirements ✅
@@ -312,7 +312,7 @@ Routes updated (24 files, 300+ catch blocks):
 - [x] Alerts configured and tested ✅ (Phase 4 complete)
 
 ### Testing
-- [ ] 80%+ code coverage (ongoing - 1,273 total tests, key modules 30-90%)
+- [ ] 80%+ code coverage (ongoing - 1,468 total tests, key modules 30-90%)
 - [x] E2E tests for critical paths ✅ (36 Playwright tests)
 - [x] Visual regression tests ✅ (Storybook with 4 component stories)
 - [x] CI blocks PRs with failing tests ✅ (GitHub Actions)
@@ -323,7 +323,7 @@ Routes updated (24 files, 300+ catch blocks):
 - [x] Widget components tested ✅ (3 components: ChangelogWidget, TokenUsageWidget, SystemStats)
 - [x] Status indicators tested ✅ (AgentCard, GitHubStatusBadge, MCPStatusIndicator)
 - [x] Hooks tested ✅ (useAuth, useTheme, useKeyboardShortcuts, useApiQuery, useSessionManagement)
-- [x] Backend routes tested ✅ (sessions, teams, prompts, snippets, folders, tags)
+- [x] Backend routes tested ✅ (sessions, teams, prompts, snippets, folders, tags, notes, templates, themes, alerts, agents)
 
 ---
 
@@ -555,22 +555,37 @@ Routes updated (24 files, 300+ catch blocks):
   - ✅ Added snippets.test.js (40 tests) - command snippets CRUD and run
   - ✅ Added folders.test.js (48 tests) - session folders and organization
   - ✅ Added tags.test.js (28 tests) - session tags management
+  - ✅ Added notes.test.js (36 tests) - session notes CRUD, pin, move, duplicate, export
+  - ✅ Added templates.test.js (28 tests) - session templates CRUD, use, duplicate
+  - ✅ Added themes.test.js (34 tests) - theme management CRUD, activate, duplicate
+  - ✅ Added alerts.test.js (43 tests) - alert rules CRUD, toggle, test, trigger, history
+  - ✅ Added agents.test.js (54 tests) - background agents CRUD, run, stop, toggle, meta
 - **Test Count Progress:**
   - Frontend: 881 tests (8 skipped)
-  - Backend: 238 → 392 tests (+154 new tests)
-  - Total: 1,273 tests
+  - Backend: 238 → 587 tests (+349 new tests)
+  - Total: 1,468 tests
 - **Backend Route Coverage:**
   - prompts.js: Full coverage (list, create, update, delete, execute, favorite, duplicate)
   - snippets.js: Full coverage (list, categories, tags, CRUD, run, favorite, duplicate)
   - folders.js: Full coverage (folders CRUD, reorder, tags CRUD, session operations)
   - tags.js: Full coverage (list, CRUD, get sessions by tag)
-- **Routes Now Tested:**
+  - notes.js: Full coverage (list, CRUD, pin, unpin, move, duplicate, export)
+  - templates.js: Full coverage (list, CRUD, use, duplicate, built-in protection)
+  - themes.js: Full coverage (list, CRUD, activate, duplicate, built-in protection)
+  - alerts.js: Full coverage (list, CRUD, toggle, test, trigger, history, reset, templates)
+  - agents.js: Full coverage (list, CRUD, run, stop, toggle, executions, cleanup, runner status, meta)
+- **Routes Now Tested (11 total):**
   - sessions.js ✅ (40 tests)
   - teams.js ✅ (50 tests)
   - prompts.js ✅ (38 tests)
   - snippets.js ✅ (40 tests)
   - folders.js ✅ (48 tests)
   - tags.js ✅ (28 tests)
+  - notes.js ✅ (36 tests)
+  - templates.js ✅ (28 tests)
+  - themes.js ✅ (34 tests)
+  - alerts.js ✅ (43 tests)
+  - agents.js ✅ (54 tests)
 
 ---
 
