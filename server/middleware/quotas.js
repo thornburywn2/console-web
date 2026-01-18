@@ -14,7 +14,7 @@ import crypto from 'crypto';
 const log = createLogger('quotas');
 
 // Default quotas by role (used when no user-specific quota exists)
-const DEFAULT_QUOTAS = {
+export const DEFAULT_QUOTAS = {
   SUPER_ADMIN: {
     maxActiveSessions: 100,
     maxTotalSessions: 1000,
