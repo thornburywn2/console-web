@@ -534,7 +534,7 @@ function AdminDashboard({ onClose, initialTab = null, currentProject = null }) {
 
   const handleRenameProject = useCallback(async (oldName, newName) => {
     try {
-      await api.put(`/admin/projects/${encodeURIComponent(oldName)}/rename`, { newName });
+      await api.post(`/projects/${encodeURIComponent(oldName)}/rename`, { newName });
       setRenameProject(null);
       setSuccess(`Project renamed to ${newName}`);
     } catch (err) {
