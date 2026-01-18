@@ -15,9 +15,17 @@ export default defineConfig({
     exclude: ['src/stories/**'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html', 'lcov'],
+      reporter: ['text', 'html', 'lcov', 'json-summary'],
       include: ['src/**/*.{js,jsx}'],
       exclude: ['src/test/**', 'src/**/*.test.{js,jsx}', 'src/**/*.spec.{js,jsx}', 'src/stories/**'],
+      thresholds: {
+        global: {
+          branches: 20,
+          functions: 20,
+          lines: 20,
+          statements: 20,
+        },
+      },
     },
   }
 });
