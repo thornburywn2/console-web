@@ -4,6 +4,31 @@
 
 export const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.24',
+    date: '2026-01-18',
+    type: 'major',
+    title: '100% Backend Route Test Coverage',
+    highlights: [
+      'Complete backend route test coverage (44/44 routes)',
+      '~950 backend route tests total',
+      'All API endpoints now have comprehensive tests',
+      'Test infrastructure fully mature',
+    ],
+    features: [
+      { title: 'Aider Tests', description: '36 tests for Aider AI integration including sessions, models, commands, and output streaming' },
+      { title: 'Claude Flow Tests', description: '28 tests for multi-agent swarm management, templates, roles, and quick tasks' },
+      { title: 'Tabby Tests', description: '21 tests for Tabby Docker container management and IDE integration' },
+      { title: 'Audit Tests', description: '20 tests for admin audit log access with filtering, stats, export, and purge' },
+      { title: 'Lifecycle Tests', description: '25 tests for lifecycle agent scanning, tools status, and queue management' },
+      { title: 'Project Tags Tests', description: '23 tests for project tag management and categorization' },
+      { title: 'Checkpoints Tests', description: '17 tests for git checkpoint system with restore and snapshot operations' },
+      { title: 'Browser Tests', description: '25 tests for file browser with path security and directory traversal protection' },
+      { title: 'Files Tests', description: '14 tests for file operations, logs, diff viewer, export, and import' },
+      { title: 'System Tests', description: '10 tests for system updates, version checking, and changelog endpoints' },
+      { title: 'Project Templates Tests', description: '18 tests for template listing, project creation, migration, and compliance' },
+    ],
+  },
+  {
     version: '1.0.23',
     date: '2026-01-18',
     type: 'patch',

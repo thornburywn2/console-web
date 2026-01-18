@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                             Console.web v1.0.23                              │
+│                             Console.web v1.0.24                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
 │  │  Terminal   │  │   Admin     │  │  Projects   │  │  Sidebars   │        │
@@ -151,6 +151,50 @@ npm run build && npm start
 | **Containers** | Dockerode |
 | **Observability** | OpenTelemetry, Jaeger, Loki, Prometheus, Grafana |
 | **Security** | Helmet, express-rate-limit, Zod, Sentry |
+
+---
+
+## [1.0.24] - 2026-01-18
+
+### 100% Backend Route Test Coverage
+
+This major release achieves complete backend route test coverage, with all 44 testable route files now having comprehensive tests.
+
+#### Test Coverage Milestone
+
+- **44/44 Route Files Tested**: Every API route file in `server/routes/` now has a corresponding test file
+- **~950 Backend Route Tests**: Comprehensive coverage for all API endpoints
+- **237 New Tests Added**: Final batch completing the route test coverage
+
+#### New Test Files
+
+| Route File | Tests | Coverage |
+|------------|-------|----------|
+| aider.test.js | 36 | Sessions, models, commands, output streaming |
+| claudeFlow.test.js | 28 | Swarm management, templates, roles, quick tasks |
+| tabby.test.js | 21 | Docker container management, IDE integration |
+| audit.test.js | 20 | Audit log access, filtering, stats, export, purge |
+| lifecycle.test.js | 25 | Agent scanning, tools status, queue management |
+| project-tags.test.js | 23 | Project tag management, categorization |
+| checkpoints.test.js | 17 | Git checkpoints, restore, snapshots |
+| browser.test.js | 25 | File browser, path security, traversal protection |
+| files.test.js | 14 | File ops, logs, diff viewer, export/import |
+| system.test.js | 10 | System updates, version checking, changelog |
+| projectTemplates.test.js | 18 | Template listing, creation, migration, compliance |
+
+#### Test Infrastructure
+
+- **Vitest**: Unit and integration testing framework
+- **Supertest**: HTTP assertion library for Express routes
+- **Playwright**: E2E testing (36 tests across 2 browsers)
+- **Storybook**: Visual component testing (4 component stories)
+
+#### Total Test Count
+
+- Frontend: 881 tests (8 skipped)
+- Backend: ~950 route tests (22 skipped)
+- E2E: 36 Playwright tests
+- **Total: ~1,900 tests**
 
 ---
 
