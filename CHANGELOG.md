@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                             Console.web v1.0.25                              │
+│                             Console.web v1.0.26                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
 │  │  Terminal   │  │   Admin     │  │  Projects   │  │  Sidebars   │        │
@@ -151,6 +151,36 @@ npm run build && npm start
 | **Containers** | Dockerode |
 | **Observability** | OpenTelemetry, Jaeger, Loki, Prometheus, Grafana |
 | **Security** | Helmet, express-rate-limit, Zod, Sentry |
+
+---
+
+## [1.0.26] - 2026-01-18
+
+### Documentation Consolidation
+
+This release consolidates documentation by merging the completed STABILITY-ROADMAP.md into CHANGELOG.md and cleaning up redundant files.
+
+#### Changes
+
+- **Merged**: STABILITY-ROADMAP.md summary now in CHANGELOG.md "Stability Roadmap (Complete)" section
+- **Deleted**: STABILITY-ROADMAP.md (content preserved in CHANGELOG.md)
+- **Deleted**: UPGRADE_PALN.md (obsolete task prompt that created ENTERPRISE_ROADMAP.md)
+- **Deleted**: docs/STABILITY_ROADMAP.md (older duplicate)
+- **Archived**: docs/ROADMAP.md → docs/archive/ (outdated feature roadmap)
+- **Archived**: docs/BUNDLE_OPTIMIZATION_PLAN.md → docs/archive/ (completed optimization work)
+
+#### Root Documentation Files (Standardized)
+
+| File | Purpose |
+|------|---------|
+| README.md | Project overview and quick start |
+| CHANGELOG.md | Version history and stability roadmap summary |
+| CLAUDE.md | AI agent context and project documentation |
+| INSTALL.md | Installation guide for standalone deployment |
+| ENTERPRISE_ROADMAP.md | Enterprise features & RBAC (Phase 4 pending) |
+| CODE_OF_CONDUCT.md | Community standards |
+| CONTRIBUTING.md | Contribution guidelines |
+| SECURITY.md | Security policy and vulnerability reporting |
 
 ---
 
@@ -1201,14 +1231,51 @@ Automatic DNS mapping from CLAUDE.md:
 
 ---
 
-## Roadmap
+## Stability Roadmap (Complete)
 
-Future releases will focus on:
-- Enhanced multi-user collaboration
-- Kubernetes support
-- Extended MCP server capabilities
-- Mobile companion app
-- Improved AI workflow integration
+The Console.web Stability Roadmap was completed in v1.0.13-v1.0.24, transforming the codebase from a feature-rich prototype to a production-grade application.
+
+### Phases Completed
+
+| Phase | Focus | Key Deliverables |
+|-------|-------|------------------|
+| **Phase 0** | Immediate Fixes | Credential security audit, failing test fixes |
+| **Phase 1** | Error Handling | sendSafeError() in 24 route files (300+ catch blocks), error states in 6 components, error boundaries |
+| **Phase 2** | Integration Hardening | useApiQuery/useApiMutation hooks, 8 component migrations, Socket.IO event documentation |
+| **Phase 3** | Testing Foundation | Playwright E2E (36 tests), Storybook (4 components), unit tests for hooks and services |
+| **Phase 4** | Observability | Prometheus metrics, Sentry integration, X-Request-ID tracing, alert rules |
+| **Phase 5** | Full Hardening | fetch() migration to API service, Zod response validation (50+ schemas), nonce-based CSP, 80% test coverage |
+
+### Final Test Coverage
+
+- **Frontend**: 975 tests (8 skipped)
+- **Backend**: ~950 route tests (22 skipped)
+- **E2E**: 36 Playwright tests (18 × 2 browsers)
+- **Total**: ~2,000 tests
+- **Key Modules**: hooks 73%, services 93%, routes 100% file coverage
+
+### Production Features Implemented
+
+- Input validation with Zod schemas on all 45+ routes
+- Error sanitization via sendSafeError() (returns reference IDs, logs full errors internally)
+- Rate limiting: general (1000/15min), strict (10/min), auth (10/15min)
+- Security headers via Helmet with nonce-based CSP
+- Graceful shutdown with 30-second connection draining
+- Path traversal protection (CWE-23 prevention)
+- Structured logging with Pino (JSON format, correlation IDs)
+
+---
+
+## Future Roadmap
+
+Remaining work and future enhancements:
+- **Team Management UI** - Complete Phase 4 of Enterprise Roadmap (schema ready, UI pending)
+- **CSRF Token Implementation** - Additional security hardening
+- **Session Recording/Replay** - Enhanced debugging capabilities
+- **Kubernetes Support** - Container orchestration
+- **Mobile Companion App** - Remote access from mobile devices
+
+See [ENTERPRISE_ROADMAP.md](./ENTERPRISE_ROADMAP.md) for detailed enterprise feature planning.
 
 ---
 

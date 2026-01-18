@@ -4,6 +4,24 @@
 
 export const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.26',
+    date: '2026-01-18',
+    type: 'patch',
+    title: 'Documentation Consolidation',
+    highlights: [
+      'Merged STABILITY-ROADMAP.md into CHANGELOG.md',
+      'Cleaned up redundant documentation files',
+      'Archived outdated roadmaps and plans',
+      'Streamlined root-level markdown files',
+    ],
+    features: [
+      { title: 'Stability Roadmap Merge', description: 'Complete stability roadmap summary now in CHANGELOG.md under "Stability Roadmap (Complete)" section.' },
+      { title: 'File Cleanup', description: 'Removed STABILITY-ROADMAP.md, UPGRADE_PALN.md, and docs/STABILITY_ROADMAP.md (duplicates/obsolete).' },
+      { title: 'Documentation Archive', description: 'Moved ROADMAP.md and BUNDLE_OPTIMIZATION_PLAN.md to docs/archive/ for historical reference.' },
+      { title: 'Standardized Root Files', description: 'Root now contains only standard files: README, CHANGELOG, CLAUDE, INSTALL, ENTERPRISE_ROADMAP, and OSS standards.' },
+    ],
+  },
+  {
     version: '1.0.25',
     date: '2026-01-18',
     type: 'patch',

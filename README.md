@@ -8,7 +8,7 @@ Console.web transforms how you work with AI coding assistants. Instead of juggli
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  CONSOLE.WEB v1.0.24                                          ⚡ LIVE       │
+│  CONSOLE.WEB v1.0.26                                          ⚡ LIVE       │
 ├─────────────┬───────────────────────────────────────────────────────────────┤
 │             │                                                               │
 │  📁 PROJECTS│   $ claude "refactor auth to use JWT"                        │
@@ -166,7 +166,7 @@ docker-compose up -d
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           Console.web v1.0.24                               │
+│                           Console.web v1.0.26                               │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
@@ -275,10 +275,10 @@ npm run storybook
 
 ## 📚 Documentation
 
-- [CHANGELOG.md](./CHANGELOG.md) - Version history and detailed release notes
+- [CHANGELOG.md](./CHANGELOG.md) - Version history, release notes, and stability roadmap summary
 - [CLAUDE.md](./CLAUDE.md) - AI agent context and project documentation
-- [STABILITY-ROADMAP.md](./STABILITY-ROADMAP.md) - Stability roadmap (✅ Complete)
 - [ENTERPRISE_ROADMAP.md](./ENTERPRISE_ROADMAP.md) - Enterprise features & RBAC implementation
+- [INSTALL.md](./INSTALL.md) - Installation guide for standalone deployment
 - [monitoring/README.md](./monitoring/README.md) - Observability stack setup
 
 ---

@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 **Project:** Console.web (console-web)
-**Version:** 1.0.25
+**Version:** 1.0.26
 **Last Updated:** 2026-01-18
 **Type:** Web Application
 **Port:** 7777 (Frontend), 5275 (API)
@@ -15,7 +15,7 @@ Console.web is a comprehensive web-based management interface for Claude Code pr
 
 ### Key Features
 
-- **Terminal Sessions**: Browser-based terminals with tmux persistence (sessions survive disconnects)
+- **Terminal Sessions**: Browser-based terminals with shpool persistence (sessions survive disconnects, browser crashes, server restarts)
 - **Project Management**: Browse, organize, favorite projects, and track completion metrics
 - **Session Organization**: Folders, tags, notes, templates, and session handoffs
 - **Prompt & Snippet Libraries**: Reusable prompts and command snippets
@@ -36,15 +36,18 @@ Console.web is a comprehensive web-based management interface for Claude Code pr
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | React 18, Vite, Tailwind CSS |
-| Backend | Node.js, Express, Socket.IO |
-| Terminal | xterm.js, node-pty, tmux |
-| Database | PostgreSQL, Prisma 7 |
+| Frontend | React 18, Vite, Tailwind CSS, xterm.js (109 components) |
+| Backend | Node.js, Express, Socket.IO (45 route files) |
+| Terminal | xterm.js, node-pty, shpool |
+| Database | PostgreSQL, Prisma 7 (61 models) |
 | Process | PM2 |
 | Containers | Dockerode |
+| Observability | Prometheus, Grafana, Loki, Jaeger, Sentry |
+| Security | Helmet, Zod, bcrypt, express-rate-limit, RBAC |
+| Testing | Vitest, Playwright, Storybook (~2,000 tests) |
 | Charts | Chart.js |
 | Search | Fuse.js |
-| Auth | Authentik OAuth2 |
+| Auth | Authentik OAuth2, JWT, API Keys |
 
 ---
 
@@ -56,7 +59,7 @@ console-web/
 │   ├── index.js              # Main Express + Socket.IO server
 │   ├── middleware/
 │   │   └── authentik.js      # Authentik SSO authentication
-│   ├── routes/               # 22+ modular API route handlers
+│   ├── routes/               # 45 modular API route handlers
 │   │   ├── sessions.js       # Session CRUD
 │   │   ├── folders.js        # Folders & tags
 │   │   ├── notes.js          # Session notes
@@ -83,7 +86,7 @@ console-web/
 │   ├── App.jsx               # Main React app
 │   ├── main.jsx              # Entry point
 │   ├── index.css             # Global styles
-│   ├── components/           # 77 React components
+│   ├── components/           # 109 React components
 │   │   ├── Terminal.jsx          # xterm.js terminal
 │   │   ├── HomeDashboard.jsx     # Customizable widget dashboard
 │   │   ├── Sidebar.jsx           # Project navigation with favorites
@@ -98,14 +101,14 @@ console-web/
 │   │   ├── WorkflowBuilder.jsx   # Automation builder
 │   │   ├── DatabaseBrowser.jsx   # Database explorer
 │   │   ├── SystemStats.jsx       # CPU/memory/disk
-│   │   └── ...                   # 60+ more components
+│   │   └── ...                   # 90+ more components
 │   └── hooks/                # Custom React hooks
 │       ├── useAuth.jsx           # Authentication
 │       ├── useSessionManagement.js
 │       ├── useKeyboardShortcuts.js
 │       └── useTheme.js
 ├── prisma/
-│   ├── schema.prisma         # Database schema (40+ models)
+│   ├── schema.prisma         # Database schema (61 models)
 │   └── migrations/           # Database migrations
 ├── dist/                     # Built frontend
 ├── public/                   # Static assets
@@ -138,13 +141,22 @@ npx prisma generate     # Generate client
 npx prisma studio       # Database GUI
 
 # Testing
-npm test                # Run tests
+npm test                # Frontend unit tests
+npm run test:server     # Backend route tests
+npm run test:all        # All tests
 npm run test:coverage   # Coverage report
+npm run test:e2e        # Playwright E2E tests
+npm run storybook       # Component library
+
+# Observability (optional)
+cd monitoring && docker compose up -d
 ```
 
 ---
 
 ## Environment Variables
+
+### Core
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -154,12 +166,26 @@ npm run test:coverage   # Coverage report
 | `CLIENT_URL` | https://manage.example.com | CORS origin |
 | `DATABASE_URL` | - | PostgreSQL connection string |
 | `ANTHROPIC_API_KEY` | - | Claude CLI API key |
+
+### Authentication
+
+| Variable | Default | Description |
+|----------|---------|-------------|
 | `AUTH_ENABLED` | true | Enable Authentik proxy auth |
 | `AUTHENTIK_URL` | https://auth.example.com | Authentik server URL |
 | `AUTHENTIK_CLIENT_ID` | claude-manager | OAuth2 client ID |
 | `AUTHENTIK_CLIENT_SECRET` | - | OAuth2 client secret |
 | `AUTHENTIK_PROXY_SECRET` | - | Proxy validation secret |
 | `TRUSTED_PROXY_IPS` | 172.17.0.0/16 | Trusted CIDR ranges |
+
+### Observability (Optional)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | - | Jaeger/OTLP collector (enables tracing) |
+| `SENTRY_DSN` | - | Sentry error tracking DSN |
+| `LOG_FILE` | - | JSON log file path (enables file logging) |
+| `LOKI_URL` | - | Loki URL for log aggregation |
 
 ---
 
@@ -173,7 +199,7 @@ The Home Dashboard is a customizable widget-based view that provides a 10,000-fo
 |--------|-----|-------------|
 | Quick Stats | `quickStats` | Projects, sessions, containers, CPU, uptime summary |
 | Git Status | `gitStatus` | Repos with uncommitted changes (staged/unstaged/untracked) |
-| Active Sessions | `activeSessions` | Running tmux terminal sessions |
+| Active Sessions | `activeSessions` | Running shpool terminal sessions |
 | Recent Projects | `recentProjects` | Recently accessed projects with timestamps |
 | Recent Commits | `recentCommits` | Latest git commits across projects |
 | Docker | `docker` | Container status (running/stopped) |
@@ -256,7 +282,7 @@ src/components/admin/
 
 ## Project-Specific Rules
 
-1. **Session Persistence**: All terminal sessions are backed by tmux and PostgreSQL
+1. **Session Persistence**: All terminal sessions are backed by shpool and PostgreSQL
 2. **No Mock Data**: All data comes from live system queries or database
 3. **Real-time Updates**: Use Socket.IO for terminal and status updates
 4. **PM2 Process**: Production runs via PM2 as `console-web`
@@ -414,7 +440,7 @@ src/components/admin/
 
 ---
 
-## Database Models (40+)
+## Database Models (61)
 
 ### Core
 - Project, Session, CommandHistory, UserSettings
@@ -436,6 +462,305 @@ src/components/admin/
 
 ### AI & Integrations
 - AIPersona, APIUsage, GitHubSettings, GitHubRepo
+
+### Enterprise (v1.0.20+)
+- User, Team, ProjectAssignment, AuditLog, ResourceQuota, ApiKey
+
+---
+
+## Enterprise Features (v1.0.20-v1.0.22)
+
+Console.web includes enterprise-grade features for multi-user deployments.
+
+### Role-Based Access Control (RBAC)
+
+Four-tier role hierarchy with cascading permissions:
+
+```
+SUPER_ADMIN → Full system access, user management, infrastructure control
+    ↓
+ADMIN → Team project management, Docker control, view all team sessions
+    ↓
+USER → Own resources only, limited agent execution
+    ↓
+VIEWER → Read-only access to shared resources
+```
+
+**Middleware**: `server/middleware/rbac.js`
+- `requireRole()` - Enforce minimum role level
+- `buildOwnershipFilter()` - Filter queries by ownership
+- `getOwnerIdForCreate()` - Set ownership on resource creation
+
+**Frontend Integration** (`src/hooks/useAuth.jsx`):
+- `hasRole(role)` - Check if user has minimum role
+- `canAccess(resource, action)` - Permission check
+- `isOwner(resourceOwnerId)` - Ownership verification
+
+**Components**:
+- `PermissionGate` - Declarative role-based rendering
+- `RoleBadge` - Color-coded role indicators
+
+### Resource Quotas
+
+Per-user and per-role limits enforced via `enforceQuota()` middleware:
+
+| Resource | SUPER_ADMIN | ADMIN | USER | VIEWER |
+|----------|-------------|-------|------|--------|
+| Sessions | 100 | 20 | 5 | 0 |
+| Agents | 50 | 10 | 3 | 0 |
+| Prompts | Unlimited | 100 | 25 | 0 |
+| Snippets | Unlimited | 100 | 25 | 0 |
+
+### API Key Authentication
+
+Scoped API keys for programmatic access:
+
+- **Key Format**: `cw_live_` prefix with SHA-256 hashing (plaintext never stored)
+- **Scopes**: `read`, `write`, `agents`, `admin`
+- **Features**: IP whitelisting, expiration dates, usage tracking
+- **Endpoint**: `POST /api/api-keys` (admin only)
+
+### Per-User Rate Limiting
+
+Sliding window algorithm with X-RateLimit headers:
+
+| Role | Requests/Minute |
+|------|-----------------|
+| SUPER_ADMIN | 1000 |
+| ADMIN | 200 |
+| USER | 60 |
+| VIEWER | 30 |
+
+### Audit Logging
+
+Complete audit trail via `AuditLog` model:
+- User actions (CREATE, READ, UPDATE, DELETE, EXECUTE)
+- Resource type and ID
+- IP address and user agent
+- Queryable via `/api/audit` (admin only)
+
+---
+
+## Observability Stack (v1.0.9+)
+
+Full production observability in `monitoring/` directory.
+
+### Quick Start
+
+```bash
+cd monitoring && docker compose up -d
+# Access Grafana at http://localhost:3000
+```
+
+### Components
+
+| Service | Port | Purpose |
+|---------|------|---------|
+| Prometheus | 9090 | Metrics collection |
+| Grafana | 3000 | Dashboards and visualization |
+| Loki | 3100 | Log aggregation |
+| Promtail | - | Log collection agent |
+| Jaeger | 16686 | Distributed tracing |
+
+### Prometheus Metrics
+
+Available at `/metrics`:
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `consoleweb_http_requests_total` | Counter | Total HTTP requests |
+| `consoleweb_http_duration_seconds` | Histogram | Request latency |
+| `consoleweb_websocket_connections` | Gauge | Active WebSocket connections |
+| `consoleweb_db_pool_size` | Gauge | Database pool size |
+| `consoleweb_db_pool_idle` | Gauge | Idle pool connections |
+| `consoleweb_db_pool_waiting` | Gauge | Waiting for connections |
+| `consoleweb_db_pool_exhausted_total` | Counter | Pool exhaustion events |
+
+### Distributed Tracing
+
+OpenTelemetry auto-instrumentation:
+- HTTP requests traced end-to-end
+- PostgreSQL queries with timing
+- X-Trace-Id header in responses
+- Jaeger UI for trace visualization
+
+**Enable**: Set `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318`
+
+### Sentry Integration
+
+Error tracking with request correlation:
+- Automatic exception capture
+- Request ID propagation
+- Socket.IO error tracking
+- Performance monitoring
+
+**Enable**: Set `SENTRY_DSN=https://...@sentry.io/...`
+
+### AlertManager Rules (9 Production Alerts)
+
+| Alert | Condition | Severity |
+|-------|-----------|----------|
+| HighErrorRate | Error rate > 5% for 5 min | Critical |
+| CriticalResponseTime | P95 latency > 2s | Critical |
+| DatabasePoolExhausted | Clients waiting > 0 | Critical |
+| DatabasePoolNearExhaustion | Pool utilization > 80% | Warning |
+| HighSocketDisconnectRate | Rapid disconnections | Warning |
+| ServiceDown | Health check fails | Critical |
+
+---
+
+## Test Infrastructure (v1.0.24)
+
+Comprehensive test coverage with ~2,000 total tests.
+
+### Test Summary
+
+| Type | Count | Framework | Location |
+|------|-------|-----------|----------|
+| Frontend Unit | 975 | Vitest | `src/**/*.test.{js,jsx}` |
+| Backend Route | ~950 | Vitest + Supertest | `server/routes/*.test.js` |
+| E2E | 36 | Playwright | `e2e/*.spec.js` |
+| Visual | 4 stories | Storybook | `src/**/*.stories.jsx` |
+
+### Commands
+
+```bash
+npm test              # Frontend tests
+npm run test:server   # Backend tests
+npm run test:all      # All tests
+npm run test:coverage # With coverage report
+npm run test:e2e      # Playwright E2E tests
+npm run storybook     # Component library
+```
+
+### Coverage Thresholds (Enforced in CI)
+
+| Module | Lines | Branches |
+|--------|-------|----------|
+| src/services | 80% | 70% |
+| src/hooks | 70% | 50% |
+| server/routes | 100% file coverage | - |
+
+### Key Test Files
+
+**Frontend**:
+- `useApiQuery.test.js` - API hook (16 tests)
+- `useAuth.test.js` - Authentication (20 tests)
+- `useSessionManagement.test.js` - Sessions (34 tests)
+- `responseSchemas.test.js` - Zod validation (94 tests)
+
+**Backend** (44/44 route files tested):
+- `sessions.test.js` (40 tests)
+- `agents.test.js` (54 tests)
+- `prompts.test.js` (38 tests)
+- Full list in STABILITY-ROADMAP.md
+
+**E2E**:
+- `terminal.spec.js` - Terminal functionality
+- `projects.spec.js` - Project management
+- `server.spec.js` - Docker/services
+- `security.spec.js` - Security dashboard
+
+---
+
+## Security Features (v1.0.7+)
+
+Defense-in-depth security implementation.
+
+### Input Validation
+
+All 45 route files use Zod schemas via `validateBody()` middleware:
+
+```javascript
+// server/middleware/validation.js
+const schema = z.object({
+  name: z.string().min(1).max(100),
+  email: z.string().email()
+});
+router.post('/', validateBody(schema), handler);
+```
+
+### Error Sanitization
+
+`sendSafeError()` pattern prevents information leakage:
+- Returns sanitized message + reference ID to client
+- Logs full error details internally
+- No stack traces in production responses
+
+### Path Traversal Protection (v1.0.7)
+
+Centralized validation in `server/utils/pathSecurity.js`:
+- `isValidProjectName()` - Strict alphanumeric validation
+- `safePath()` - Ensures paths stay within allowed directories
+- `validateProjectNameMiddleware` - Express middleware
+
+### Content Security Policy (v1.0.18)
+
+Nonce-based CSP with per-request cryptographic nonces:
+- Script and style sources restricted to `'self'` + nonce
+- `'unsafe-eval'` retained for xterm.js WebGL renderer
+- CSP nonce injected via `<meta name="csp-nonce">`
+
+### Rate Limiting
+
+Three tiers of protection:
+
+| Limiter | Limit | Scope |
+|---------|-------|-------|
+| General | 1000 req/15 min | All endpoints |
+| Strict | 10 req/min | Destructive operations |
+| Auth | 10 req/15 min | Login attempts |
+
+### Security Headers (Helmet)
+
+- HSTS with 1-year max-age
+- X-Frame-Options: DENY
+- X-Content-Type-Options: nosniff
+- Referrer-Policy: strict-origin-when-cross-origin
+
+---
+
+## API Architecture (v1.0.16+)
+
+Centralized API service layer for consistent error handling and tracing.
+
+### Frontend API Service
+
+`src/services/api.js` provides:
+- Unified request handling with timeouts (30s default)
+- `ApiError` class with `getUserMessage()` for user-friendly errors
+- X-Request-ID headers for end-to-end tracing
+- Automatic retry with exponential backoff
+- Sentry breadcrumbs for all requests
+
+### Domain API Modules (35+)
+
+```
+src/services/
+├── api.js              # Core service + ApiError class
+├── responseSchemas.js  # Zod schemas for response validation
+├── projectsApi.js      # Project operations
+├── dockerApi.js        # Container management
+├── gitApi.js           # Git operations
+├── agentsApi.js        # Agent management
+├── firewallApi.js      # UFW firewall
+└── ...                 # 30+ more modules
+```
+
+### Response Validation
+
+Optional Zod validation via `validated()` wrapper:
+
+```javascript
+// Non-blocking: warns on failure, returns original data
+const stats = await systemApi.getStats();
+```
+
+### Hooks
+
+- `useApiQuery` - GET requests with loading/error/data states
+- `useApiMutation` - POST/PUT/DELETE operations
+- `useApiQueries` - Parallel data fetching
 
 ---
 
@@ -630,18 +955,20 @@ Full-featured deployment with enterprise integrations:
 ## Notes for AI Agents
 
 ### Project-Specific Patterns
-- tmux sessions named `cp-{project_name}` (was `ccm-`)
-- Socket.IO for all real-time updates
+- shpool sessions named `sp-{project_name}` (migrated from tmux `cp-*` in v1.0.1)
+- Socket.IO for all real-time updates (37 events across 14 files)
 - Prisma 7 with PrismaPg adapter
 - 11 glassmorphism themes available
 - Widget-based sidebars with height snapping
+- Centralized API service (`src/services/api.js`) with 35+ domain modules
 
 ### Known Gotchas
 - CPU stats require delta calculation between readings
 - Version must be updated in 6 locations on release
 - Terminal resize requires explicit Socket.IO event
-- Session reconnect needs existing tmux session
+- Session reconnect needs existing shpool session
 - localStorage keys use `cw-` prefix for consistency
+- API responses validated with Zod schemas (non-blocking warnings in dev)
 
 ### Sidebar Configuration
 - Left sidebar: `cw-sidebar-left-widgets`
@@ -651,4 +978,4 @@ Full-featured deployment with enterprise integrations:
 ---
 
 Created: 2024-10-01
-Version: 1.0.24
+Version: 1.0.25
