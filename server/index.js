@@ -61,6 +61,9 @@ import {
   notFoundHandler,
 } from './middleware/security.js';
 
+// Import quota and API key middleware (Phase 5 - Enterprise Mission Control)
+import { apiKeyAuth, perUserRateLimit } from './middleware/quotas.js';
+
 // Import modular routes
 import {
   createFoldersRouter,
@@ -117,7 +120,8 @@ import {
   createSystemRouter,
   createProjectTagsRouter,
   createObservabilityRouter,
-  createAuditRouter
+  createAuditRouter,
+  createQuotasRouter
 } from './routes/index.js';
 
 // Import services
@@ -532,6 +536,13 @@ app.use('/api', authentikAuth({
 }));
 
 // =============================================================================
+// API KEY AUTHENTICATION (Phase 5 - Enterprise Mission Control)
+// =============================================================================
+// Alternative to session auth - API keys can authenticate programmatic access
+// Checks Authorization: Bearer cw_... or X-API-Key: cw_... headers
+app.use('/api', apiKeyAuth(prisma));
+
+// =============================================================================
 // USER SYNC (Phase 1 - Sync Authentik users to database)
 // =============================================================================
 // Creates/updates User record on each authenticated request
@@ -810,6 +821,9 @@ app.use('/api/observability', createObservabilityRouter());
 
 // Audit logs (Admin only - Phase 4 Enterprise Mission Control)
 app.use('/api/audit-logs', createAuditRouter(prisma));
+
+// Quotas & API Keys (Phase 5 Enterprise Mission Control)
+app.use('/api/quotas', createQuotasRouter(prisma));
 
 // Server Configuration endpoint (read-only)
 app.get('/api/config', (req, res) => {

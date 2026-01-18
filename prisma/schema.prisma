@@ -63,6 +63,87 @@ model AuditLog {
   @@index([action])
 }
 
+// ============================================
+// Phase 5: Resource Quotas & API Keys
+// ============================================
+
+// Resource quota limits per user (or role defaults)
+model ResourceQuota {
+  id                String    @id @default(cuid())
+  userId            String?   @unique           // Null = role default quota
+  role              Role?                       // Default quota for this role
+
+  // Session limits
+  maxActiveSessions Int       @default(5)       // Max concurrent active sessions
+  maxTotalSessions  Int       @default(50)      // Max total sessions (including archived)
+
+  // Agent limits
+  maxActiveAgents   Int       @default(3)       // Max concurrent running agents
+  maxTotalAgents    Int       @default(20)      // Max agent definitions
+
+  // Resource limits
+  maxPromptsLibrary Int       @default(100)     // Max prompts in library
+  maxSnippets       Int       @default(100)     // Max command snippets
+  maxFolders        Int       @default(20)      // Max session folders
+
+  // Rate limits (requests per minute)
+  apiRateLimit      Int       @default(60)      // API calls per minute
+  agentRunsPerHour  Int       @default(10)      // Agent executions per hour
+
+  // Storage limits (bytes, 0 = unlimited)
+  maxStorageBytes   BigInt    @default(0)       // Total storage quota
+
+  // Timestamps
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([role])
+  @@index([userId])
+  @@index([role])
+}
+
+// API keys for programmatic access
+model ApiKey {
+  id            String    @id @default(cuid())
+  userId        String                         // Owner of the key
+  name          String                         // Human-readable name
+  keyHash       String    @unique              // SHA-256 hash of the key (never store plaintext)
+  keyPrefix     String                         // First 8 chars for identification (e.g., "cw_live_")
+
+  // Permissions
+  scopes        String[]  @default([])         // Allowed scopes: ["read", "write", "agents", "admin"]
+
+  // Rate limiting
+  rateLimit     Int       @default(60)         // Requests per minute for this key
+
+  // Tracking
+  lastUsedAt    DateTime?
+  usageCount    Int       @default(0)
+  ipWhitelist   String[]  @default([])         // Optional IP restriction
+
+  // Lifecycle
+  expiresAt     DateTime?                      // Optional expiration
+  revokedAt     DateTime?                      // Soft delete
+  createdAt     DateTime  @default(now())
+
+  @@index([userId])
+  @@index([keyHash])
+  @@index([keyPrefix])
+}
+
+// Rate limit tracking (sliding window)
+model RateLimitEntry {
+  id            String    @id @default(cuid())
+  identifier    String                         // userId or apiKeyId or IP
+  windowStart   DateTime                       // Start of current window
+  requestCount  Int       @default(0)          // Requests in current window
+  lastRequest   DateTime  @default(now())
+
+  @@unique([identifier, windowStart])
+  @@index([identifier])
+  @@index([windowStart])
+}
+
 // Project state and metadata
 model Project {
   id            String    @id @default(cuid())

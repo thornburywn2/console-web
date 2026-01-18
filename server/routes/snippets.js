@@ -9,6 +9,7 @@ import { validateBody } from '../middleware/validate.js';
 import { snippetSchema, snippetUpdateSchema } from '../validation/schemas.js';
 import { sendSafeError } from '../utils/errorResponse.js';
 import { buildOwnershipFilter, getOwnerIdForCreate } from '../middleware/rbac.js';
+import { enforceQuota } from '../middleware/quotas.js';
 
 const log = createLogger('snippets');
 
@@ -145,7 +146,7 @@ export function createSnippetsRouter(prisma) {
   /**
    * Create a new snippet
    */
-  router.post('/', validateBody(snippetSchema), async (req, res) => {
+  router.post('/', enforceQuota(prisma, 'snippet'), validateBody(snippetSchema), async (req, res) => {
     try {
       const { title, command, description, category, tags, shortcut } = req.validatedBody;
 

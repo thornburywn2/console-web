@@ -18,6 +18,7 @@ import {
 } from '../validation/schemas.js';
 import { sendSafeError } from '../utils/errorResponse.js';
 import { buildOwnershipFilter, getOwnerIdForCreate } from '../middleware/rbac.js';
+import { enforceQuota } from '../middleware/quotas.js';
 
 const log = createLogger('folders');
 
@@ -63,7 +64,7 @@ export function createFoldersRouter(prisma) {
   /**
    * Create a new folder
    */
-  router.post('/folders', validateBody(folderSchema), async (req, res) => {
+  router.post('/folders', enforceQuota(prisma, 'folder'), validateBody(folderSchema), async (req, res) => {
     try {
       const { name, color, icon, parentId, sortOrder } = req.validatedBody;
 

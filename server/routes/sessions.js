@@ -14,6 +14,7 @@ import {
 } from '../validation/schemas.js';
 import { sendSafeError } from '../utils/errorResponse.js';
 import { buildSessionFilter, getOwnerIdForCreate } from '../middleware/rbac.js';
+import { enforceQuota } from '../middleware/quotas.js';
 
 const log = createLogger('sessions');
 
@@ -540,7 +541,7 @@ export function createSessionsRouter(prisma) {
    * Import session from exported JSON
    * Creates a new session with imported data
    */
-  router.post('/import', validateBody(sessionImportSchema), async (req, res) => {
+  router.post('/import', enforceQuota(prisma, 'session'), validateBody(sessionImportSchema), async (req, res) => {
     try {
       const { exportData, targetProjectId, createNotes, importHistory } = req.validatedBody;
 
@@ -684,7 +685,7 @@ ${exportData.context?.notes?.map(n => `- ${n.title || 'Note'}: ${n.content.subst
   /**
    * Fork a session (create copy)
    */
-  router.post('/:id/fork', async (req, res) => {
+  router.post('/:id/fork', enforceQuota(prisma, 'session'), async (req, res) => {
     try {
       const original = await prisma.session.findUnique({
         where: { id: req.params.id },

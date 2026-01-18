@@ -1534,4 +1534,29 @@ export const auditApi = {
   purge: (olderThanDays = 90) => api.delete(`/audit-logs/purge?olderThanDays=${olderThanDays}`),
 };
 
+/**
+ * Quotas & API Keys API methods
+ * Phase 5: Enterprise Mission Control - Resource quotas and API key management
+ */
+export const quotasApi = {
+  // User quota info
+  getMyQuota: () => api.get('/quotas/me'),
+
+  // Admin quota management
+  listQuotas: () => api.get('/quotas'),
+  getUserQuota: (userId) => api.get(`/quotas/user/${encodeURIComponent(userId)}`),
+  setUserQuota: (userId, quota) => api.put(`/quotas/user/${encodeURIComponent(userId)}`, quota),
+  deleteUserQuota: (userId) => api.delete(`/quotas/user/${encodeURIComponent(userId)}`),
+  setRoleQuota: (role, quota) => api.put(`/quotas/role/${encodeURIComponent(role)}`, quota),
+
+  // API Key management
+  listApiKeys: () => api.get('/quotas/api-keys'),
+  createApiKey: (data) => api.post('/quotas/api-keys', data),
+  updateApiKey: (id, data) => api.put(`/quotas/api-keys/${id}`, data),
+  revokeApiKey: (id) => api.delete(`/quotas/api-keys/${id}`),
+
+  // Admin API key management
+  adminListApiKeys: (includeRevoked = false) => api.get(`/quotas/admin/api-keys?includeRevoked=${includeRevoked}`),
+};
+
 export default api;

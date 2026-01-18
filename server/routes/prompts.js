@@ -9,6 +9,7 @@ import { validateBody } from '../middleware/validate.js';
 import { promptSchema, promptUpdateSchema } from '../validation/schemas.js';
 import { sendSafeError } from '../utils/errorResponse.js';
 import { buildOwnershipFilter, getOwnerIdForCreate } from '../middleware/rbac.js';
+import { enforceQuota } from '../middleware/quotas.js';
 
 const log = createLogger('prompts');
 
@@ -116,7 +117,7 @@ export function createPromptsRouter(prisma) {
   /**
    * Create a new prompt
    */
-  router.post('/', validateBody(promptSchema), async (req, res) => {
+  router.post('/', enforceQuota(prisma, 'prompt'), validateBody(promptSchema), async (req, res) => {
     try {
       const { title, content, category, tags, isPublic, isFavorite } = req.validatedBody;
 

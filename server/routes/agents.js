@@ -10,6 +10,7 @@ import { validateBody } from '../middleware/validate.js';
 import { agentSchema, agentUpdateSchema } from '../validation/schemas.js';
 import { sendSafeError } from '../utils/errorResponse.js';
 import { buildOwnershipFilter, getOwnerIdForCreate, auditLog } from '../middleware/rbac.js';
+import { enforceQuota } from '../middleware/quotas.js';
 
 const log = createLogger('agents');
 
@@ -150,7 +151,7 @@ export function createAgentsRouter(prisma, agentRunner) {
   /**
    * Create a new agent
    */
-  router.post('/', validateBody(agentSchema), auditLog(prisma, 'CREATE', 'agent'), async (req, res) => {
+  router.post('/', enforceQuota(prisma, 'agent'), validateBody(agentSchema), auditLog(prisma, 'CREATE', 'agent'), async (req, res) => {
     try {
       const { name, description, triggerType, triggerConfig, actions, enabled, projectId } = req.validatedBody;
 
@@ -290,7 +291,7 @@ export function createAgentsRouter(prisma, agentRunner) {
   /**
    * Manually trigger an agent
    */
-  router.post('/:id/run', auditLog(prisma, 'EXECUTE', 'agent'), async (req, res) => {
+  router.post('/:id/run', enforceQuota(prisma, 'agentRun'), auditLog(prisma, 'EXECUTE', 'agent'), async (req, res) => {
     try {
       const { id } = req.params;
 
