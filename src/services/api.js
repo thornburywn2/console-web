@@ -1489,4 +1489,49 @@ export const sessionsPersistedApi = {
   list: () => api.get('/sessions/persisted'),
 };
 
+/**
+ * Audit Logs API methods
+ * Phase 4: Enterprise Mission Control - Audit logging
+ */
+export const auditApi = {
+  list: (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.userId) query.set('userId', params.userId);
+    if (params.action) query.set('action', params.action);
+    if (params.resource) query.set('resource', params.resource);
+    if (params.resourceId) query.set('resourceId', params.resourceId);
+    if (params.startDate) query.set('startDate', params.startDate);
+    if (params.endDate) query.set('endDate', params.endDate);
+    if (params.search) query.set('search', params.search);
+    if (params.limit) query.set('limit', params.limit);
+    if (params.offset) query.set('offset', params.offset);
+    if (params.sort) query.set('sort', params.sort);
+    if (params.order) query.set('order', params.order);
+    return api.get(`/audit-logs?${query}`);
+  },
+  get: (id) => api.get(`/audit-logs/${id}`),
+  getStats: (days = 7) => api.get(`/audit-logs/stats?days=${days}`),
+  getByUser: (userId, params = {}) => {
+    const query = new URLSearchParams();
+    if (params.limit) query.set('limit', params.limit);
+    if (params.offset) query.set('offset', params.offset);
+    return api.get(`/audit-logs/user/${encodeURIComponent(userId)}?${query}`);
+  },
+  getByResource: (resource, resourceId, params = {}) => {
+    const query = new URLSearchParams();
+    if (params.limit) query.set('limit', params.limit);
+    if (params.offset) query.set('offset', params.offset);
+    return api.get(`/audit-logs/resource/${encodeURIComponent(resource)}/${encodeURIComponent(resourceId)}?${query}`);
+  },
+  exportCsv: (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.startDate) query.set('startDate', params.startDate);
+    if (params.endDate) query.set('endDate', params.endDate);
+    if (params.action) query.set('action', params.action);
+    if (params.resource) query.set('resource', params.resource);
+    return api.get(`/audit-logs/export/csv?${query}`, { responseType: 'blob' });
+  },
+  purge: (olderThanDays = 90) => api.delete(`/audit-logs/purge?olderThanDays=${olderThanDays}`),
+};
+
 export default api;

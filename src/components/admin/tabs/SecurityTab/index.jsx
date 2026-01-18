@@ -1,7 +1,7 @@
 /**
  * SecurityTab Component
  * Consolidated security management
- * Sub-tabs: SCANS, FIREWALL, FAIL2BAN, SCAN_CONFIG
+ * Sub-tabs: SCANS, FIREWALL, FAIL2BAN, AUDIT, SCAN_CONFIG
  */
 
 import { useState } from 'react';
@@ -10,6 +10,7 @@ import { SubTabBar, TabContainer } from '../../shared';
 import ScansPane from './ScansPane';
 import FirewallPane from './FirewallPane';
 import Fail2banPane from './Fail2banPane';
+import AuditPane from './AuditPane';
 import ScanConfigPane from './ScanConfigPane';
 
 /**
@@ -23,6 +24,7 @@ export function SecurityTab({ selectedProject }) {
     { key: SECURITY_TABS.SCANS, label: 'SECURITY SCANS', color: 'green' },
     { key: SECURITY_TABS.FIREWALL, label: 'FIREWALL', color: 'error' },
     { key: SECURITY_TABS.FAIL2BAN, label: 'FAIL2BAN', color: 'warning' },
+    { key: SECURITY_TABS.AUDIT, label: 'AUDIT LOGS', color: 'cyan' },
     { key: SECURITY_TABS.SCAN_CONFIG, label: 'SCAN CONFIG', color: 'purple' },
   ];
 
@@ -33,7 +35,7 @@ export function SecurityTab({ selectedProject }) {
         tabs={subTabs}
         activeTab={activeSubTab}
         setActiveTab={setActiveSubTab}
-        dividers={[1, 3]} // Dividers: [SCANS] | [FIREWALL FAIL2BAN] | [SCAN_CONFIG]
+        dividers={[1, 4]} // Dividers: [SCANS] | [FIREWALL FAIL2BAN AUDIT] | [SCAN_CONFIG]
       />
 
       {/* Content */}
@@ -47,6 +49,10 @@ export function SecurityTab({ selectedProject }) {
 
       {activeSubTab === SECURITY_TABS.FAIL2BAN && (
         <Fail2banPane />
+      )}
+
+      {activeSubTab === SECURITY_TABS.AUDIT && (
+        <AuditPane />
       )}
 
       {activeSubTab === SECURITY_TABS.SCAN_CONFIG && (

@@ -55,6 +55,7 @@ export const SECURITY_TABS = {
   SCANS: 'scans',           // Security scanning dashboard
   FIREWALL: 'firewall',     // UFW firewall management
   FAIL2BAN: 'fail2ban',     // Fail2ban status
+  AUDIT: 'audit',           // Audit logs (Phase 4)
   SCAN_CONFIG: 'scan_config', // Moved from Settings > Scans
 };
 
@@ -187,6 +188,7 @@ export const SECURITY_TAB_PERMISSIONS = {
   [SECURITY_TABS.SCANS]: 'ADMIN',
   [SECURITY_TABS.FIREWALL]: 'SUPER_ADMIN', // Firewall is critical
   [SECURITY_TABS.FAIL2BAN]: 'SUPER_ADMIN', // Fail2ban is critical
+  [SECURITY_TABS.AUDIT]: 'ADMIN',          // Audit logs (Phase 4)
   [SECURITY_TABS.SCAN_CONFIG]: 'ADMIN',
 };
 

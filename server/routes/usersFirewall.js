@@ -26,6 +26,7 @@ import {
   validateBody
 } from '../utils/validation.js';
 import { sendSafeError } from '../utils/errorResponse.js';
+import { auditLog } from '../middleware/rbac.js';
 
 const log = createLogger('users-firewall');
 const execAsync = promisify(exec);
@@ -871,7 +872,7 @@ export function createUsersFirewallRouter(prisma) {
   /**
    * POST /api/admin-users/firewall/enable - Enable UFW
    */
-  router.post('/firewall/enable', async (req, res) => {
+  router.post('/firewall/enable', auditLog(prisma, 'UPDATE', 'firewall'), async (req, res) => {
     try {
       const result = await runUfwCommand('ufw --force enable');
       if (!result.success) {
@@ -891,7 +892,7 @@ export function createUsersFirewallRouter(prisma) {
   /**
    * POST /api/admin-users/firewall/disable - Disable UFW
    */
-  router.post('/firewall/disable', async (req, res) => {
+  router.post('/firewall/disable', auditLog(prisma, 'UPDATE', 'firewall'), async (req, res) => {
     try {
       const result = await runUfwCommand('ufw disable');
       if (!result.success) {
@@ -912,7 +913,7 @@ export function createUsersFirewallRouter(prisma) {
    * POST /api/admin-users/firewall/rules - Add firewall rule
    * SECURITY: Uses Zod validation to prevent command injection
    */
-  router.post('/firewall/rules', async (req, res) => {
+  router.post('/firewall/rules', auditLog(prisma, 'CREATE', 'firewall'), async (req, res) => {
     try {
       // Validate input with Zod
       const validation = validateBody(firewallRuleSchema, req.body);
@@ -984,7 +985,7 @@ export function createUsersFirewallRouter(prisma) {
    * DELETE /api/admin-users/firewall/rules/:number - Delete firewall rule by number
    * SSH (port 22) rules are protected and cannot be deleted
    */
-  router.delete('/firewall/rules/:number', async (req, res) => {
+  router.delete('/firewall/rules/:number', auditLog(prisma, 'DELETE', 'firewall'), async (req, res) => {
     try {
       const { number } = req.params;
 
@@ -1031,7 +1032,7 @@ export function createUsersFirewallRouter(prisma) {
    * POST /api/admin-users/firewall/default - Set default policy
    * SECURITY: Uses Zod validation
    */
-  router.post('/firewall/default', async (req, res) => {
+  router.post('/firewall/default', auditLog(prisma, 'UPDATE', 'firewall'), async (req, res) => {
     try {
       // Validate input with Zod
       const validation = validateBody(firewallDefaultSchema, req.body);
@@ -1059,7 +1060,7 @@ export function createUsersFirewallRouter(prisma) {
   /**
    * POST /api/admin-users/firewall/reset - Reset UFW to defaults
    */
-  router.post('/firewall/reset', async (req, res) => {
+  router.post('/firewall/reset', auditLog(prisma, 'DELETE', 'firewall'), async (req, res) => {
     try {
       const result = await runUfwCommand('ufw --force reset');
       if (!result.success) {
@@ -1080,7 +1081,7 @@ export function createUsersFirewallRouter(prisma) {
    * POST /api/admin-users/firewall/logging - Set logging level
    * SECURITY: Uses Zod validation
    */
-  router.post('/firewall/logging', async (req, res) => {
+  router.post('/firewall/logging', auditLog(prisma, 'UPDATE', 'firewall'), async (req, res) => {
     try {
       // Validate input with Zod
       const validation = validateBody(firewallLoggingSchema, req.body);
@@ -1285,7 +1286,7 @@ export function createUsersFirewallRouter(prisma) {
    * POST /api/admin-users/firewall/ensure-ssh - Ensure SSH rule exists
    * Creates SSH allow rule if it doesn't exist
    */
-  router.post('/firewall/ensure-ssh', async (req, res) => {
+  router.post('/firewall/ensure-ssh', auditLog(prisma, 'CREATE', 'firewall'), async (req, res) => {
     try {
       // Check if SSH rule exists
       const rulesResult = await runUfwCommand('ufw status');
@@ -1321,7 +1322,7 @@ export function createUsersFirewallRouter(prisma) {
    * Imports all ports from running projects and published routes to UFW
    * SSH (port 22) is ALWAYS ensured to be enabled
    */
-  router.post('/firewall/sync-projects', async (req, res) => {
+  router.post('/firewall/sync-projects', auditLog(prisma, 'UPDATE', 'firewall'), async (req, res) => {
     try {
       const results = {
         ssh: { status: 'unchanged', message: '' },

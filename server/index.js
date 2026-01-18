@@ -116,7 +116,8 @@ import {
   createDependenciesRouter,
   createSystemRouter,
   createProjectTagsRouter,
-  createObservabilityRouter
+  createObservabilityRouter,
+  createAuditRouter
 } from './routes/index.js';
 
 // Import services
@@ -806,6 +807,9 @@ app.use('/api/admin-users', createUsersFirewallRouter(prisma));
 app.use('/api/project-templates', createProjectTemplatesRouter());
 app.use('/api/dependencies', createDependenciesRouter());
 app.use('/api/observability', createObservabilityRouter());
+
+// Audit logs (Admin only - Phase 4 Enterprise Mission Control)
+app.use('/api/audit-logs', createAuditRouter(prisma));
 
 // Server Configuration endpoint (read-only)
 app.get('/api/config', (req, res) => {
@@ -3093,7 +3097,7 @@ app.get('/api/docker/containers/:id', async (req, res) => {
 /**
  * Container actions (start, stop, restart, remove, pause, unpause)
  */
-app.post('/api/docker/containers/:id/:action', async (req, res) => {
+app.post('/api/docker/containers/:id/:action', auditLog(prisma, 'EXECUTE', 'docker'), async (req, res) => {
   const { id, action } = req.params;
   const { force, removeVolumes } = req.body;
 
@@ -3282,7 +3286,7 @@ app.get('/api/docker/images', async (req, res) => {
 /**
  * Remove image
  */
-app.delete('/api/docker/images/:id', async (req, res) => {
+app.delete('/api/docker/images/:id', auditLog(prisma, 'DELETE', 'docker'), async (req, res) => {
   try {
     const { force = 'false', noprune = 'false' } = req.query;
     const image = docker.getImage(req.params.id);

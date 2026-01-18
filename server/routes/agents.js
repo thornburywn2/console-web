@@ -9,7 +9,7 @@ import { createLogger } from '../services/logger.js';
 import { validateBody } from '../middleware/validate.js';
 import { agentSchema, agentUpdateSchema } from '../validation/schemas.js';
 import { sendSafeError } from '../utils/errorResponse.js';
-import { buildOwnershipFilter, getOwnerIdForCreate } from '../middleware/rbac.js';
+import { buildOwnershipFilter, getOwnerIdForCreate, auditLog } from '../middleware/rbac.js';
 
 const log = createLogger('agents');
 
@@ -150,7 +150,7 @@ export function createAgentsRouter(prisma, agentRunner) {
   /**
    * Create a new agent
    */
-  router.post('/', validateBody(agentSchema), async (req, res) => {
+  router.post('/', validateBody(agentSchema), auditLog(prisma, 'CREATE', 'agent'), async (req, res) => {
     try {
       const { name, description, triggerType, triggerConfig, actions, enabled, projectId } = req.validatedBody;
 
@@ -198,7 +198,7 @@ export function createAgentsRouter(prisma, agentRunner) {
   /**
    * Update an agent
    */
-  router.put('/:id', validateBody(agentUpdateSchema), async (req, res) => {
+  router.put('/:id', validateBody(agentUpdateSchema), auditLog(prisma, 'UPDATE', 'agent'), async (req, res) => {
     try {
       const { id } = req.params;
       const { name, description, triggerType, triggerConfig, actions, enabled, projectId } = req.validatedBody;
@@ -253,7 +253,7 @@ export function createAgentsRouter(prisma, agentRunner) {
   /**
    * Delete an agent
    */
-  router.delete('/:id', async (req, res) => {
+  router.delete('/:id', auditLog(prisma, 'DELETE', 'agent'), async (req, res) => {
     try {
       const { id } = req.params;
 
@@ -290,7 +290,7 @@ export function createAgentsRouter(prisma, agentRunner) {
   /**
    * Manually trigger an agent
    */
-  router.post('/:id/run', async (req, res) => {
+  router.post('/:id/run', auditLog(prisma, 'EXECUTE', 'agent'), async (req, res) => {
     try {
       const { id } = req.params;
 
@@ -328,7 +328,7 @@ export function createAgentsRouter(prisma, agentRunner) {
   /**
    * Stop a running agent
    */
-  router.post('/:id/stop', async (req, res) => {
+  router.post('/:id/stop', auditLog(prisma, 'EXECUTE', 'agent'), async (req, res) => {
     try {
       const { id } = req.params;
 
@@ -352,7 +352,7 @@ export function createAgentsRouter(prisma, agentRunner) {
   /**
    * Toggle agent enabled status
    */
-  router.post('/:id/toggle', async (req, res) => {
+  router.post('/:id/toggle', auditLog(prisma, 'UPDATE', 'agent'), async (req, res) => {
     try {
       const { id } = req.params;
 
