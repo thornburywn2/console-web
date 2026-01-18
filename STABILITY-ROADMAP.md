@@ -262,11 +262,12 @@ Routes updated (24 files, 300+ catch blocks):
 - [ ] **5.3.6** Update CI coverage threshold to 80%
 
 > **Note:** 80% coverage is a long-term goal. Current progress:
-> - Frontend: 434 tests passing (was 240, +194 new)
-> - Backend: 148 tests passing
-> - Total: 582 tests
+> - Frontend: 881 tests passing (8 skipped)
+> - Backend: 392 tests passing
+> - Total: 1,273 tests
 > - Key modules (hooks, services) have 30-90% coverage
 > - Test infrastructure in place (Vitest, Playwright, Storybook)
+> - 6 backend routes fully tested (sessions, teams, prompts, snippets, folders, tags)
 
 ### 5.4 Implement Nonce-Based CSP ✅ COMPLETE
 - [x] **5.4.1** Research xterm.js CSP requirements ✅
@@ -311,7 +312,7 @@ Routes updated (24 files, 300+ catch blocks):
 - [x] Alerts configured and tested ✅ (Phase 4 complete)
 
 ### Testing
-- [ ] 80%+ code coverage (ongoing - 777 total tests, 15.25% overall, key modules 30-90%)
+- [ ] 80%+ code coverage (ongoing - 1,273 total tests, key modules 30-90%)
 - [x] E2E tests for critical paths ✅ (36 Playwright tests)
 - [x] Visual regression tests ✅ (Storybook with 4 component stories)
 - [x] CI blocks PRs with failing tests ✅ (GitHub Actions)
@@ -322,6 +323,7 @@ Routes updated (24 files, 300+ catch blocks):
 - [x] Widget components tested ✅ (3 components: ChangelogWidget, TokenUsageWidget, SystemStats)
 - [x] Status indicators tested ✅ (AgentCard, GitHubStatusBadge, MCPStatusIndicator)
 - [x] Hooks tested ✅ (useAuth, useTheme, useKeyboardShortcuts, useApiQuery, useSessionManagement)
+- [x] Backend routes tested ✅ (sessions, teams, prompts, snippets, folders, tags)
 
 ---
 
@@ -546,6 +548,29 @@ Routes updated (24 files, 300+ catch blocks):
   - test(phase5.3): add UI component tests (+108 tests)
   - test(phase5.3): add status indicator component tests (+53 tests)
   - test(phase5.3): add useSessionManagement hook tests (+34 tests)
+
+### Session 13 (2026-01-18)
+- **Phase 5.3 Progress - Backend Route Tests:**
+  - ✅ Added prompts.test.js (38 tests) - prompt library CRUD and execute
+  - ✅ Added snippets.test.js (40 tests) - command snippets CRUD and run
+  - ✅ Added folders.test.js (48 tests) - session folders and organization
+  - ✅ Added tags.test.js (28 tests) - session tags management
+- **Test Count Progress:**
+  - Frontend: 881 tests (8 skipped)
+  - Backend: 238 → 392 tests (+154 new tests)
+  - Total: 1,273 tests
+- **Backend Route Coverage:**
+  - prompts.js: Full coverage (list, create, update, delete, execute, favorite, duplicate)
+  - snippets.js: Full coverage (list, categories, tags, CRUD, run, favorite, duplicate)
+  - folders.js: Full coverage (folders CRUD, reorder, tags CRUD, session operations)
+  - tags.js: Full coverage (list, CRUD, get sessions by tag)
+- **Routes Now Tested:**
+  - sessions.js ✅ (40 tests)
+  - teams.js ✅ (50 tests)
+  - prompts.js ✅ (38 tests)
+  - snippets.js ✅ (40 tests)
+  - folders.js ✅ (48 tests)
+  - tags.js ✅ (28 tests)
 
 ---
 
