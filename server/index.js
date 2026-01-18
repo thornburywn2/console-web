@@ -45,6 +45,9 @@ import {
   requireSuperAdmin,
   createUserSync,
   auditLog,
+  hasRole,
+  roleFromGroups,
+  ROLE_HIERARCHY,
 } from './middleware/rbac.js';
 
 // Import security middleware
@@ -1620,7 +1623,52 @@ async function getProjects() {
 // API Routes
 app.get('/api/projects', async (req, res) => {
   const projects = await getProjects();
-  res.json(projects);
+
+  // RBAC: Filter projects based on user role (Phase 3)
+  // ADMIN/SUPER_ADMIN see all projects
+  // USER/VIEWER see only projects where they have sessions or favorites
+  const userRole = req.dbUser?.role || roleFromGroups(req.user?.groups || []);
+  const userId = req.user?.id;
+
+  if (hasRole(userRole, 'ADMIN')) {
+    // Admins see all projects
+    return res.json(projects);
+  }
+
+  if (!userId) {
+    // Unauthenticated users see all projects (for backwards compatibility)
+    return res.json(projects);
+  }
+
+  try {
+    // Get projects where user has sessions
+    const userProjects = await prisma.project.findMany({
+      where: {
+        OR: [
+          // Projects with user's sessions
+          { sessions: { some: { ownerId: userId } } },
+          // Favorited projects (user preference stored locally, include all favorited)
+          { favorited: true },
+        ]
+      },
+      select: { path: true }
+    });
+
+    const userProjectPaths = new Set(userProjects.map(p => p.path));
+
+    // Filter to only projects the user has access to
+    const filteredProjects = projects.filter(p => userProjectPaths.has(p.path));
+
+    // If user has no projects yet, show all (first-time user experience)
+    if (filteredProjects.length === 0) {
+      return res.json(projects);
+    }
+
+    return res.json(filteredProjects);
+  } catch (error) {
+    log.error({ error: error.message }, 'RBAC project filter error, returning all projects');
+    return res.json(projects);
+  }
 });
 
 // Get project stats for info popup

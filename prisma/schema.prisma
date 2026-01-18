@@ -742,9 +742,18 @@ model AgentExecution {
   startedAt DateTime        @default(now())
   endedAt   DateTime?
 
+  // Parent-child execution tracking (for spawned agents)
+  parentExecutionId String?
+  parentExecution   AgentExecution?  @relation("ExecutionTree", fields: [parentExecutionId], references: [id], onDelete: SetNull)
+  childExecutions   AgentExecution[] @relation("ExecutionTree")
+
+  // Trigger context
+  triggerContext    Json?            // Context that triggered this execution
+
   @@index([agentId])
   @@index([status])
   @@index([startedAt])
+  @@index([parentExecutionId])
 }
 
 enum AgentTrigger {
