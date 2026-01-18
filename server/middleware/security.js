@@ -60,9 +60,10 @@ export const securityHeaders = (req, res, next) => {
         // Scripts: self + nonce + unsafe-eval (required for xterm.js) + Cloudflare Insights
         scriptSrc: ["'self'", `'nonce-${nonce}'`, "'unsafe-eval'", "https://static.cloudflareinsights.com"],
         scriptSrcElem: ["'self'", `'nonce-${nonce}'`, "https://static.cloudflareinsights.com"],
-        // Styles: self + nonce + Google Fonts
-        styleSrc: ["'self'", `'nonce-${nonce}'`, "https://fonts.googleapis.com"],
-        styleSrcElem: ["'self'", `'nonce-${nonce}'`, "https://fonts.googleapis.com"],
+        // Styles: self + unsafe-inline (required for xterm.js dynamic styles) + Google Fonts
+        // NOTE: Cannot use nonce with unsafe-inline - nonce takes precedence and disables unsafe-inline
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        styleSrcElem: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         imgSrc: ["'self'", "data:", "https:", "blob:"],
         fontSrc: ["'self'", "https://fonts.gstatic.com", "https://fonts.googleapis.com", "data:"],
         connectSrc: ["'self'", "wss:", "ws:", "https:"],

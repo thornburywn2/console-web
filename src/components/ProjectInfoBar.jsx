@@ -38,8 +38,9 @@ export default function ProjectInfoBar({ project, onRefresh }) {
         projectTagsApi.getProjectTags(encodedPath)
       ]);
 
-      setAllTags(allTagsData);
-      setTags(projectTagsData);
+      // Defensive: ensure arrays (API might return error objects)
+      setAllTags(Array.isArray(allTagsData) ? allTagsData : []);
+      setTags(Array.isArray(projectTagsData) ? projectTagsData : []);
     } catch (err) {
       console.error('Failed to fetch tags:', err.getUserMessage?.() || err.message);
     }

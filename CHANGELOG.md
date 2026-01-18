@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                             Console.web v1.0.18                              │
+│                             Console.web v1.0.19                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
 │  │  Terminal   │  │   Admin     │  │  Projects   │  │  Sidebars   │        │
@@ -151,6 +151,34 @@ npm run build && npm start
 | **Containers** | Dockerode |
 | **Observability** | OpenTelemetry, Jaeger, Loki, Prometheus, Grafana |
 | **Security** | Helmet, express-rate-limit, Zod, Sentry |
+
+---
+
+## [1.0.19] - 2026-01-18
+
+### Terminal Unicode Fix & Test Coverage Expansion
+
+This release fixes terminal rendering issues for Unicode characters (including the Claude CLI logo) and significantly expands test coverage with 154 new tests across 7 component test files.
+
+#### Terminal Unicode Fix
+- **@xterm/addon-unicode11**: Added Unicode11 addon to xterm.js for proper character width calculation
+- **Block Drawing Characters**: Fixed rendering of Unicode block elements (`▐▛███▜▌`) used in Claude CLI logo
+- **ANSI Color Alignment**: Proper character widths ensure color escape sequences align correctly with text
+
+#### Test Coverage Expansion
+- **BulkActionBar.test.jsx**: 30 tests for multi-select session operations, folder/tag menus, delete confirmations
+- **SessionManager.test.jsx**: 22 tests for session widget, kill all functionality, duration formatting
+- **TemplateCard.test.jsx**: 24 tests for project templates, difficulty badges, tech stack display
+- **CommandPalette.test.jsx**: 31 tests for fuzzy search, keyboard navigation, command execution
+- **LeftSidebar.test.jsx**: 15 tests for sidebar rendering, button interactions, widget passing
+- **RightSidebar.test.jsx**: 12 tests for dashboard sidebar, action handling, scroll behavior
+- **AiderModeToggle.test.jsx**: 20 tests for mode switching between Claude Code and Aider
+
+#### Coverage Progress
+- **Tests Added**: 154 new tests (629 → 783)
+- **Test Files**: 7 new test files (26 → 33)
+- **Function Coverage**: 17.85% → 20.91% (target 20% achieved)
+- **Statement Coverage**: 15.25% → 16.98%
 
 ---
 

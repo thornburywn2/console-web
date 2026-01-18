@@ -4,6 +4,27 @@
 
 export const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.19',
+    date: '2026-01-18',
+    type: 'minor',
+    title: 'Terminal Unicode Fix & Test Coverage Expansion',
+    highlights: [
+      'Fixed Claude CLI logo rendering in terminal (Unicode11 addon)',
+      '154 new tests added for component coverage',
+      '7 new test files for core components',
+      'Test coverage increased to 20%+ functions',
+    ],
+    features: [
+      { title: 'Unicode11 Terminal Fix', description: 'Added @xterm/addon-unicode11 for proper character width calculation, fixing Claude CLI logo block drawing characters' },
+      { title: 'BulkActionBar Tests', description: '30 tests covering multi-select session operations, folder/tag menus, and delete confirmations' },
+      { title: 'SessionManager Tests', description: '22 tests for session widget including kill all, duration formatting, and confirm states' },
+      { title: 'TemplateCard Tests', description: '24 tests for project template cards including difficulty badges and tech stack display' },
+      { title: 'CommandPalette Tests', description: '31 tests for fuzzy search, keyboard navigation, and command execution' },
+      { title: 'Sidebar Tests', description: '27 tests for LeftSidebar and RightSidebar components including widget rendering' },
+      { title: 'AiderModeToggle Tests', description: '20 tests for mode switching between Claude Code and Aider' },
+    ],
+  },
+  {
     version: '1.0.18',
     date: '2026-01-17',
     type: 'major',

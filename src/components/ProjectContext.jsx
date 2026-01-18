@@ -37,8 +37,10 @@ function ProjectContext({ project }) {
 
       setIsLoading(true);
       try {
-        const data = await projectsApi.getExtended();
-        const found = data.find((p) => p.name === project.name);
+        const data = await projectsApi.listExtended();
+        // Defensive: ensure data is an array before calling find
+        const projects = Array.isArray(data) ? data : [];
+        const found = projects.find((p) => p.name === project.name);
         setProjectData(found || null);
       } catch (err) {
         console.error('Error fetching project data:', err.getUserMessage?.() || err.message);

@@ -3,6 +3,7 @@ import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { WebLinksAddon } from 'xterm-addon-web-links';
 import { SerializeAddon } from '@xterm/addon-serialize';
+import { Unicode11Addon } from '@xterm/addon-unicode11';
 import 'xterm/css/xterm.css';
 
 import {
@@ -114,6 +115,12 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     // Add web links addon for clickable URLs
     const webLinksAddon = new WebLinksAddon();
     term.loadAddon(webLinksAddon);
+
+    // Add Unicode11 addon for proper Unicode character width calculation
+    // This is essential for block drawing characters (used in Claude CLI logo)
+    const unicode11Addon = new Unicode11Addon();
+    term.loadAddon(unicode11Addon);
+    term.unicode.activeVersion = '11';
 
     // Open terminal in the container using double-rAF to ensure browser layout is complete
     let terminalOpened = false;
