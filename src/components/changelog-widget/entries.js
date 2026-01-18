@@ -4,6 +4,25 @@
 
 export const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.23',
+    date: '2026-01-18',
+    type: 'patch',
+    title: 'Hook Tests & ESLint Fixes',
+    highlights: [
+      'Added 190+ hook tests for remaining hooks',
+      'Fixed all ESLint errors (59 resolved)',
+      'Improved test isolation and React Testing Library patterns',
+    ],
+    features: [
+      { title: 'useAgentSocket Tests', description: '18 tests covering Socket.IO agent status, output streaming, and running agent tracking' },
+      { title: 'useAiderVoice Tests', description: '25 tests for Aider voice integration, session management, and command routing' },
+      { title: 'useVoiceRecognition Tests', description: 'Tests for Web Speech API integration with mock SpeechRecognition' },
+      { title: 'useVoiceActivityDetection Tests', description: 'Tests for VAD hook with Web Audio API mocking' },
+      { title: 'useVoiceFeedback Tests', description: 'Tests for audio feedback utilities and voiceSounds exports' },
+      { title: 'ESLint Error Fixes', description: 'Resolved 59 ESLint errors including undefined variables, useless escapes, empty catches, and hook violations' },
+    ],
+  },
+  {
     version: '1.0.22',
     date: '2026-01-18',
     type: 'major',

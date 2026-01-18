@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                             Console.web v1.0.22                              │
+│                             Console.web v1.0.23                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
 │  │  Terminal   │  │   Admin     │  │  Projects   │  │  Sidebars   │        │
@@ -151,6 +151,34 @@ npm run build && npm start
 | **Containers** | Dockerode |
 | **Observability** | OpenTelemetry, Jaeger, Loki, Prometheus, Grafana |
 | **Security** | Helmet, express-rate-limit, Zod, Sentry |
+
+---
+
+## [1.0.23] - 2026-01-18
+
+### Hook Tests & ESLint Fixes
+
+This patch release adds comprehensive test coverage for remaining React hooks and resolves all ESLint errors across the codebase.
+
+#### Test Coverage Improvements
+
+- **useAgentSocket Tests**: 18 tests covering socket connection, event handling, agent execution, and cleanup
+- **useAiderVoice Tests**: 25 tests for Aider AI integration, session management, voice commands, and error handling
+- **useVoiceRecognition Tests**: 42 tests for speech recognition, transcription, command parsing, and browser compatibility
+- **useVoiceFeedback Tests**: Export validation and audio feedback utilities
+- **useVoiceActivityDetection Tests**: Export validation and VAD component verification
+
+#### Code Quality
+
+- **ESLint Fixes**: Resolved all 59 ESLint errors across hooks and components
+- **Test Isolation**: Improved React Testing Library patterns to prevent concurrent rendering conflicts
+- **Mock Improvements**: Better mocking patterns for Web Audio API, Speech Recognition, and Socket.IO
+
+#### Technical Details
+
+- Total new hook tests: 190+
+- Hooks coverage: 73.01%
+- All tests passing with proper cleanup and isolation
 
 ---
 
