@@ -29,7 +29,9 @@
     "setup:hooks": "bash scripts/setup-hooks.sh",
     "prepush": "npm run sanitize",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "lint": "eslint src server --max-warnings 0",
+    "lint:fix": "eslint src server --fix"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
@@ -77,6 +79,7 @@
   },
   "devDependencies": {
     "@chromatic-com/storybook": "^5.0.0",
+    "@eslint/js": "^9.39.2",
     "@playwright/test": "^1.57.0",
     "@storybook/addon-a11y": "^10.1.11",
     "@storybook/addon-docs": "^10.1.11",
@@ -96,6 +99,10 @@
     "@vitest/ui": "^3.2.4",
     "autoprefixer": "^10.4.20",
     "concurrently": "^8.2.2",
+    "eslint": "^9.39.2",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.26",
+    "globals": "^17.0.0",
     "jsdom": "^26.0.0",
     "playwright": "^1.57.0",
     "postcss": "^8.4.41",
