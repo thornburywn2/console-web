@@ -35,13 +35,17 @@ export default function ApiTester({ isOpen, onClose, embedded = false }) {
     if (saved) {
       try {
         setSavedRequests(JSON.parse(saved));
-      } catch {}
+      } catch {
+        // Ignore invalid JSON in localStorage - use empty default
+      }
     }
     const hist = localStorage.getItem('api-tester-history');
     if (hist) {
       try {
         setHistory(JSON.parse(hist));
-      } catch {}
+      } catch {
+        // Ignore invalid JSON in localStorage - use empty default
+      }
     }
   }, []);
 

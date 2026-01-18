@@ -83,7 +83,7 @@ export class AgentRunner extends EventEmitter {
     // Reuse existing watcher or create new one
     if (!this.fileWatchers.has(projectPath)) {
       const watcher = watch(projectPath, {
-        ignored: /(^|[\/\\])\..|(node_modules|\.git)/,
+        ignored: /(^|[/\\])\..|(node_modules|\.git)/,
         persistent: true,
         ignoreInitial: true
       });

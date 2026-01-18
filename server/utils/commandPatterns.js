@@ -836,7 +836,7 @@ function getExamplePhrase(pattern) {
     .replace(/\(\?:[^)]+\)/g, '') // Remove non-capturing groups
     .replace(/\\s\+/g, ' ')       // Replace \s+ with space
     .replace(/\\s\*/g, ' ')       // Replace \s* with space
-    .replace(/[\[\]()^$.*+?{}|\\]/g, '') // Remove special chars
+    .replace(/[[\]()^$.*+?{}|\\]/g, '') // Remove special chars
     .replace(/\s+/g, ' ')         // Normalize spaces
     .trim();
 

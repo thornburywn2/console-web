@@ -124,7 +124,7 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
 
     // Open terminal in the container using double-rAF to ensure browser layout is complete
     let terminalOpened = false;
-    let openRAF1, openRAF2;
+    let openRAF2;
 
     const doOpen = () => {
       const container = terminalRef.current;
@@ -138,7 +138,7 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     };
 
     // Double rAF: first rAF schedules after current frame, second ensures after next paint
-    openRAF1 = requestAnimationFrame(() => {
+    const openRAF1 = requestAnimationFrame(() => {
       openRAF2 = requestAnimationFrame(() => {
         doOpen();
       });

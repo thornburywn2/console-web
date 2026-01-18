@@ -33,8 +33,9 @@ import ChangelogWidget, { ChangelogBadge } from './components/ChangelogWidget';
 import { VoiceButton } from './components/VoiceCommandPanel';
 import { AiderModeToggleCompact } from './components/AiderModeToggle';
 
-// Export ADMIN_TABS for external use
-export { TABS as ADMIN_TABS } from './components/AdminDashboard';
+// Import TABS for local use and re-export as ADMIN_TABS for external use
+import { TABS } from './components/AdminDashboard';
+export { TABS as ADMIN_TABS };
 
 // Lazy-loaded components (loaded on demand)
 // Admin & Settings
@@ -410,10 +411,10 @@ function App() {
   const handleOpenAdmin = useCallback((tabId) => {
     // Map AdminQuickAccess IDs to admin dashboard tabs
     const tabMap = {
-      'system': ADMIN_TABS.SERVER,
-      'docker': ADMIN_TABS.DOCKER,
-      'services': ADMIN_TABS.STACK,
-      'monitoring': ADMIN_TABS.MONITORING,
+      'system': TABS.SERVER,
+      'docker': TABS.DOCKER,
+      'services': TABS.STACK,
+      'monitoring': TABS.MONITORING,
     };
     setAdminInitialTab(tabMap[tabId] || null);
     setShowAdmin(true);

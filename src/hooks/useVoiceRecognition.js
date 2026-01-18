@@ -290,8 +290,8 @@ export function useVoiceRecognition(options = {}) {
     abort,
     clearTranscript,
 
-    // Raw recognition ref (for advanced use)
-    recognition: recognitionRef.current
+    // Raw recognition getter (for advanced use - access via callback to avoid render issues)
+    getRecognition: () => recognitionRef.current
   };
 }
 

@@ -287,7 +287,7 @@ export function createMCPRouter(prisma, mcpManager) {
         try {
           await mcpManager.startServer(server.id);
         } catch (err) {
-          log.error({ error: err.message, serverId: mcpServer.id }, 'failed to auto-start installed MCP server');
+          log.error({ error: err.message, serverId: server.id }, 'failed to auto-start installed MCP server');
           return res.status(201).json({
             ...server,
             startError: err.message
@@ -417,7 +417,7 @@ export function createMCPRouter(prisma, mcpManager) {
         try {
           await mcpManager.startServer(server.id);
         } catch (err) {
-          log.error({ error: err.message, serverId: newServer.id }, 'failed to start MCP server after creation');
+          log.error({ error: err.message, serverId: server.id }, 'failed to start MCP server after creation');
         }
       }
 

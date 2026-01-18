@@ -32,9 +32,11 @@ export default function AudioVisualization({
       {/* Animated bars for visual feedback */}
       <div className="flex items-center justify-center gap-1">
         {[...Array(7)].map((_, i) => {
-          // Use audio level to drive bar heights
+          // Use audio level to drive bar heights with index-based variation
           const baseHeight = 8;
-          const levelBoost = audioLevel * 200 * (1 + Math.sin(Date.now() / 100 + i) * 0.3);
+          // Create wave-like variation using index (center bars taller)
+          const centerBias = 1 - Math.abs(i - 3) / 4;
+          const levelBoost = audioLevel * 200 * (0.7 + centerBias * 0.3);
           const height = Math.max(baseHeight, Math.min(32, baseHeight + levelBoost));
 
           return (

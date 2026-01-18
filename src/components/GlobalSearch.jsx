@@ -174,12 +174,13 @@ export default function GlobalSearch({
           e.preventDefault();
           onClose();
           break;
-        case 'Tab':
+        case 'Tab': {
           e.preventDefault();
           const cats = SEARCH_CATEGORIES;
           const currentIdx = cats.findIndex(c => c.id === category);
           setCategory(cats[(currentIdx + 1) % cats.length].id);
           break;
+        }
       }
     };
 

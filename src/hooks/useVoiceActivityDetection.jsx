@@ -39,7 +39,17 @@ const DEFAULT_CONFIG = {
  * Voice Activity Detection Hook
  */
 export function useVoiceActivityDetection(options = {}) {
-  const config = { ...DEFAULT_CONFIG, ...options };
+  // Use state for threshold to allow dynamic updates
+  const [silenceThreshold, setSilenceThreshold] = useState(
+    options.silenceThreshold ?? DEFAULT_CONFIG.silenceThreshold
+  );
+
+  // Merge other config options (excluding silenceThreshold which is now state)
+  const config = {
+    ...DEFAULT_CONFIG,
+    ...options,
+    silenceThreshold // Use state value
+  };
 
   const [isSupported, setIsSupported] = useState(false);
   const [isActive, setIsActive] = useState(false);
@@ -65,6 +75,9 @@ export function useVoiceActivityDetection(options = {}) {
   const onSpeechStartRef = useRef(options.onSpeechStart);
   const onSpeechEndRef = useRef(options.onSpeechEnd);
   const onLevelChangeRef = useRef(options.onLevelChange);
+
+  // Ref to hold the analysis function for recursive calls
+  const analyzeAudioRef = useRef(null);
 
   // Update callback refs when options change
   useEffect(() => {
@@ -96,6 +109,7 @@ export function useVoiceActivityDetection(options = {}) {
 
   /**
    * Analyze audio and detect speech
+   * Uses a ref pattern to avoid recursion issues with useCallback
    */
   const analyzeAudio = useCallback(() => {
     if (!analyserRef.current || !isActive) return;
@@ -162,9 +176,16 @@ export function useVoiceActivityDetection(options = {}) {
       }
     }
 
-    // Continue analysis loop
-    animationFrameRef.current = requestAnimationFrame(analyzeAudio);
+    // Continue analysis loop via ref to avoid recursive reference issues
+    if (analyzeAudioRef.current) {
+      animationFrameRef.current = requestAnimationFrame(analyzeAudioRef.current);
+    }
   }, [isActive, isSpeaking, config, calculateRMS]);
+
+  // Keep the ref up to date with the latest analyzeAudio callback
+  useEffect(() => {
+    analyzeAudioRef.current = analyzeAudio;
+  }, [analyzeAudio]);
 
   /**
    * Start voice activity detection
@@ -284,8 +305,8 @@ export function useVoiceActivityDetection(options = {}) {
    * Update silence threshold dynamically
    */
   const setThreshold = useCallback((threshold) => {
-    config.silenceThreshold = Math.max(0.001, Math.min(1, threshold));
-  }, [config]);
+    setSilenceThreshold(Math.max(0.001, Math.min(1, threshold)));
+  }, []);
 
   return {
     // State

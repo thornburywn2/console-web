@@ -454,8 +454,8 @@ export function createDbBrowserRouter(prisma) {
 
   // Update record
   router.put('/tables/:table/update', async (req, res) => {
+    const { table } = req.params;
     try {
-      const { table } = req.params;
       const record = req.body;
 
       const model = prisma[table];
@@ -480,8 +480,8 @@ export function createDbBrowserRouter(prisma) {
 
   // Delete record
   router.delete('/tables/:table/delete', async (req, res) => {
+    const { table } = req.params;
     try {
-      const { table } = req.params;
       const { id } = req.body;
 
       const model = prisma[table];

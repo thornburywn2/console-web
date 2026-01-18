@@ -309,7 +309,7 @@ export function VoiceCommandPanel({
     setDisambiguationAlternatives([]);
     playSuccessSound();
     executeCommand(command);
-  }, [playSelectSound, playSuccessSound]);
+  }, [playSelectSound, playSuccessSound, executeCommand]);
 
   // Handle disambiguation cancel
   const handleDisambiguationCancel = useCallback(() => {

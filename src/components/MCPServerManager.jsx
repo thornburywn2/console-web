@@ -97,20 +97,16 @@ export default function MCPServerManager({ socket }) {
   };
 
   const handleSaveServer = async (serverData) => {
-    try {
-      const isEdit = !!editingServer;
-      if (isEdit) {
-        await mcpServersApi.update(editingServer.id, serverData);
-      } else {
-        await mcpServersApi.create(serverData);
-      }
-
-      await fetchServers();
-      setShowBuilder(false);
-      setEditingServer(null);
-    } catch (err) {
-      throw err;
+    const isEdit = !!editingServer;
+    if (isEdit) {
+      await mcpServersApi.update(editingServer.id, serverData);
+    } else {
+      await mcpServersApi.create(serverData);
     }
+
+    await fetchServers();
+    setShowBuilder(false);
+    setEditingServer(null);
   };
 
   if (loading) {

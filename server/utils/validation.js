@@ -209,7 +209,7 @@ export const setPasswordSchema = z.object({
 export const firewallRuleSchema = z.object({
   action: z.enum(['allow', 'deny', 'reject', 'limit']).default('allow'),
   direction: z.enum(['in', 'out']).default('in'),
-  port: z.string().regex(/^[\d\/\w,-]+$/, 'Invalid port specification').optional(),
+  port: z.string().regex(/^[\d/\w,-]+$/, 'Invalid port specification').optional(),
   protocol: z.enum(['tcp', 'udp']).optional(),
   from: z.string().max(253).optional(),
   to: z.string().max(253).optional(),

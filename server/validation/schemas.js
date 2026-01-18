@@ -410,7 +410,7 @@ export const fileWriteSchema = z.object({
 /**
  * Service name pattern: alphanumeric with @ . - _
  */
-const serviceNamePattern = /^[a-zA-Z0-9_@.\-]+$/;
+const serviceNamePattern = /^[a-zA-Z0-9_@.-]+$/;
 
 export const serviceNameSchema = z.object({
   name: z.string()

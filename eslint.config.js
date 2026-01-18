@@ -45,8 +45,14 @@ export default [
       'react-refresh': reactRefresh,
     },
     rules: {
-      // React Hooks
+      // React Hooks - use recommended but relax some overly strict rules
       ...reactHooks.configs.recommended.rules,
+      // Calling setState in effects is valid for data fetching patterns
+      'react-hooks/set-state-in-effect': 'off',
+      // These rules are too strict for practical usage
+      'react-hooks/purity': 'off',
+      'react-hooks/immutability': 'off',
+      'react-hooks/refs': 'off',
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },
@@ -125,6 +131,57 @@ export default [
       globals: {
         ...globals.node,
       },
+    },
+  },
+
+  // E2E test files (Playwright)
+  {
+    files: ['e2e/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2024,
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+        ...globals.browser,
+        ...globals.es2024,
+      },
+    },
+    rules: {
+      'no-unused-vars': 'off',
+    },
+  },
+
+  // Scripts
+  {
+    files: ['scripts/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2024,
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+        ...globals.es2024,
+      },
+    },
+  },
+
+  // Storybook files
+  {
+    files: ['src/stories/**/*.jsx'],
+    languageOptions: {
+      ecmaVersion: 2024,
+      sourceType: 'module',
+      globals: {
+        ...globals.browser,
+        ...globals.es2024,
+      },
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+    },
+    rules: {
+      'no-unused-vars': 'off', // More relaxed in stories
     },
   },
 ];

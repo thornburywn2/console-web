@@ -7,7 +7,7 @@
  * Allows user to select the correct intended command.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   HelpCircle, Check, X, ChevronRight, Mic, Terminal, GitBranch,
   Navigation, Layout, FolderOpen, Volume2, ArrowRight
@@ -70,8 +70,20 @@ function CommandOption({
   onSelect,
   onExecute
 }) {
-  const Icon = getCategoryIcon(command.category);
   const colorClass = getCategoryColor(command.category);
+
+  // Render category icon based on category type
+  const renderCategoryIcon = () => {
+    const iconProps = { size: 16 };
+    switch (command.category) {
+      case 'terminal': return <Terminal {...iconProps} />;
+      case 'git': return <GitBranch {...iconProps} />;
+      case 'navigation': return <Navigation {...iconProps} />;
+      case 'ui': return <Layout {...iconProps} />;
+      case 'session': return <FolderOpen {...iconProps} />;
+      default: return <Terminal {...iconProps} />;
+    }
+  };
 
   return (
     <button
@@ -87,7 +99,7 @@ function CommandOption({
     >
       {/* Category Icon */}
       <div className={`p-2 rounded-lg ${colorClass} shrink-0`}>
-        <Icon size={16} />
+        {renderCategoryIcon()}
       </div>
 
       {/* Command Details */}
@@ -211,13 +223,14 @@ export function VoiceDisambiguationDialog({
         case '2':
         case '3':
         case '4':
-        case '5':
+        case '5': {
           const num = parseInt(e.key) - 1;
           if (num < allCommands.length) {
             setSelectedIndex(num);
             onExecute(allCommands[num]);
           }
           break;
+        }
       }
     };
 

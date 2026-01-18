@@ -66,7 +66,7 @@ export default function AboutModal({ isOpen, onClose }) {
           <div className="relative flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-xl bg-accent/20 flex items-center justify-center border border-accent/30">
-                <span className="text-2xl font-mono font-bold text-accent">{'>'}​_</span>
+                <span className="text-2xl font-mono font-bold text-accent">{'>'}_</span>
               </div>
               <div>
                 <h2 className="text-2xl font-bold text-primary">Console.web</h2>
