@@ -48,6 +48,9 @@ import {
   hasRole,
   roleFromGroups,
   ROLE_HIERARCHY,
+  getTeamProjectPaths,
+  checkTeamProjectAccess,
+  requireProjectAccess,
 } from './middleware/rbac.js';
 
 // Import security middleware
@@ -1646,11 +1649,12 @@ async function getProjects() {
 app.get('/api/projects', async (req, res) => {
   const projects = await getProjects();
 
-  // RBAC: Filter projects based on user role (Phase 3)
+  // RBAC: Filter projects based on user role (Phase 3 + Phase 6 Team Access)
   // ADMIN/SUPER_ADMIN see all projects
-  // USER/VIEWER see only projects where they have sessions or favorites
+  // USER/VIEWER see projects where they have sessions, favorites, or team assignments
   const userRole = req.dbUser?.role || roleFromGroups(req.user?.groups || []);
   const userId = req.user?.id;
+  const teamId = req.dbUser?.teamId;
 
   if (hasRole(userRole, 'ADMIN')) {
     // Admins see all projects
@@ -1677,6 +1681,12 @@ app.get('/api/projects', async (req, res) => {
     });
 
     const userProjectPaths = new Set(userProjects.map(p => p.path));
+
+    // Phase 6: Add team-assigned project paths
+    if (teamId) {
+      const teamProjectPaths = await getTeamProjectPaths(prisma, req);
+      teamProjectPaths.forEach(path => userProjectPaths.add(path));
+    }
 
     // Filter to only projects the user has access to
     const filteredProjects = projects.filter(p => userProjectPaths.has(p.path));
@@ -1990,7 +2000,8 @@ Template: PROJECT-CLAUDE-TEMPLATE.md v1.0.0
 
 // Update project settings
 // SECURITY: Uses validateProjectName middleware and safePath to prevent path traversal
-app.patch('/api/projects/:projectName/settings', validateProjectName, async (req, res) => {
+// RBAC: Requires READ_WRITE access (Phase 6 Team Access)
+app.patch('/api/projects/:projectName/settings', validateProjectName, requireProjectAccess(prisma, 'READ_WRITE'), async (req, res) => {
   try {
     const { projectName } = req.params;
     const { skipPermissions } = req.body;
@@ -2520,7 +2531,8 @@ Add project description here.
  * Restart a project by killing and restarting its session
  */
 // SECURITY: Uses validateProjectName middleware and safePath to prevent path traversal
-app.post('/api/projects/:projectName/restart', validateProjectName, async (req, res) => {
+// RBAC: Requires READ_WRITE access (Phase 6 Team Access)
+app.post('/api/projects/:projectName/restart', validateProjectName, requireProjectAccess(prisma, 'READ_WRITE'), async (req, res) => {
   try {
     const projectName = req.params.projectName;
 
@@ -3835,11 +3847,49 @@ app.get('/api/ports/registry', (req, res) => {
 
 /**
  * Get all projects with full analysis (completion, technologies, missing items)
+ * RBAC: Applies same filtering as /api/projects (Phase 6 Team Access)
  */
 app.get('/api/admin/projects-extended', async (req, res) => {
   try {
-    const projects = await getProjects();
+    let projects = await getProjects();
     const includeCompletion = req.query.completion !== 'false';
+
+    // RBAC: Filter projects based on user role (Phase 6 Team Access)
+    const userRole = req.dbUser?.role || roleFromGroups(req.user?.groups || []);
+    const userId = req.user?.id;
+    const teamId = req.dbUser?.teamId;
+
+    // Non-admins get filtered list
+    if (!hasRole(userRole, 'ADMIN') && userId) {
+      try {
+        // Get projects where user has sessions
+        const userProjects = await prisma.project.findMany({
+          where: {
+            OR: [
+              { sessions: { some: { ownerId: userId } } },
+              { favorited: true },
+            ]
+          },
+          select: { path: true }
+        });
+
+        const userProjectPaths = new Set(userProjects.map(p => p.path));
+
+        // Add team-assigned project paths
+        if (teamId) {
+          const teamProjectPaths = await getTeamProjectPaths(prisma, req);
+          teamProjectPaths.forEach(path => userProjectPaths.add(path));
+        }
+
+        // Filter projects (unless first-time user with no projects)
+        if (userProjectPaths.size > 0) {
+          projects = projects.filter(p => userProjectPaths.has(p.path));
+        }
+      } catch (filterError) {
+        log.error({ error: filterError.message }, 'RBAC filter error in projects-extended');
+        // Continue with all projects on error
+      }
+    }
 
     const extended = projects.map(project => {
       // Check for CLAUDE.md (project-specific instructions)
@@ -4144,8 +4194,9 @@ app.get('/api/dashboard', async (req, res) => {
  * DELETE /api/admin/projects/:projectName - Delete a project
  * Moves project to ~/.Trash or deletes permanently based on query param
  * SECURITY: Uses validateProjectName middleware and safePath to prevent path traversal
+ * RBAC: Requires ADMIN access (Phase 6 Team Access)
  */
-app.delete('/api/admin/projects/:projectName', validateProjectName, async (req, res) => {
+app.delete('/api/admin/projects/:projectName', validateProjectName, requireProjectAccess(prisma, 'ADMIN'), async (req, res) => {
   try {
     const { projectName } = req.params;
     const { permanent = 'false' } = req.query;
@@ -4223,8 +4274,9 @@ app.delete('/api/admin/projects/:projectName', validateProjectName, async (req, 
  * POST /api/projects/:projectName/rename - Rename a project
  * Renames the project folder on disk and updates database references
  * SECURITY: Uses validateProjectName middleware and safePath to prevent path traversal
+ * RBAC: Requires ADMIN access (Phase 6 Team Access)
  */
-app.post('/api/projects/:projectName/rename', validateProjectName, async (req, res) => {
+app.post('/api/projects/:projectName/rename', validateProjectName, requireProjectAccess(prisma, 'ADMIN'), async (req, res) => {
   try {
     const { projectName } = req.params;
     const { newName } = req.body;

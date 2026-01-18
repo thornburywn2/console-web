@@ -517,6 +517,127 @@ export function getOwnerIdForCreate(req) {
   return req.user?.id || null;
 }
 
+/**
+ * Check if user can access a project by path
+ * Returns { canAccess, accessLevel, reason }
+ *
+ * @param {Object} prisma - Prisma client
+ * @param {Object} req - Express request
+ * @param {string} projectPath - Project path to check
+ */
+export async function checkProjectAccess(prisma, req, projectPath) {
+  const userId = req.user?.id;
+  const userRole = req.dbUser?.role || roleFromGroups(req.user?.groups);
+  const teamId = req.dbUser?.teamId;
+
+  // SUPER_ADMIN and ADMIN have full access
+  if (userRole === 'SUPER_ADMIN' || userRole === 'ADMIN') {
+    return { canAccess: true, accessLevel: 'ADMIN', reason: 'admin_role' };
+  }
+
+  // Check if user has sessions in this project (implicit access)
+  if (userId) {
+    const hasSession = await prisma.session.findFirst({
+      where: {
+        projectPath,
+        ownerId: userId,
+      },
+      select: { id: true },
+    });
+
+    if (hasSession) {
+      return { canAccess: true, accessLevel: 'READ_WRITE', reason: 'has_session' };
+    }
+  }
+
+  // Check team access via project assignment
+  if (teamId) {
+    const { hasAccess, accessLevel } = await checkTeamProjectAccess(prisma, teamId, projectPath);
+    if (hasAccess) {
+      return { canAccess: true, accessLevel, reason: 'team_project' };
+    }
+  }
+
+  // Default: allow access for backward compatibility (all users can view projects)
+  // but with READ_ONLY level for operations that check access level
+  return { canAccess: true, accessLevel: 'READ_ONLY', reason: 'default' };
+}
+
+/**
+ * Middleware: Require access to a project
+ * Checks role and team access
+ *
+ * @param {Object} prisma - Prisma client
+ * @param {string} accessRequired - Minimum access level required ('READ_ONLY', 'READ_WRITE', 'ADMIN')
+ * @param {string} pathParam - Request param name containing project path (default: 'projectName')
+ */
+export function requireProjectAccess(prisma, accessRequired = 'READ_ONLY', pathParam = 'projectName') {
+  const ACCESS_LEVELS = { READ_ONLY: 0, READ_WRITE: 1, ADMIN: 2 };
+
+  return async (req, res, next) => {
+    // Get project path from params, query, or body
+    let projectPath = req.params[pathParam];
+
+    // If projectName is provided, convert to full path
+    if (projectPath && !projectPath.startsWith('/')) {
+      const PROJECTS_DIR = process.env.PROJECTS_DIR || `${process.env.HOME}/Projects`;
+      projectPath = `${PROJECTS_DIR}/${projectPath}`;
+    }
+
+    // Try query or body if not in params
+    if (!projectPath) {
+      projectPath = req.query?.projectPath || req.query?.path || req.body?.projectPath || req.body?.path;
+    }
+
+    if (!projectPath) {
+      return res.status(400).json({ error: 'Project path required' });
+    }
+
+    try {
+      const { canAccess, accessLevel, reason } = await checkProjectAccess(prisma, req, projectPath);
+
+      if (!canAccess) {
+        log.warn({
+          userId: req.user?.id,
+          projectPath,
+          reason,
+        }, 'RBAC: project access denied');
+
+        return res.status(403).json({
+          error: 'Access denied',
+          message: 'You do not have permission to access this project',
+        });
+      }
+
+      // Check if access level is sufficient
+      const userLevel = ACCESS_LEVELS[accessLevel] ?? 0;
+      const requiredLevel = ACCESS_LEVELS[accessRequired] ?? 0;
+
+      if (userLevel < requiredLevel) {
+        log.warn({
+          userId: req.user?.id,
+          projectPath,
+          accessLevel,
+          accessRequired,
+        }, 'RBAC: insufficient project access level');
+
+        return res.status(403).json({
+          error: 'Insufficient permissions',
+          message: `This action requires ${accessRequired} access`,
+        });
+      }
+
+      // Attach project info to request
+      req.projectPath = projectPath;
+      req.projectAccessLevel = accessLevel;
+      next();
+    } catch (error) {
+      log.error({ error: error.message, projectPath }, 'RBAC: project access check failed');
+      return res.status(500).json({ error: 'Failed to check project access' });
+    }
+  };
+}
+
 // ============================================
 // Phase 6: Team-Based Access Control
 // ============================================
@@ -678,4 +799,7 @@ export default {
   buildSessionFilterWithTeam,
   checkSessionAccess,
   requireSessionAccess,
+  // Phase 6: Project access with team support
+  checkProjectAccess,
+  requireProjectAccess,
 };
