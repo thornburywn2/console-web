@@ -74,7 +74,7 @@ export function HistoryTab() {
         </div>
 
         {/* Empty State */}
-        {history.entries?.length === 0 && !loading && (
+        {(!history.entries || history.entries.length === 0) && !loading && (
           <div className="hacker-card p-8 text-center">
             <p className="text-hacker-text-dim font-mono">No session history found</p>
           </div>

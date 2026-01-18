@@ -243,16 +243,25 @@ Routes updated (24 files, 300+ catch blocks):
   - 25+ API methods wrapped with validation
 
 ### 5.3 Reach 80% Test Coverage 🔄 IN PROGRESS
-- [ ] **5.3.1** Add tests for all Admin tab components
+- [x] **5.3.1** Add tests for all Admin tab components (partial) ✅
+  - HistoryTab.test.jsx (19 tests)
+  - ProjectsTab.test.jsx (29 tests)
+  - OverviewPane.test.jsx (27 tests)
+  - DockerPane.test.jsx (38 tests)
+  - ServicesPane.test.jsx (32 tests)
+  - FirewallPane.test.jsx (40 tests)
 - [ ] **5.3.2** Add tests for all modal components
 - [ ] **5.3.3** Add tests for all widget components
 - [ ] **5.3.4** Add tests for remaining hooks
 - [ ] **5.3.5** Add tests for remaining services
 - [ ] **5.3.6** Update CI coverage threshold to 80%
 
-> **Note:** 80% coverage is a long-term goal. Current coverage: ~7.5% overall,
-> but key modules (hooks, services) have higher coverage (30-90%).
-> Test infrastructure is in place (Vitest, Playwright, Storybook).
+> **Note:** 80% coverage is a long-term goal. Current progress:
+> - Frontend: 350 tests passing (was 240)
+> - Backend: 148 tests passing
+> - Total: 498 tests
+> - Key modules (hooks, services) have 30-90% coverage
+> - Test infrastructure in place (Vitest, Playwright, Storybook)
 
 ### 5.4 Implement Nonce-Based CSP ✅ COMPLETE
 - [x] **5.4.1** Research xterm.js CSP requirements ✅
@@ -297,11 +306,12 @@ Routes updated (24 files, 300+ catch blocks):
 - [x] Alerts configured and tested ✅ (Phase 4 complete)
 
 ### Testing
-- [ ] 80%+ code coverage (ongoing - currently ~7.5%, key modules 30-90%)
+- [ ] 80%+ code coverage (ongoing - 498 total tests, key modules 30-90%)
 - [x] E2E tests for critical paths ✅ (36 Playwright tests)
 - [x] Visual regression tests ✅ (Storybook with 4 component stories)
 - [x] CI blocks PRs with failing tests ✅ (GitHub Actions)
 - [ ] CI blocks PRs below coverage threshold (pending 80% target)
+- [x] Admin tab components tested ✅ (6 components: HistoryTab, ProjectsTab, OverviewPane, DockerPane, ServicesPane, FirewallPane)
 
 ---
 
@@ -478,6 +488,22 @@ Routes updated (24 files, 300+ catch blocks):
   - Updated validation checklist (Security, Reliability, Observability mostly complete)
   - Phase 5 progress: 3/4 complete (5.1, 5.2, 5.4 done; 5.3 ongoing)
 - **Released v1.0.18:** Nonce-based CSP and test fixes
+
+### Session 11 (2026-01-18)
+- **Phase 5.3 Progress - Test Coverage:**
+  - Fixed HistoryTab.jsx null entries bug (line 77)
+  - ✅ Verified all existing tests pass (240 frontend + 148 backend)
+  - ✅ Added DockerPane.test.jsx (38 tests) - Docker container management
+  - ✅ Added ServicesPane.test.jsx (32 tests) - Systemd service management
+  - ✅ Added FirewallPane.test.jsx (40 tests) - UFW firewall management
+- **Test Count Progress:**
+  - Frontend: 240 → 350 tests (+110 new tests)
+  - Backend: 148 tests (unchanged)
+  - Total: 498 tests
+- **Memory-Conscious Approach:**
+  - Resumed after server reboot due to memory exhaustion
+  - Working incrementally to avoid resource issues (16GB shared)
+  - Sequential test runs instead of parallel to reduce memory usage
 
 ---
 
