@@ -306,7 +306,100 @@ export function createMCPRouter(prisma, mcpManager) {
   });
 
   // =============================================================================
-  // SERVER CRUD (continued) - Must come after /catalog routes
+  // TOOL LOGS
+  // NOTE: These routes MUST be defined BEFORE /:id routes
+  // otherwise "logs" gets matched as an :id parameter
+  // =============================================================================
+
+  /**
+   * Get tool call logs
+   */
+  router.get('/logs', async (req, res) => {
+    try {
+      const { serverId, toolId, success, limit = 100, offset = 0 } = req.query;
+
+      const where = {};
+
+      if (serverId) {
+        where.tool = { serverId };
+      }
+
+      if (toolId) {
+        where.toolId = toolId;
+      }
+
+      if (success !== undefined) {
+        where.success = success === 'true';
+      }
+
+      const [logs, total] = await Promise.all([
+        prisma.mCPToolLog.findMany({
+          where,
+          include: {
+            tool: {
+              select: {
+                name: true,
+                server: {
+                  select: { name: true }
+                }
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          skip: parseInt(offset),
+          take: parseInt(limit)
+        }),
+        prisma.mCPToolLog.count({ where })
+      ]);
+
+      res.json({
+        logs,
+        pagination: {
+          total,
+          limit: parseInt(limit),
+          offset: parseInt(offset)
+        }
+      });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch tool logs',
+        operation: 'fetch MCP tool logs',
+        requestId: req.id,
+      });
+    }
+  });
+
+  /**
+   * Clear old tool logs
+   */
+  router.delete('/logs/cleanup', async (req, res) => {
+    try {
+      const { days = 7 } = req.query;
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - parseInt(days));
+
+      const result = await prisma.mCPToolLog.deleteMany({
+        where: {
+          createdAt: { lt: cutoff }
+        }
+      });
+
+      res.json({
+        success: true,
+        deleted: result.count,
+        cutoffDate: cutoff
+      });
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to clean up logs',
+        operation: 'clean up MCP logs',
+        requestId: req.id,
+      });
+    }
+  });
+
+  // =============================================================================
+  // SERVER CRUD (continued) - Must come after /catalog and /logs routes
   // =============================================================================
 
   /**
@@ -741,97 +834,6 @@ export function createMCPRouter(prisma, mcpManager) {
       return sendSafeError(res, error, {
         userMessage: 'Failed to call tool',
         operation: 'call MCP tool',
-        requestId: req.id,
-      });
-    }
-  });
-
-  // =============================================================================
-  // TOOL LOGS
-  // =============================================================================
-
-  /**
-   * Get tool call logs
-   */
-  router.get('/logs', async (req, res) => {
-    try {
-      const { serverId, toolId, success, limit = 100, offset = 0 } = req.query;
-
-      const where = {};
-
-      if (serverId) {
-        where.tool = { serverId };
-      }
-
-      if (toolId) {
-        where.toolId = toolId;
-      }
-
-      if (success !== undefined) {
-        where.success = success === 'true';
-      }
-
-      const [logs, total] = await Promise.all([
-        prisma.mCPToolLog.findMany({
-          where,
-          include: {
-            tool: {
-              select: {
-                name: true,
-                server: {
-                  select: { name: true }
-                }
-              }
-            }
-          },
-          orderBy: { createdAt: 'desc' },
-          skip: parseInt(offset),
-          take: parseInt(limit)
-        }),
-        prisma.mCPToolLog.count({ where })
-      ]);
-
-      res.json({
-        logs,
-        pagination: {
-          total,
-          limit: parseInt(limit),
-          offset: parseInt(offset)
-        }
-      });
-    } catch (error) {
-      return sendSafeError(res, error, {
-        userMessage: 'Failed to fetch tool logs',
-        operation: 'fetch MCP tool logs',
-        requestId: req.id,
-      });
-    }
-  });
-
-  /**
-   * Clear old tool logs
-   */
-  router.delete('/logs/cleanup', async (req, res) => {
-    try {
-      const { days = 7 } = req.query;
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - parseInt(days));
-
-      const result = await prisma.mCPToolLog.deleteMany({
-        where: {
-          createdAt: { lt: cutoff }
-        }
-      });
-
-      res.json({
-        success: true,
-        deleted: result.count,
-        cutoffDate: cutoff
-      });
-    } catch (error) {
-      return sendSafeError(res, error, {
-        userMessage: 'Failed to clean up logs',
-        operation: 'clean up MCP logs',
         requestId: req.id,
       });
     }

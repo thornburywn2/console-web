@@ -293,6 +293,47 @@ export function createPlansRouter(prisma) {
   });
 
   /**
+   * Reorder steps
+   * NOTE: This route MUST be defined BEFORE /:planId/steps/:stepId
+   * otherwise "reorder" gets matched as a stepId parameter
+   */
+  router.put('/:id/steps/reorder', async (req, res) => {
+    try {
+      const { stepIds } = req.body;
+
+      if (!Array.isArray(stepIds)) {
+        return res.status(400).json({ error: 'stepIds array is required' });
+      }
+
+      // Update order for each step
+      await Promise.all(
+        stepIds.map((id, index) =>
+          prisma.planStep.update({
+            where: { id },
+            data: { order: index + 1 }
+          })
+        )
+      );
+
+      const plan = await prisma.planSession.findUnique({
+        where: { id: req.params.id },
+        include: {
+          steps: { orderBy: { order: 'asc' } }
+        }
+      });
+
+      res.json(plan);
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to reorder steps',
+        operation: 'reorder plan steps',
+        requestId: req.id,
+        context: { planId: req.params.id }
+      });
+    }
+  });
+
+  /**
    * Update a step
    */
   router.put('/:planId/steps/:stepId', async (req, res) => {
@@ -390,45 +431,6 @@ export function createPlansRouter(prisma) {
         operation: 'delete plan step',
         requestId: req.id,
         context: { planId: req.params.planId, stepId: req.params.stepId }
-      });
-    }
-  });
-
-  /**
-   * Reorder steps
-   */
-  router.put('/:id/steps/reorder', async (req, res) => {
-    try {
-      const { stepIds } = req.body;
-
-      if (!Array.isArray(stepIds)) {
-        return res.status(400).json({ error: 'stepIds array is required' });
-      }
-
-      // Update order for each step
-      await Promise.all(
-        stepIds.map((id, index) =>
-          prisma.planStep.update({
-            where: { id },
-            data: { order: index + 1 }
-          })
-        )
-      );
-
-      const plan = await prisma.planSession.findUnique({
-        where: { id: req.params.id },
-        include: {
-          steps: { orderBy: { order: 'asc' } }
-        }
-      });
-
-      res.json(plan);
-    } catch (error) {
-      return sendSafeError(res, error, {
-        userMessage: 'Failed to reorder steps',
-        operation: 'reorder plan steps',
-        requestId: req.id,
-        context: { planId: req.params.id }
       });
     }
   });

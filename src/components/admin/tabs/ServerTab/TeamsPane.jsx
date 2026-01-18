@@ -56,7 +56,8 @@ export function TeamsPane() {
       setLoading(true);
       clearMessages();
       const data = await teamsApi.list();
-      setTeams(data.teams || []);
+      // Backend returns array directly, not wrapped in {teams: [...]}
+      setTeams(Array.isArray(data) ? data : (data.teams || []));
     } catch (err) {
       const message = err.getUserMessage?.() || err.message;
       setError(message);
@@ -69,7 +70,8 @@ export function TeamsPane() {
     try {
       const response = await fetch('/api/projects');
       const data = await response.json();
-      setAvailableProjects(data.projects || []);
+      // Backend returns array directly, not wrapped in {projects: [...]}
+      setAvailableProjects(Array.isArray(data) ? data : (data.projects || []));
     } catch (err) {
       console.error('Error fetching projects:', err);
     }
@@ -79,7 +81,8 @@ export function TeamsPane() {
     try {
       setLoading(true);
       const data = await teamsApi.get(teamId);
-      setSelectedTeam(data.team);
+      // Backend returns team object directly, not wrapped in {team: {...}}
+      setSelectedTeam(data.id ? data : data.team);
     } catch (err) {
       const message = err.getUserMessage?.() || err.message;
       setError(message);

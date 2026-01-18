@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import { createLogger } from '../services/logger.js';
 import { sendSafeError } from '../utils/errorResponse.js';
+import { MEMORY_TYPES, MEMORY_SCOPES } from '../utils/memoryTypes.js';
 
 const log = createLogger('memory');
 
@@ -501,17 +502,18 @@ export function createMemoryRouter(prisma) {
 
   /**
    * Get available types
+   * Types defined in server/utils/memoryTypes.js
    */
   router.get('/meta/types', (req, res) => {
-    res.json([
-      { value: 'FACT', label: 'Fact', description: 'Factual information' },
-      { value: 'INSTRUCTION', label: 'Instruction', description: 'How to do something' },
-      { value: 'CONTEXT', label: 'Context', description: 'Background context' },
-      { value: 'DECISION', label: 'Decision', description: 'Past decisions' },
-      { value: 'LEARNING', label: 'Learning', description: 'Learned patterns' },
-      { value: 'TODO', label: 'Todo', description: 'Pending items' },
-      { value: 'WARNING', label: 'Warning', description: 'Things to avoid' }
-    ]);
+    res.json(MEMORY_TYPES);
+  });
+
+  /**
+   * Get available scopes
+   * Scopes defined in server/utils/memoryTypes.js
+   */
+  router.get('/meta/scopes', (req, res) => {
+    res.json(MEMORY_SCOPES);
   });
 
   return router;
