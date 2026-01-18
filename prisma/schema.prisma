@@ -20,6 +20,12 @@ enum Role {
   VIEWER       // Read-only access to shared resources
 }
 
+enum AccessLevel {
+  READ_ONLY    // Can view but not modify
+  READ_WRITE   // Can view and modify
+  ADMIN        // Full control including delete
+}
+
 // User model - synced from Authentik on first login
 model User {
   id            String    @id                   // Authentik UID
@@ -28,6 +34,10 @@ model User {
   username      String?
   role          Role      @default(USER)
   groups        String[]  @default([])         // Authentik groups
+
+  // Team membership (Phase 6 - Multi-Tenant)
+  teamId        String?
+  team          Team?     @relation(fields: [teamId], references: [id])
 
   // Timestamps
   createdAt     DateTime  @default(now())
@@ -43,6 +53,7 @@ model User {
 
   @@index([email])
   @@index([role])
+  @@index([teamId])
 }
 
 // Audit log for security tracking
@@ -142,6 +153,51 @@ model RateLimitEntry {
   @@unique([identifier, windowStart])
   @@index([identifier])
   @@index([windowStart])
+}
+
+// ============================================
+// Phase 6: Team & Multi-Tenant Support
+// ============================================
+
+// Team/Organization for multi-tenant support
+model Team {
+  id            String    @id @default(cuid())
+  name          String    @unique
+  description   String?
+  slug          String    @unique              // URL-safe identifier
+
+  // Settings
+  defaultRole   Role      @default(USER)       // Default role for new members
+  maxMembers    Int       @default(10)         // Maximum team members
+  isActive      Boolean   @default(true)
+
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  members       User[]
+  projects      ProjectAssignment[]
+
+  @@index([slug])
+  @@index([isActive])
+}
+
+// Project assignment to teams with access levels
+model ProjectAssignment {
+  id            String       @id @default(cuid())
+  teamId        String
+  team          Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  projectPath   String                         // Path to project directory
+  accessLevel   AccessLevel  @default(READ_WRITE)
+
+  // Assignment metadata
+  assignedBy    String?                        // User who created the assignment
+  assignedAt    DateTime     @default(now())
+
+  @@unique([teamId, projectPath])
+  @@index([teamId])
+  @@index([projectPath])
 }
 
 // Project state and metadata

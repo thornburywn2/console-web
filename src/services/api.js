@@ -1559,4 +1559,29 @@ export const quotasApi = {
   adminListApiKeys: (includeRevoked = false) => api.get(`/quotas/admin/api-keys?includeRevoked=${includeRevoked}`),
 };
 
+// ============================================
+// Teams API (Phase 6 - Multi-Tenant)
+// ============================================
+export const teamsApi = {
+  // Team CRUD
+  list: () => api.get('/teams'),
+  get: (id) => api.get(`/teams/${id}`),
+  create: (data) => api.post('/teams', data),
+  update: (id, data) => api.put(`/teams/${id}`, data),
+  delete: (id) => api.delete(`/teams/${id}`),
+
+  // Current user's team
+  getMyTeam: () => api.get('/teams/me/current'),
+
+  // Team membership
+  addMember: (teamId, userId, role) => api.post(`/teams/${teamId}/members`, { userId, role }),
+  removeMember: (teamId, userId) => api.delete(`/teams/${teamId}/members/${userId}`),
+
+  // Project assignments
+  getProjects: (teamId) => api.get(`/teams/${teamId}/projects`),
+  assignProject: (teamId, projectPath, accessLevel) => api.post(`/teams/${teamId}/projects`, { projectPath, accessLevel }),
+  updateProjectAccess: (teamId, assignmentId, accessLevel) => api.put(`/teams/${teamId}/projects/${assignmentId}`, { accessLevel }),
+  removeProject: (teamId, assignmentId) => api.delete(`/teams/${teamId}/projects/${assignmentId}`),
+};
+
 export default api;

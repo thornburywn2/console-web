@@ -45,3 +45,4 @@ export { createProjectTagsRouter } from './project-tags.js';
 export { createObservabilityRouter } from './observability.js';
 export { createAuditRouter } from './audit.js';
 export { createQuotasRouter } from './quotas.js';
+export { createTeamsRouter } from './teams.js';

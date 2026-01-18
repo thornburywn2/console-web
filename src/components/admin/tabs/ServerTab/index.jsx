@@ -19,6 +19,7 @@ import NetworkPane from './NetworkPane';
 import ScheduledPane from '../AutomationTab/ScheduledPane';
 import AuthentikPane from './AuthentikPane';
 import UsersPane from './UsersPane';
+import TeamsPane from './TeamsPane';
 
 /**
  * ServerTab - Server infrastructure management interface
@@ -41,9 +42,10 @@ export function ServerTab() {
     { key: SERVER_TABS.SCHEDULED, label: 'SCHEDULED', color: 'purple' },
     { key: SERVER_TABS.AUTHENTIK, label: 'AUTHENTIK', color: 'warning' },
     { key: SERVER_TABS.USERS, label: 'USERS', color: 'cyan' },
+    { key: SERVER_TABS.TEAMS, label: 'TEAMS', color: 'purple' },
   ];
 
-  // Dividers to group related sub-tabs: [OVERVIEW] | [SERVICES DOCKER STACK OTEL] | [PACKAGES LOGS PROCESSES] | [NETWORK SCHEDULED] | [AUTHENTIK USERS]
+  // Dividers to group related sub-tabs: [OVERVIEW] | [SERVICES DOCKER STACK OTEL] | [PACKAGES LOGS PROCESSES] | [NETWORK SCHEDULED] | [AUTHENTIK USERS TEAMS]
   const dividers = [1, 5, 8, 10];
 
   return (
@@ -69,6 +71,7 @@ export function ServerTab() {
       {activeSubTab === SERVER_TABS.SCHEDULED && <ScheduledPane />}
       {activeSubTab === SERVER_TABS.AUTHENTIK && <AuthentikPane />}
       {activeSubTab === SERVER_TABS.USERS && <UsersPane />}
+      {activeSubTab === SERVER_TABS.TEAMS && <TeamsPane />}
     </TabContainer>
   );
 }

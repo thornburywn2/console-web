@@ -121,7 +121,8 @@ import {
   createProjectTagsRouter,
   createObservabilityRouter,
   createAuditRouter,
-  createQuotasRouter
+  createQuotasRouter,
+  createTeamsRouter
 } from './routes/index.js';
 
 // Import services
@@ -824,6 +825,9 @@ app.use('/api/audit-logs', createAuditRouter(prisma));
 
 // Quotas & API Keys (Phase 5 Enterprise Mission Control)
 app.use('/api/quotas', createQuotasRouter(prisma));
+
+// Teams & Multi-Tenant (Phase 6 Enterprise Mission Control)
+app.use('/api/teams', createTeamsRouter(prisma));
 
 // Server Configuration endpoint (read-only)
 app.get('/api/config', (req, res) => {

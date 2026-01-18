@@ -48,6 +48,7 @@ export const SERVER_TABS = {
   SCHEDULED: 'scheduled',         // Cron jobs and systemd timers
   AUTHENTIK: 'authentik',         // Authentik SSO management
   USERS: 'users',                 // Server user management
+  TEAMS: 'teams',                 // Team management (Phase 6)
 };
 
 // Security sub-tabs (consolidated)
@@ -179,6 +180,7 @@ export const SERVER_TAB_PERMISSIONS = {
   [SERVER_TABS.SCHEDULED]: 'ADMIN',
   [SERVER_TABS.AUTHENTIK]: 'SUPER_ADMIN',  // User management
   [SERVER_TABS.USERS]: 'SUPER_ADMIN',      // User management
+  [SERVER_TABS.TEAMS]: 'ADMIN',            // Team management (Phase 6)
 };
 
 /**

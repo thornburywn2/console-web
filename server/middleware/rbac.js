@@ -351,6 +351,143 @@ export function getOwnerIdForCreate(req) {
   return req.user?.id || null;
 }
 
+// ============================================
+// Phase 6: Team-Based Access Control
+// ============================================
+
+/**
+ * Check if user's team has access to a project path
+ * @param {Object} prisma - Prisma client
+ * @param {string} teamId - User's team ID
+ * @param {string} projectPath - Path to check
+ * @returns {Promise<{hasAccess: boolean, accessLevel: string|null}>}
+ */
+export async function checkTeamProjectAccess(prisma, teamId, projectPath) {
+  if (!teamId || !projectPath) {
+    return { hasAccess: false, accessLevel: null };
+  }
+
+  const assignment = await prisma.projectAssignment.findFirst({
+    where: {
+      teamId,
+      projectPath,
+    },
+  });
+
+  if (!assignment) {
+    return { hasAccess: false, accessLevel: null };
+  }
+
+  return { hasAccess: true, accessLevel: assignment.accessLevel };
+}
+
+/**
+ * Check if user has team access to a specific resource
+ * For use in ownership checks where the resource has a project path
+ *
+ * @param {Object} prisma - Prisma client
+ * @param {Object} req - Express request
+ * @param {string} projectPath - Project path associated with the resource
+ * @returns {Promise<boolean>}
+ */
+export async function hasTeamAccess(prisma, req, projectPath) {
+  const teamId = req.dbUser?.teamId;
+  const userRole = req.dbUser?.role || 'USER';
+
+  // Super admins bypass team checks
+  if (userRole === 'SUPER_ADMIN') {
+    return true;
+  }
+
+  // No team = no team access
+  if (!teamId) {
+    return false;
+  }
+
+  const { hasAccess } = await checkTeamProjectAccess(prisma, teamId, projectPath);
+  return hasAccess;
+}
+
+/**
+ * Build project filter based on team assignments
+ * Returns paths that user's team has access to
+ *
+ * @param {Object} prisma - Prisma client
+ * @param {Object} req - Express request
+ * @returns {Promise<string[]>} Array of project paths
+ */
+export async function getTeamProjectPaths(prisma, req) {
+  const teamId = req.dbUser?.teamId;
+
+  if (!teamId) {
+    return [];
+  }
+
+  const assignments = await prisma.projectAssignment.findMany({
+    where: { teamId },
+    select: { projectPath: true },
+  });
+
+  return assignments.map(a => a.projectPath);
+}
+
+/**
+ * Middleware factory: Require team access to project
+ * Checks if user's team has access to the project in the request
+ *
+ * @param {Object} prisma - Prisma client
+ * @param {string} projectPathParam - Request param name containing project path (default: 'projectPath')
+ */
+export function requireTeamAccess(prisma, projectPathParam = 'projectPath') {
+  return async (req, res, next) => {
+    const userRole = req.dbUser?.role || 'USER';
+
+    // Super admins and admins bypass team checks
+    if (userRole === 'SUPER_ADMIN' || userRole === 'ADMIN') {
+      return next();
+    }
+
+    const projectPath = req.params[projectPathParam] || req.body?.projectPath || req.query?.projectPath;
+
+    if (!projectPath) {
+      return next(); // No project path to check
+    }
+
+    const teamId = req.dbUser?.teamId;
+    if (!teamId) {
+      // User not in a team - check if they own the project or it's public
+      return next();
+    }
+
+    const { hasAccess, accessLevel } = await checkTeamProjectAccess(prisma, teamId, projectPath);
+
+    if (!hasAccess) {
+      return res.status(403).json({
+        error: 'Access denied',
+        message: 'Your team does not have access to this project',
+      });
+    }
+
+    // Attach access level to request for downstream use
+    req.teamAccessLevel = accessLevel;
+    next();
+  };
+}
+
+/**
+ * Check if team access level allows write operations
+ */
+export function canTeamWrite(accessLevel) {
+  return accessLevel === 'READ_WRITE' || accessLevel === 'ADMIN';
+}
+
+/**
+ * Check if team access level allows admin operations
+ */
+export function canTeamAdmin(accessLevel) {
+  return accessLevel === 'ADMIN';
+}
+
 export default {
   requireRole,
   requireAdmin,
@@ -364,4 +501,11 @@ export default {
   buildOwnershipFilter,
   buildSessionFilter,
   getOwnerIdForCreate,
+  // Phase 6: Team access
+  checkTeamProjectAccess,
+  hasTeamAccess,
+  getTeamProjectPaths,
+  requireTeamAccess,
+  canTeamWrite,
+  canTeamAdmin,
 };
