@@ -15,9 +15,11 @@ export default function AgentOutputStream({ agentId, socket }) {
   const lastScrollTop = useRef(0);
 
   // Handle socket events for this agent
+  // Server emits 'agent:status' for state changes and 'agent:output' for output streaming
   useEffect(() => {
     if (!socket || !agentId) return;
 
+    // Handle output streaming from agent execution
     const handleAgentOutput = (data) => {
       if (data.agentId === agentId) {
         setOutput(prev => prev + data.output);
@@ -28,37 +30,45 @@ export default function AgentOutputStream({ agentId, socket }) {
       }
     };
 
-    const handleAgentStarted = (data) => {
+    // Handle status changes (started, completed, failed, etc.)
+    const handleAgentStatus = (data) => {
       if (data.agentId === agentId) {
-        setOutput(''); // Clear previous output
-        setIsRunning(true);
-        setCurrentExecution(data.executionId);
+        switch (data.status) {
+          case 'running':
+          case 'started':
+            setOutput(''); // Clear previous output on new run
+            setIsRunning(true);
+            if (data.executionId) {
+              setCurrentExecution(data.executionId);
+            }
+            break;
+          case 'completed':
+          case 'success':
+            setIsRunning(false);
+            break;
+          case 'failed':
+          case 'error':
+            if (data.error) {
+              setOutput(prev => prev + `\n[ERROR] ${data.error}\n`);
+            }
+            setIsRunning(false);
+            break;
+          case 'stopped':
+            setIsRunning(false);
+            break;
+          default:
+            // Handle any other status
+            break;
+        }
       }
     };
 
-    const handleAgentCompleted = (data) => {
-      if (data.agentId === agentId) {
-        setIsRunning(false);
-      }
-    };
-
-    const handleAgentError = (data) => {
-      if (data.agentId === agentId) {
-        setOutput(prev => prev + `\n[ERROR] ${data.error}\n`);
-        setIsRunning(false);
-      }
-    };
-
-    socket.on('agent-output', handleAgentOutput);
-    socket.on('agent-started', handleAgentStarted);
-    socket.on('agent-completed', handleAgentCompleted);
-    socket.on('agent-error', handleAgentError);
+    socket.on('agent:output', handleAgentOutput);
+    socket.on('agent:status', handleAgentStatus);
 
     return () => {
-      socket.off('agent-output', handleAgentOutput);
-      socket.off('agent-started', handleAgentStarted);
-      socket.off('agent-completed', handleAgentCompleted);
-      socket.off('agent-error', handleAgentError);
+      socket.off('agent:output', handleAgentOutput);
+      socket.off('agent:status', handleAgentStatus);
     };
   }, [socket, agentId]);
 

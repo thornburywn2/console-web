@@ -1299,7 +1299,7 @@ export const plansApi = {
  * Phase 5.1: Centralized API for project creation and management
  */
 export const projectsExtendedApi = {
-  list: () => api.get('/projects-extended'),
+  list: () => api.get('/admin/projects-extended'),
   create: (data) => api.post('/projects', data),
   createGitHubRepo: (projectName, data) => api.post(`/github/projects/${encodeURIComponent(projectName)}/create`, data),
 };

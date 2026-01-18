@@ -10,6 +10,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { teamsApi } from '../../../../services/api.js';
+import { useAuth } from '../../../../hooks/useAuth.jsx';
 
 const ACCESS_LEVELS = [
   { value: 'READ_ONLY', label: 'Read Only', color: 'hacker-text-dim' },
@@ -25,6 +26,9 @@ const ROLES = [
 ];
 
 export function TeamsPane() {
+  const { hasRole } = useAuth();
+  const canManageTeams = hasRole('SUPER_ADMIN');
+
   const [teams, setTeams] = useState([]);
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -277,10 +281,31 @@ export function TeamsPane() {
         </div>
       </div>
 
-      {/* Messages */}
+      {/* Permission Notice */}
+      {!canManageTeams && (
+        <div className="p-4 rounded bg-hacker-warning/10 border border-hacker-warning/40 text-hacker-warning flex items-center gap-3">
+          <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div>
+            <div className="font-semibold">View Only Mode</div>
+            <div className="text-sm opacity-80">Team management requires SUPER_ADMIN role. Contact an administrator for access.</div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Messages */}
       {error && (
-        <div className="p-3 rounded bg-hacker-error/10 border border-hacker-error/30 text-hacker-error text-sm">
-          {error}
+        <div className="p-4 rounded bg-hacker-error/20 border-2 border-hacker-error/60 text-hacker-error flex items-center gap-3 animate-pulse">
+          <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div className="flex-1 font-mono">{error}</div>
+          <button onClick={clearMessages} className="text-hacker-error hover:text-white">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
       )}
       {success && (
@@ -299,7 +324,11 @@ export function TeamsPane() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowCreateTeam(true)}
-                className="hacker-btn text-xs bg-hacker-green/10 border-hacker-green/30 text-hacker-green"
+                disabled={!canManageTeams}
+                className={`hacker-btn text-xs ${canManageTeams
+                  ? 'bg-hacker-green/10 border-hacker-green/30 text-hacker-green'
+                  : 'opacity-50 cursor-not-allowed'}`}
+                title={!canManageTeams ? 'SUPER_ADMIN role required to create teams' : ''}
               >
                 + CREATE TEAM
               </button>
@@ -407,20 +436,22 @@ export function TeamsPane() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setEditTeam(team); setShowEditTeam(true); }}
-                      className="hacker-btn text-[10px] px-2 py-0.5"
-                    >
-                      EDIT
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); deleteTeam(team.id); }}
-                      className="hacker-btn text-[10px] px-2 py-0.5 border-hacker-error/30 text-hacker-error"
-                    >
-                      DELETE
-                    </button>
-                  </div>
+                  {canManageTeams && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditTeam(team); setShowEditTeam(true); }}
+                        className="hacker-btn text-[10px] px-2 py-0.5"
+                      >
+                        EDIT
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteTeam(team.id); }}
+                        className="hacker-btn text-[10px] px-2 py-0.5 border-hacker-error/30 text-hacker-error"
+                      >
+                        DELETE
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))
             )}
@@ -468,13 +499,15 @@ export function TeamsPane() {
                   <h5 className="text-xs font-semibold text-hacker-cyan uppercase tracking-wider">
                     MEMBERS ({selectedTeam.members?.length || 0}/{selectedTeam.maxMembers})
                   </h5>
-                  <button
-                    onClick={() => setShowAddMember(true)}
-                    className="hacker-btn text-[10px] px-2 py-0.5 bg-hacker-cyan/10 border-hacker-cyan/30 text-hacker-cyan"
-                    disabled={(selectedTeam.members?.length || 0) >= selectedTeam.maxMembers}
-                  >
-                    + ADD
-                  </button>
+                  {canManageTeams && (
+                    <button
+                      onClick={() => setShowAddMember(true)}
+                      className="hacker-btn text-[10px] px-2 py-0.5 bg-hacker-cyan/10 border-hacker-cyan/30 text-hacker-cyan"
+                      disabled={(selectedTeam.members?.length || 0) >= selectedTeam.maxMembers}
+                    >
+                      + ADD
+                    </button>
+                  )}
                 </div>
 
                 {/* Add Member Form */}
@@ -533,12 +566,14 @@ export function TeamsPane() {
                             <span className="ml-2 text-[10px] text-hacker-text-dim">{member.role}</span>
                           </div>
                         </div>
-                        <button
-                          onClick={() => removeMember(member.id)}
-                          className="hacker-btn text-[10px] px-1.5 py-0.5 border-hacker-error/30 text-hacker-error"
-                        >
-                          X
-                        </button>
+                        {canManageTeams && (
+                          <button
+                            onClick={() => removeMember(member.id)}
+                            className="hacker-btn text-[10px] px-1.5 py-0.5 border-hacker-error/30 text-hacker-error"
+                          >
+                            X
+                          </button>
+                        )}
                       </div>
                     ))
                   )}
@@ -551,12 +586,14 @@ export function TeamsPane() {
                   <h5 className="text-xs font-semibold text-hacker-warning uppercase tracking-wider">
                     PROJECT ASSIGNMENTS ({selectedTeam.projects?.length || 0})
                   </h5>
-                  <button
-                    onClick={() => setShowAssignProject(true)}
-                    className="hacker-btn text-[10px] px-2 py-0.5 bg-hacker-warning/10 border-hacker-warning/30 text-hacker-warning"
-                  >
-                    + ASSIGN
-                  </button>
+                  {canManageTeams && (
+                    <button
+                      onClick={() => setShowAssignProject(true)}
+                      className="hacker-btn text-[10px] px-2 py-0.5 bg-hacker-warning/10 border-hacker-warning/30 text-hacker-warning"
+                    >
+                      + ASSIGN
+                    </button>
+                  )}
                 </div>
 
                 {/* Assign Project Form */}
@@ -613,22 +650,32 @@ export function TeamsPane() {
                       >
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-mono text-hacker-text">{assignment.projectPath.split('/').pop()}</span>
-                          <select
-                            value={assignment.accessLevel}
-                            onChange={(e) => updateProjectAccess(assignment.id, e.target.value)}
-                            className="input-glass text-[10px] px-2 py-0.5 w-28"
-                          >
-                            {ACCESS_LEVELS.map(level => (
-                              <option key={level.value} value={level.value}>{level.label}</option>
-                            ))}
-                          </select>
+                          {canManageTeams ? (
+                            <select
+                              value={assignment.accessLevel}
+                              onChange={(e) => updateProjectAccess(assignment.id, e.target.value)}
+                              className="input-glass text-[10px] px-2 py-0.5 w-28"
+                            >
+                              {ACCESS_LEVELS.map(level => (
+                                <option key={level.value} value={level.value}>{level.label}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className={`text-[10px] px-2 py-0.5 rounded bg-hacker-surface border border-hacker-border ${
+                              ACCESS_LEVELS.find(l => l.value === assignment.accessLevel)?.color || 'text-hacker-text-dim'
+                            }`}>
+                              {ACCESS_LEVELS.find(l => l.value === assignment.accessLevel)?.label || assignment.accessLevel}
+                            </span>
+                          )}
                         </div>
-                        <button
-                          onClick={() => removeProject(assignment.id)}
-                          className="hacker-btn text-[10px] px-1.5 py-0.5 border-hacker-error/30 text-hacker-error"
-                        >
-                          X
-                        </button>
+                        {canManageTeams && (
+                          <button
+                            onClick={() => removeProject(assignment.id)}
+                            className="hacker-btn text-[10px] px-1.5 py-0.5 border-hacker-error/30 text-hacker-error"
+                          >
+                            X
+                          </button>
+                        )}
                       </div>
                     ))
                   )}
