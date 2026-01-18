@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                             Console.web v1.0.21                              │
+│                             Console.web v1.0.22                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
 │  │  Terminal   │  │   Admin     │  │  Projects   │  │  Sidebars   │        │
@@ -151,6 +151,46 @@ npm run build && npm start
 | **Containers** | Dockerode |
 | **Observability** | OpenTelemetry, Jaeger, Loki, Prometheus, Grafana |
 | **Security** | Helmet, express-rate-limit, Zod, Sentry |
+
+---
+
+## [1.0.22] - 2026-01-18
+
+### Resource Quotas & API Keys
+
+This release completes Phase 5 of the Enterprise Mission Control roadmap with resource quota enforcement and API key authentication for programmatic access.
+
+#### Resource Quota System
+
+- **ResourceQuota Model**: Per-user and per-role quotas for sessions, agents, prompts, snippets, folders, and storage
+- **Role-Based Default Quotas**: SUPER_ADMIN (100 sessions, 50 agents), ADMIN (20/10), USER (5/3), VIEWER (read-only)
+- **Quota Enforcement Middleware**: `enforceQuota()` middleware blocks resource creation when limits exceeded
+- **Usage Tracking**: Real-time usage counts for all quota-limited resources
+- **Admin Quota Management**: Endpoints to view/set user-specific quotas and role defaults
+
+#### API Key Authentication
+
+- **Secure Key Generation**: `cw_live_` prefixed keys with SHA-256 hashing (plaintext never stored)
+- **Scoped Access**: Keys support `read`, `write`, `agents`, and `admin` scopes
+- **IP Whitelisting**: Optional restriction of API keys to specific IP addresses
+- **Key Expiration**: Configurable expiration dates with automatic rejection of expired keys
+- **Usage Statistics**: Track last used time and total usage count per key
+
+#### Per-User Rate Limiting
+
+- **Sliding Window Algorithm**: In-memory cache with database persistence for distributed deployments
+- **Quota-Based Limits**: Rate limits respect user's quota settings (SUPER_ADMIN: 1000/min, USER: 60/min)
+- **Rate Limit Headers**: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset on all responses
+
+#### Quota Enforcement Applied To
+
+- Agent creation (`POST /api/agents`)
+- Agent execution (`POST /api/agents/:id/run`)
+- Session import (`POST /api/sessions/import`)
+- Session fork (`POST /api/sessions/:id/fork`)
+- Prompt creation (`POST /api/prompts`)
+- Snippet creation (`POST /api/snippets`)
+- Folder creation (`POST /api/folders`)
 
 ---
 

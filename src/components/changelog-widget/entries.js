@@ -4,6 +4,26 @@
 
 export const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.22',
+    date: '2026-01-18',
+    type: 'major',
+    title: 'Resource Quotas & API Keys',
+    highlights: [
+      'Resource quota system with role-based limits',
+      'API key authentication for programmatic access',
+      'Per-user rate limiting with sliding window',
+      'Quota enforcement on resource creation',
+    ],
+    features: [
+      { title: 'ResourceQuota Model', description: 'Per-user and per-role quotas for sessions, agents, prompts, snippets, and folders with configurable limits' },
+      { title: 'API Key Authentication', description: 'Generate API keys with SHA-256 hashing, scopes (read/write/agents/admin), IP whitelisting, and expiration' },
+      { title: 'Quota Enforcement Middleware', description: 'enforceQuota() middleware applied to agent, session, prompt, snippet, and folder creation routes' },
+      { title: 'Per-User Rate Limiting', description: 'Sliding window rate limiting with in-memory cache and database persistence, respects user quota settings' },
+      { title: 'Quota Management API', description: 'Admin endpoints for viewing/setting user quotas, role defaults, and API key management' },
+      { title: 'Role-Based Default Quotas', description: 'SUPER_ADMIN (100 sessions), ADMIN (20), USER (5), VIEWER (read-only) with customizable overrides' },
+    ],
+  },
+  {
     version: '1.0.21',
     date: '2026-01-18',
     type: 'major',
