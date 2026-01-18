@@ -20,8 +20,11 @@ import ServerTab from './admin/tabs/ServerTab';
 import SecurityTab from './admin/tabs/SecurityTab';
 import HistoryTab from './admin/tabs/HistoryTab';
 
-// Import tab constants
-import { TABS, migrateTab } from './admin/constants';
+// Import tab constants and RBAC utilities (Phase 3)
+import { TABS, migrateTab, canAccessTab, TAB_PERMISSIONS } from './admin/constants';
+
+// Import auth hook for RBAC (Phase 3)
+import { useAuth } from '../hooks/useAuth';
 
 // Import experimental components
 import TabbyDashboard from './TabbyDashboard';
@@ -441,6 +444,9 @@ function CloudflareSettingsTab() {
  * Main AdminDashboard Component
  */
 function AdminDashboard({ onClose, initialTab = null, currentProject = null }) {
+  // RBAC: Get auth utilities (Phase 3)
+  const { hasRole, userRole } = useAuth();
+
   // Migrate old tab values if needed
   const [activeTab, setActiveTab] = useState(() => {
     if (initialTab) return migrateTab(initialTab);
@@ -594,23 +600,39 @@ function AdminDashboard({ onClose, initialTab = null, currentProject = null }) {
         </div>
       </header>
 
-      {/* Main Tab Navigation */}
+      {/* Main Tab Navigation - RBAC filtered (Phase 3) */}
       <div className="relative z-10 flex items-center gap-1 px-6 border-b border-hacker-green/10 bg-hacker-surface/50 overflow-x-auto">
+        {/* User-level tabs - always visible */}
         <TabButton tab={TABS.PROJECTS} label="PROJECTS" icon={<span className="text-lg">&#128193;</span>} />
         <TabButton tab={TABS.SETTINGS} label="SETTINGS" icon={<span className="text-lg">&#9881;</span>} />
         <TabButton tab={TABS.AUTOMATION} label="AUTOMATION" icon={<span className="text-lg">&#129302;</span>} />
-        <TabButton tab={TABS.SERVER} label="SERVER" icon={<span className="text-lg">&#9211;</span>} />
-        <TabButton tab={TABS.SECURITY} label="SECURITY" icon={<span className="text-lg">&#128274;</span>} />
+
+        {/* Admin-only tabs (Phase 3 RBAC) */}
+        {canAccessTab(TABS.SERVER, hasRole) && (
+          <TabButton tab={TABS.SERVER} label="SERVER" icon={<span className="text-lg">&#9211;</span>} />
+        )}
+        {canAccessTab(TABS.SECURITY, hasRole) && (
+          <TabButton tab={TABS.SECURITY} label="SECURITY" icon={<span className="text-lg">&#128274;</span>} />
+        )}
+
         <TabButton tab={TABS.HISTORY} label="HISTORY" icon={<span className="text-lg">&#8986;</span>} />
 
-        {/* Experimental tabs */}
+        {/* Experimental tabs - require both setting AND permission */}
         {userSettings?.showExperimentalFeatures && (
           <>
             <span className="text-hacker-text-dim/30 mx-1">|</span>
-            <TabButton tab={TABS.DEVELOPMENT} label="DEV" icon={<span className="text-lg">&#128295;</span>} />
-            <TabButton tab={TABS.CODE_PUPPY} label="CODE PUPPY" icon={<span className="text-lg">&#128021;</span>} />
-            <TabButton tab={TABS.TABBY} label="TABBY" icon={<span className="text-lg">&#128049;</span>} />
-            <TabButton tab={TABS.SWARM} label="SWARM" icon={<span className="text-lg">&#129433;</span>} />
+            {canAccessTab(TABS.DEVELOPMENT, hasRole) && (
+              <TabButton tab={TABS.DEVELOPMENT} label="DEV" icon={<span className="text-lg">&#128295;</span>} />
+            )}
+            {canAccessTab(TABS.CODE_PUPPY, hasRole) && (
+              <TabButton tab={TABS.CODE_PUPPY} label="CODE PUPPY" icon={<span className="text-lg">&#128021;</span>} />
+            )}
+            {canAccessTab(TABS.TABBY, hasRole) && (
+              <TabButton tab={TABS.TABBY} label="TABBY" icon={<span className="text-lg">&#128049;</span>} />
+            )}
+            {canAccessTab(TABS.SWARM, hasRole) && (
+              <TabButton tab={TABS.SWARM} label="SWARM" icon={<span className="text-lg">&#129433;</span>} />
+            )}
           </>
         )}
       </div>
@@ -652,9 +674,36 @@ function AdminDashboard({ onClose, initialTab = null, currentProject = null }) {
 
         {activeTab === TABS.AUTOMATION && <AutomationTab currentProject={currentProject} />}
 
-        {activeTab === TABS.SERVER && <ServerTab />}
+        {/* Admin-only tabs with RBAC check (Phase 3) */}
+        {activeTab === TABS.SERVER && (
+          canAccessTab(TABS.SERVER, hasRole) ? (
+            <ServerTab />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-64 text-center">
+              <svg className="w-16 h-16 text-hacker-error/50 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <h3 className="text-lg font-mono text-hacker-error mb-2">ACCESS DENIED</h3>
+              <p className="text-sm text-hacker-text-dim font-mono">Server management requires ADMIN role or higher</p>
+              <p className="text-xs text-hacker-text-dim/50 font-mono mt-2">Current role: {userRole}</p>
+            </div>
+          )
+        )}
 
-        {activeTab === TABS.SECURITY && <SecurityTab selectedProject={selectedProject} />}
+        {activeTab === TABS.SECURITY && (
+          canAccessTab(TABS.SECURITY, hasRole) ? (
+            <SecurityTab selectedProject={selectedProject} />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-64 text-center">
+              <svg className="w-16 h-16 text-hacker-error/50 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <h3 className="text-lg font-mono text-hacker-error mb-2">ACCESS DENIED</h3>
+              <p className="text-sm text-hacker-text-dim font-mono">Security management requires ADMIN role or higher</p>
+              <p className="text-xs text-hacker-text-dim/50 font-mono mt-2">Current role: {userRole}</p>
+            </div>
+          )
+        )}
 
         {activeTab === TABS.HISTORY && <HistoryTab />}
 
@@ -716,7 +765,7 @@ function AdminDashboard({ onClose, initialTab = null, currentProject = null }) {
       <footer className="relative z-10 px-6 py-3 border-t border-hacker-green/10 bg-hacker-surface/50 font-mono text-xs text-hacker-text-dim flex items-center justify-between">
         <div className="flex items-center gap-4">
           <span className="text-hacker-green">CP://SYSTEM</span>
-          <span>v1.0.20</span>
+          <span>v1.0.21</span>
         </div>
         <div className="flex items-center gap-4">
           <span>TAB: {activeTab.toUpperCase()}</span>

@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                             Console.web v1.0.20                              │
+│                             Console.web v1.0.21                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
 │  │  Terminal   │  │   Admin     │  │  Projects   │  │  Sidebars   │        │
@@ -151,6 +151,37 @@ npm run build && npm start
 | **Containers** | Dockerode |
 | **Observability** | OpenTelemetry, Jaeger, Loki, Prometheus, Grafana |
 | **Security** | Helmet, express-rate-limit, Zod, Sentry |
+
+---
+
+## [1.0.21] - 2026-01-18
+
+### RBAC & Agent Observability
+
+This release implements the first phases of the Enterprise Mission Control roadmap with full RBAC (Role-Based Access Control) enforcement and real-time agent observability.
+
+#### Role-Based Access Control (RBAC)
+
+- **4-Tier Role Hierarchy**: SUPER_ADMIN > ADMIN > USER > VIEWER with cascading permissions
+- **Server-Side Enforcement**: New `rbac.js` middleware with `requireRole()`, `buildOwnershipFilter()`, and `getOwnerIdForCreate()`
+- **Database RBAC Fields**: Added `ownerId` field to Session, Prompt, Snippet, and Agent models for ownership-based data isolation
+- **Route Protection**: Sessions, prompts, snippets, folders, and agents routes now enforce ownership filtering
+
+#### Frontend RBAC Integration
+
+- **useAuth Hook Enhancement**: Added `hasRole()`, `canAccess()`, `isOwner()`, `canAccessResource()` utilities
+- **PermissionGate Component**: Declarative component for role-based UI rendering with `fallback` support
+- **RoleBadge Component**: Visual role indicators with color-coded badges (cyan/purple/blue/gray)
+- **Tab Permissions**: AdminDashboard tabs filtered by role - SERVER and SECURITY require ADMIN+
+- **User Role in /auth/me**: Backend now returns user role for frontend permission checks
+
+#### Agent Observability (Phase 3.5)
+
+- **AgentsWidget**: New sidebar widget showing running agents, all agents, and execution history
+- **useAgentSocket Hook**: Socket.IO integration for real-time `agent:status` and `agent:output` events
+- **AgentDetailDrawer**: Slide-out drawer with Overview, Output, and History tabs
+- **Live Output Streaming**: Real-time action output display when agents are running
+- **Run/Stop Controls**: Direct agent control from widget and drawer
 
 ---
 

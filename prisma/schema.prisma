@@ -8,6 +8,61 @@ datasource db {
   provider = "postgresql"
 }
 
+// ============================================
+// RBAC: User & Role Management (Phase 1)
+// ============================================
+
+// User role hierarchy: SUPER_ADMIN > ADMIN > USER > VIEWER
+enum Role {
+  SUPER_ADMIN  // Full system access, infrastructure control
+  ADMIN        // Team management, all project access
+  USER         // Own projects/sessions only
+  VIEWER       // Read-only access to shared resources
+}
+
+// User model - synced from Authentik on first login
+model User {
+  id            String    @id                   // Authentik UID
+  email         String    @unique
+  name          String
+  username      String?
+  role          Role      @default(USER)
+  groups        String[]  @default([])         // Authentik groups
+
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
+
+  // Ownership relations (Phase 2 - Data Isolation)
+  sessions      Session[]        @relation("UserSessions")
+  folders       SessionFolder[]  @relation("UserFolders")
+  prompts       Prompt[]         @relation("UserPrompts")
+  snippets      CommandSnippet[] @relation("UserSnippets")
+  agents        Agent[]          @relation("UserAgents")
+
+  @@index([email])
+  @@index([role])
+}
+
+// Audit log for security tracking
+model AuditLog {
+  id            String    @id @default(cuid())
+  userId        String                         // User who performed action
+  action        String                         // CREATE, READ, UPDATE, DELETE, EXECUTE
+  resource      String                         // session, project, agent, etc.
+  resourceId    String?                        // ID of affected resource
+  metadata      Json?                          // Additional context
+  ipAddress     String?
+  userAgent     String?
+  timestamp     DateTime  @default(now())
+
+  @@index([userId])
+  @@index([resource, resourceId])
+  @@index([timestamp])
+  @@index([action])
+}
+
 // Project state and metadata
 model Project {
   id            String    @id @default(cuid())
@@ -50,6 +105,10 @@ model Session {
   projectId     String
   project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  // RBAC: Owner tracking (Phase 2)
+  ownerId       String?                 // User who created/owns this session
+  owner         User?     @relation("UserSessions", fields: [ownerId], references: [id], onDelete: SetNull)
+
   // Session identity
   sessionName   String    // tmux session name (e.g., cp-project-name)
   displayName   String?   // User-friendly name
@@ -89,6 +148,7 @@ model Session {
   @@index([folderId])
   @@index([isPinned])
   @@index([isArchived])
+  @@index([ownerId])
 }
 
 // Command history for activity tracking
@@ -182,8 +242,13 @@ model SessionFolder {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  // RBAC: Owner tracking (Phase 2)
+  ownerId     String?                 // User who created this folder
+  owner       User?     @relation("UserFolders", fields: [ownerId], references: [id], onDelete: SetNull)
+
   @@index([parentId])
   @@index([sortOrder])
+  @@index([ownerId])
 }
 
 // Session tagging system
@@ -283,9 +348,15 @@ model Prompt {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  // RBAC: Owner tracking (Phase 2)
+  ownerId     String?                 // User who created this prompt
+  owner       User?     @relation("UserPrompts", fields: [ownerId], references: [id], onDelete: SetNull)
+  isShared    Boolean   @default(false)  // Visible to team members
+
   @@index([category])
   @@index([isFavorite])
   @@index([usageCount])
+  @@index([ownerId])
 }
 
 // Command snippets for quick terminal commands
@@ -301,8 +372,14 @@ model CommandSnippet {
   lastUsedAt  DateTime?
   createdAt   DateTime  @default(now())
 
+  // RBAC: Owner tracking (Phase 2)
+  ownerId     String?                 // User who created this snippet
+  owner       User?     @relation("UserSnippets", fields: [ownerId], references: [id], onDelete: SetNull)
+  isShared    Boolean   @default(false)  // Visible to team members
+
   @@index([category])
   @@index([isFavorite])
+  @@index([ownerId])
 }
 
 // Keyboard shortcuts customization
@@ -642,10 +719,16 @@ model Agent {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
+  // RBAC: Owner tracking (Phase 2)
+  ownerId       String?                 // User who created this agent
+  owner         User?     @relation("UserAgents", fields: [ownerId], references: [id], onDelete: SetNull)
+  isPublic      Boolean   @default(false)  // Marketplace/shared agent
+
   @@index([triggerType])
   @@index([enabled])
   @@index([projectId])
   @@index([catalogId])
+  @@index([ownerId])
 }
 
 // Agent execution history

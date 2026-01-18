@@ -11,6 +11,7 @@ import PortWizard from './PortWizard';
 import SessionManager from './SessionManager';
 import GitHubProjectPanel from './GitHubProjectPanel';
 import CloudflarePublishPanel from './CloudflarePublishPanel';
+import AgentDetailDrawer from './AgentDetailDrawer';
 
 // Import modular widget components
 import {
@@ -21,6 +22,7 @@ import {
   LEFT_SIDEBAR_DEFAULTS,
   DockerWidget,
   ProjectsWidget,
+  AgentsWidget,
   DraggableWidget,
   AddWidgetModal,
   NoProjectSelected,
@@ -47,6 +49,7 @@ export default function WidgetDashboard({
   const [expandedWidgets, setExpandedWidgets] = useState({});
   const [heightSnaps, setHeightSnaps] = useState({});
   const [isEditing, setIsEditing] = useState(false);
+  const [agentDrawerOpen, setAgentDrawerOpen] = useState(null); // Agent ID for drawer
   const [showAddModal, setShowAddModal] = useState(false);
   const [draggedWidget, setDraggedWidget] = useState(null);
   const [dropTargetIndex, setDropTargetIndex] = useState(null);
@@ -305,6 +308,14 @@ export default function WidgetDashboard({
       case 'docker':
         return <DockerWidget />;
 
+      case 'agents':
+        return (
+          <AgentsWidget
+            onOpenAgentDetail={(id) => setAgentDrawerOpen(id)}
+            onOpenFullAdmin={onOpenAdmin ? (id) => onOpenAdmin('automation', id) : undefined}
+          />
+        );
+
       case 'projects':
         return (
           <ProjectsWidget
@@ -448,6 +459,14 @@ export default function WidgetDashboard({
         onAdd={handleAddWidget}
         existingWidgets={widgets}
       />
+
+      {/* Agent Detail Drawer */}
+      {agentDrawerOpen && (
+        <AgentDetailDrawer
+          agentId={agentDrawerOpen}
+          onClose={() => setAgentDrawerOpen(null)}
+        />
+      )}
     </div>
   );
 }

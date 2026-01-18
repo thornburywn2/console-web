@@ -9,6 +9,7 @@ import { createLogger } from '../services/logger.js';
 import { validateBody } from '../middleware/validate.js';
 import { agentSchema, agentUpdateSchema } from '../validation/schemas.js';
 import { sendSafeError } from '../utils/errorResponse.js';
+import { buildOwnershipFilter, getOwnerIdForCreate } from '../middleware/rbac.js';
 
 const log = createLogger('agents');
 
@@ -27,7 +28,13 @@ export function createAgentsRouter(prisma, agentRunner) {
     try {
       const { trigger, enabled, projectId } = req.query;
 
-      const where = {};
+      // RBAC: Build ownership filter (Phase 2)
+      // Agents can be public (marketplace) or user-owned
+      const ownershipFilter = buildOwnershipFilter(req, { includePublic: true });
+
+      const where = {
+        ...ownershipFilter, // Apply RBAC ownership filter
+      };
 
       if (trigger) {
         where.triggerType = trigger.toUpperCase();
@@ -163,7 +170,8 @@ export function createAgentsRouter(prisma, agentRunner) {
           triggerConfig: triggerConfig || null,
           actions,
           enabled: enabled !== false,
-          projectId: projectId || null
+          projectId: projectId || null,
+          ownerId: getOwnerIdForCreate(req)
         },
         include: {
           project: {

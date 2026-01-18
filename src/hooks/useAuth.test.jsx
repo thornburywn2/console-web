@@ -395,6 +395,7 @@ describe('UserAvatar', () => {
           email: 'admin@example.com',
           isAdmin: true,
           groups: ['admins'],
+          role: 'ADMIN', // Phase 3: Added role field
         },
       }),
     });

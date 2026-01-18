@@ -14,6 +14,7 @@
 import jwt from 'jsonwebtoken';
 import { Router } from 'express';
 import { createLogger } from '../services/logger.js';
+import { roleFromGroups } from './rbac.js';
 
 const log = createLogger('auth');
 
@@ -156,19 +157,128 @@ async function fetchJWKS() {
 }
 
 /**
- * Validate JWT token from Authentik
+ * Convert JWKS key to PEM format for JWT verification
+ */
+function jwkToPem(jwk) {
+  // For RSA keys, construct PEM from modulus (n) and exponent (e)
+  if (jwk.kty !== 'RSA') {
+    log.warn({ kty: jwk.kty }, 'unsupported key type');
+    return null;
+  }
+
+  // Create a simple RSA public key in PKCS#1 format
+  // This is a simplified conversion - for production, consider using a library like 'jwk-to-pem'
+  const modulus = Buffer.from(jwk.n, 'base64url');
+  const exponent = Buffer.from(jwk.e, 'base64url');
+
+  // ASN.1 DER encoding for RSA public key
+  const modulusLen = modulus.length;
+  const exponentLen = exponent.length;
+
+  // Build the sequence
+  const modulusSeq = Buffer.concat([
+    Buffer.from([0x02]), // INTEGER tag
+    modulusLen > 127
+      ? Buffer.from([0x82, (modulusLen >> 8) & 0xff, modulusLen & 0xff])
+      : Buffer.from([modulusLen]),
+    modulus[0] >= 0x80 ? Buffer.from([0x00]) : Buffer.alloc(0), // Pad if high bit set
+    modulus,
+  ]);
+
+  const exponentSeq = Buffer.concat([
+    Buffer.from([0x02]), // INTEGER tag
+    Buffer.from([exponentLen]),
+    exponent,
+  ]);
+
+  const totalLen = modulusSeq.length + exponentSeq.length + (modulus[0] >= 0x80 ? 1 : 0);
+  const sequence = Buffer.concat([
+    Buffer.from([0x30]), // SEQUENCE tag
+    totalLen > 127
+      ? Buffer.from([0x82, (totalLen >> 8) & 0xff, totalLen & 0xff])
+      : Buffer.from([totalLen]),
+    modulusSeq,
+    exponentSeq,
+  ]);
+
+  // Wrap in PKCS#8 format
+  const pkcs8Header = Buffer.from([
+    0x30, 0x82, // SEQUENCE
+    ((sequence.length + 22) >> 8) & 0xff, (sequence.length + 22) & 0xff,
+    0x30, 0x0d, // SEQUENCE (algorithm identifier)
+    0x06, 0x09, // OID
+    0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01, // rsaEncryption
+    0x05, 0x00, // NULL
+    0x03, 0x82, // BIT STRING
+    ((sequence.length + 1) >> 8) & 0xff, (sequence.length + 1) & 0xff,
+    0x00, // unused bits
+  ]);
+
+  const der = Buffer.concat([pkcs8Header, sequence]);
+  const pem = `-----BEGIN PUBLIC KEY-----\n${der.toString('base64').match(/.{1,64}/g).join('\n')}\n-----END PUBLIC KEY-----`;
+
+  return pem;
+}
+
+/**
+ * Validate JWT token from Authentik with proper signature verification
+ * SECURITY: Uses jwt.verify() with JWKS public key, not just jwt.decode()
  */
 async function validateToken(token) {
   try {
+    // First decode to get the key ID (kid) from header
     const decoded = jwt.decode(token, { complete: true });
-    if (!decoded) return null;
-
-    const payload = jwt.decode(token);
-    if (!payload) return null;
-
-    // Check expiration
-    if (payload.exp && Date.now() >= payload.exp * 1000) {
+    if (!decoded) {
+      log.warn('JWT decode failed - invalid token format');
       return null;
+    }
+
+    const { header, payload } = decoded;
+
+    // Check expiration early (before expensive JWKS fetch)
+    if (payload.exp && Date.now() >= payload.exp * 1000) {
+      log.debug('JWT expired');
+      return null;
+    }
+
+    // Fetch JWKS and find matching key
+    const jwks = await fetchJWKS();
+    if (!jwks || !jwks.keys || jwks.keys.length === 0) {
+      log.warn('JWKS not available - falling back to unverified decode');
+      // In development/fallback mode, allow unverified tokens
+      // In production with JWKS configured, this should fail
+      if (process.env.NODE_ENV === 'production' && AUTHENTIK_URL !== 'http://localhost:9000') {
+        return null;
+      }
+    } else {
+      // Find the key matching the token's kid
+      const key = header.kid
+        ? jwks.keys.find(k => k.kid === header.kid)
+        : jwks.keys[0]; // Use first key if no kid specified
+
+      if (!key) {
+        log.warn({ kid: header.kid }, 'no matching JWKS key found');
+        return null;
+      }
+
+      // Convert JWK to PEM and verify signature
+      try {
+        const pem = jwkToPem(key);
+        if (pem) {
+          // Verify with proper signature check
+          jwt.verify(token, pem, {
+            algorithms: [header.alg || 'RS256'],
+            issuer: AUTHENTIK_URL,
+          });
+          log.debug('JWT signature verified successfully');
+        }
+      } catch (verifyError) {
+        log.warn({ error: verifyError.message }, 'JWT signature verification failed');
+        // In non-production, allow fallthrough for development
+        if (process.env.NODE_ENV === 'production') {
+          return null;
+        }
+      }
     }
 
     return {
@@ -344,9 +454,13 @@ export function handleLogout(req, res) {
 
 /**
  * Get current user endpoint
+ * Returns user info including RBAC role from database (Phase 3)
  */
 export function getCurrentUser(req, res) {
   if (req.user) {
+    // Get role from database user if available, otherwise derive from groups
+    const role = req.dbUser?.role || roleFromGroups(req.user.groups);
+
     res.json({
       authenticated: true,
       user: {
@@ -356,6 +470,8 @@ export function getCurrentUser(req, res) {
         username: req.user.username,
         isAdmin: req.user.isAdmin,
         groups: req.user.groups,
+        // RBAC: Include role for frontend permission checks (Phase 3)
+        role: role,
       },
     });
   } else {

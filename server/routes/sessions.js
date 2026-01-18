@@ -13,6 +13,7 @@ import {
   tagAssignmentsSchema,
 } from '../validation/schemas.js';
 import { sendSafeError } from '../utils/errorResponse.js';
+import { buildSessionFilter, getOwnerIdForCreate } from '../middleware/rbac.js';
 
 const log = createLogger('sessions');
 
@@ -93,12 +94,18 @@ export function createSessionsRouter(prisma) {
 
   /**
    * Get all sessions with folder and tag info
+   * RBAC: Users see only their own sessions + legacy sessions
    */
   router.get('/', async (req, res) => {
     try {
       const { includeArchived = 'false', folderId, tagId } = req.query;
 
-      const where = {};
+      // RBAC: Build ownership filter (Phase 2)
+      const ownershipFilter = buildSessionFilter(req);
+
+      const where = {
+        ...ownershipFilter, // Apply RBAC ownership filter
+      };
 
       // Filter by archived status
       if (includeArchived !== 'true') {
@@ -572,7 +579,8 @@ export function createSessionsRouter(prisma) {
           isTemporary: false,
           isArchived: false,
           status: 'ACTIVE',
-          workingDirectory: project.path
+          workingDirectory: project.path,
+          ownerId: getOwnerIdForCreate(req)
         }
       });
 
@@ -699,6 +707,7 @@ ${exportData.context?.notes?.map(n => `- ${n.title || 'Note'}: ${n.content.subst
           isPinned: false,
           isTemporary: false,
           isArchived: false,
+          ownerId: getOwnerIdForCreate(req),
           tags: {
             create: original.tags.map(t => ({ tagId: t.tagId }))
           }

@@ -143,3 +143,95 @@ export const DEFAULT_SUB_TABS = {
   [TABS.SERVER]: SERVER_TABS.OVERVIEW,
   [TABS.SECURITY]: SECURITY_TABS.SCANS,
 };
+
+/**
+ * RBAC: Tab permission requirements (Phase 3)
+ * Maps tabs to minimum required role
+ * Roles: VIEWER < USER < ADMIN < SUPER_ADMIN
+ */
+export const TAB_PERMISSIONS = {
+  [TABS.PROJECTS]: 'USER',        // All users can see projects
+  [TABS.SETTINGS]: 'USER',        // All users can access settings
+  [TABS.AUTOMATION]: 'USER',      // Users can see their own agents
+  [TABS.SERVER]: 'ADMIN',         // Admin+ only for server management
+  [TABS.SECURITY]: 'ADMIN',       // Admin+ only for security features
+  [TABS.HISTORY]: 'USER',         // Users can see their own history
+  [TABS.DEVELOPMENT]: 'USER',     // Dev tools for all users
+  [TABS.CODE_PUPPY]: 'USER',      // AI assistant for all
+  [TABS.TABBY]: 'ADMIN',          // Tabby requires Docker (admin)
+  [TABS.SWARM]: 'ADMIN',          // Swarm is advanced (admin)
+};
+
+/**
+ * RBAC: Server sub-tab permission requirements (Phase 3)
+ */
+export const SERVER_TAB_PERMISSIONS = {
+  [SERVER_TABS.OVERVIEW]: 'ADMIN',
+  [SERVER_TABS.SERVICES]: 'ADMIN',
+  [SERVER_TABS.DOCKER]: 'ADMIN',
+  [SERVER_TABS.STACK]: 'ADMIN',
+  [SERVER_TABS.OBSERVABILITY]: 'ADMIN',
+  [SERVER_TABS.PACKAGES]: 'SUPER_ADMIN',   // Package install is dangerous
+  [SERVER_TABS.LOGS]: 'ADMIN',
+  [SERVER_TABS.PROCESSES]: 'SUPER_ADMIN',  // Process kill is dangerous
+  [SERVER_TABS.NETWORK]: 'ADMIN',
+  [SERVER_TABS.SCHEDULED]: 'ADMIN',
+  [SERVER_TABS.AUTHENTIK]: 'SUPER_ADMIN',  // User management
+  [SERVER_TABS.USERS]: 'SUPER_ADMIN',      // User management
+};
+
+/**
+ * RBAC: Security sub-tab permission requirements (Phase 3)
+ */
+export const SECURITY_TAB_PERMISSIONS = {
+  [SECURITY_TABS.SCANS]: 'ADMIN',
+  [SECURITY_TABS.FIREWALL]: 'SUPER_ADMIN', // Firewall is critical
+  [SECURITY_TABS.FAIL2BAN]: 'SUPER_ADMIN', // Fail2ban is critical
+  [SECURITY_TABS.SCAN_CONFIG]: 'ADMIN',
+};
+
+/**
+ * Check if user has permission to access a tab
+ * @param {string} tab - Tab identifier
+ * @param {function} hasRole - Function to check if user has role
+ * @returns {boolean}
+ */
+export function canAccessTab(tab, hasRole) {
+  const requiredRole = TAB_PERMISSIONS[tab];
+  if (!requiredRole) return true;
+  return hasRole(requiredRole);
+}
+
+/**
+ * Check if user has permission to access a server sub-tab
+ * @param {string} subTab - Sub-tab identifier
+ * @param {function} hasRole - Function to check if user has role
+ * @returns {boolean}
+ */
+export function canAccessServerTab(subTab, hasRole) {
+  const requiredRole = SERVER_TAB_PERMISSIONS[subTab];
+  if (!requiredRole) return true;
+  return hasRole(requiredRole);
+}
+
+/**
+ * Check if user has permission to access a security sub-tab
+ * @param {string} subTab - Sub-tab identifier
+ * @param {function} hasRole - Function to check if user has role
+ * @returns {boolean}
+ */
+export function canAccessSecurityTab(subTab, hasRole) {
+  const requiredRole = SECURITY_TAB_PERMISSIONS[subTab];
+  if (!requiredRole) return true;
+  return hasRole(requiredRole);
+}
+
+/**
+ * Filter tabs based on user's role
+ * @param {string[]} tabs - Array of tab identifiers
+ * @param {function} hasRole - Function to check if user has role
+ * @returns {string[]} Filtered tabs
+ */
+export function filterTabsByPermission(tabs, hasRole) {
+  return tabs.filter(tab => canAccessTab(tab, hasRole));
+}

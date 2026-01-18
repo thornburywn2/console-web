@@ -8,6 +8,7 @@ import { createLogger } from '../services/logger.js';
 import { validateBody } from '../middleware/validate.js';
 import { promptSchema, promptUpdateSchema } from '../validation/schemas.js';
 import { sendSafeError } from '../utils/errorResponse.js';
+import { buildOwnershipFilter, getOwnerIdForCreate } from '../middleware/rbac.js';
 
 const log = createLogger('prompts');
 
@@ -16,12 +17,18 @@ export function createPromptsRouter(prisma) {
 
   /**
    * Get all prompts with optional filtering
+   * RBAC: Users see their own prompts + shared + legacy prompts
    */
   router.get('/', async (req, res) => {
     try {
       const { category, favorite, search, limit = 100, offset = 0 } = req.query;
 
-      const where = {};
+      // RBAC: Build ownership filter (Phase 2)
+      const ownershipFilter = buildOwnershipFilter(req, { includePublic: false });
+
+      const where = {
+        ...ownershipFilter, // Apply RBAC ownership filter
+      };
 
       if (category) {
         where.category = category;
@@ -32,10 +39,15 @@ export function createPromptsRouter(prisma) {
       }
 
       if (search) {
-        where.OR = [
-          { name: { contains: search, mode: 'insensitive' } },
-          { content: { contains: search, mode: 'insensitive' } },
-          { description: { contains: search, mode: 'insensitive' } }
+        // Combine search OR with ownership filter
+        where.AND = [
+          {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { content: { contains: search, mode: 'insensitive' } },
+              { description: { contains: search, mode: 'insensitive' } }
+            ]
+          }
         ];
       }
 
@@ -115,7 +127,8 @@ export function createPromptsRouter(prisma) {
           description: null,
           category: category || null,
           variables: tags ? tags.map(t => ({ name: t })) : null,
-          isFavorite: isFavorite || false
+          isFavorite: isFavorite || false,
+          ownerId: getOwnerIdForCreate(req)
         }
       });
 
@@ -261,7 +274,8 @@ export function createPromptsRouter(prisma) {
           category: original.category,
           variables: original.variables,
           isFavorite: false,
-          usageCount: 0
+          usageCount: 0,
+          ownerId: getOwnerIdForCreate(req)
         }
       });
 

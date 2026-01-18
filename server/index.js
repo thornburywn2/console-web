@@ -38,6 +38,15 @@ const log = createLogger('server');
 // Import authentication middleware
 import { authentikAuth, createAuthRouter } from './middleware/authentik.js';
 
+// Import RBAC middleware (Phase 1 - Enterprise Mission Control)
+import {
+  requireRole,
+  requireAdmin,
+  requireSuperAdmin,
+  createUserSync,
+  auditLog,
+} from './middleware/rbac.js';
+
 // Import security middleware
 import {
   nonceMiddleware,
@@ -519,6 +528,13 @@ app.use('/api', authentikAuth({
 }));
 
 // =============================================================================
+// USER SYNC (Phase 1 - Sync Authentik users to database)
+// =============================================================================
+// Creates/updates User record on each authenticated request
+const userSync = createUserSync(prisma);
+app.use('/api', userSync);
+
+// =============================================================================
 // RATE LIMITING (After Authentication)
 // =============================================================================
 
@@ -532,6 +548,23 @@ app.use('/api/git', strictRateLimiter);
 app.use('/api/infrastructure', strictRateLimiter);
 app.use('/api/admin-users/firewall', strictRateLimiter);
 app.use('/api/observability', strictRateLimiter);
+
+// =============================================================================
+// RBAC PROTECTION (Phase 1 - Role-Based Access Control)
+// =============================================================================
+// Protect sensitive admin routes - require ADMIN or SUPER_ADMIN role
+
+// Docker control - ADMIN+ required (container start/stop/restart affects all users)
+app.use('/api/docker', requireAdmin());
+
+// Infrastructure management - SUPER_ADMIN only (system packages, processes, reboot)
+app.use('/api/infra', requireSuperAdmin());
+
+// User and firewall management - SUPER_ADMIN only (most sensitive operations)
+app.use('/api/admin-users', requireSuperAdmin());
+
+// Observability stack control - ADMIN+ required (monitoring/logging infrastructure)
+app.use('/api/observability', requireAdmin());
 
 // =============================================================================
 // MODULAR API ROUTES
@@ -855,8 +888,13 @@ async function updateProjectAccess(projectPath) {
 
 /**
  * Save session state to database
+ * @param {string} projectPath - Path to project
+ * @param {string} sessionName - Terminal session name
+ * @param {Object} terminalSize - Terminal dimensions
+ * @param {string} workingDir - Working directory
+ * @param {string} ownerId - User ID who owns/created the session (Phase 2 RBAC)
  */
-async function saveSessionState(projectPath, sessionName, terminalSize = null, workingDir = null) {
+async function saveSessionState(projectPath, sessionName, terminalSize = null, workingDir = null, ownerId = null) {
   try {
     const project = await getOrCreateProject(projectPath);
     if (!project) return null;
@@ -873,13 +911,15 @@ async function saveSessionState(projectPath, sessionName, terminalSize = null, w
         lastActiveAt: new Date(),
         terminalSize: terminalSize || undefined,
         workingDirectory: workingDir || undefined
+        // Note: Don't update ownerId on reconnect - preserve original owner
       },
       create: {
         projectId: project.id,
         sessionName,
         status: 'ACTIVE',
         terminalSize,
-        workingDirectory: workingDir
+        workingDirectory: workingDir,
+        ownerId: ownerId // Set owner on creation (Phase 2 RBAC)
       }
     });
 

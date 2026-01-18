@@ -4,6 +4,28 @@
 
 export const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.21',
+    date: '2026-01-18',
+    type: 'major',
+    title: 'RBAC & Agent Observability',
+    highlights: [
+      'Role-based access control (RBAC) with 4-tier hierarchy',
+      'Agent observability widget with real-time Socket.IO updates',
+      'Agent detail drawer with live output streaming',
+      'Frontend permission gates and role-based UI',
+    ],
+    features: [
+      { title: 'RBAC Middleware', description: 'Server-side role enforcement with SUPER_ADMIN > ADMIN > USER > VIEWER hierarchy and ownership-based data isolation' },
+      { title: 'useAuth RBAC Hooks', description: 'hasRole(), canAccess(), isOwner(), canAccessResource() utilities for frontend permission checks' },
+      { title: 'PermissionGate Component', description: 'Declarative component for conditionally rendering UI based on user roles' },
+      { title: 'Role-Based Tab Visibility', description: 'AdminDashboard tabs filtered by role - Server and Security tabs require ADMIN+' },
+      { title: 'AgentsWidget', description: 'Real-time agent status widget showing running agents, all agents, and execution history with run/stop controls' },
+      { title: 'useAgentSocket Hook', description: 'Socket.IO integration for live agent:status and agent:output events with running state tracking' },
+      { title: 'AgentDetailDrawer', description: 'Slide-out drawer with Overview, Output, and History tabs for detailed agent inspection and live output streaming' },
+      { title: 'Database RBAC Fields', description: 'Added ownerId to Session, Prompt, Snippet, Agent models for ownership-based filtering' },
+    ],
+  },
+  {
     version: '1.0.20',
     date: '2026-01-18',
     type: 'major',

@@ -93,6 +93,14 @@ export const WIDGET_TYPES = {
     requiresProject: false,
     defaultHeight: 'fill',
   },
+  agents: {
+    icon: '🤖',
+    title: 'Agents',
+    description: 'Running agents and executions',
+    color: '#a855f7',
+    requiresProject: false,
+    defaultHeight: 'medium',
+  },
 };
 
 // Default widget layouts - matches current panel order
@@ -108,6 +116,7 @@ export const DEFAULT_WIDGETS = [
 // Sidebar defaults - same as panels
 export const SIDEBAR_DEFAULTS = [
   { id: 'system-1', type: 'system', title: 'System' },
+  { id: 'agents-1', type: 'agents', title: 'Agents' },  // Phase 3.5: Agent Observability
   { id: 'projectInfo-1', type: 'projectInfo', title: 'Project Info' },
   { id: 'github-1', type: 'github', title: 'GitHub' },
   { id: 'cloudflare-1', type: 'cloudflare', title: 'Cloudflare' },

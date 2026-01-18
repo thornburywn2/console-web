@@ -18,6 +18,7 @@ export {
 // Widget components
 export { default as DockerWidget } from './DockerWidget';
 export { default as ProjectsWidget } from './ProjectsWidget';
+export { default as AgentsWidget } from './AgentsWidget';
 export { default as DraggableWidget } from './DraggableWidget';
 export { default as AddWidgetModal } from './AddWidgetModal';
 export { default as NoProjectSelected } from './NoProjectSelected';

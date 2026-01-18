@@ -17,6 +17,7 @@ import {
   sessionArchiveSchema,
 } from '../validation/schemas.js';
 import { sendSafeError } from '../utils/errorResponse.js';
+import { buildOwnershipFilter, getOwnerIdForCreate } from '../middleware/rbac.js';
 
 const log = createLogger('folders');
 
@@ -29,10 +30,15 @@ export function createFoldersRouter(prisma) {
 
   /**
    * Get all folders with hierarchy
+   * RBAC: Users see their own folders + shared + legacy folders
    */
   router.get('/folders', async (req, res) => {
     try {
+      // RBAC: Build ownership filter (Phase 2)
+      const ownershipFilter = buildOwnershipFilter(req, { includePublic: false });
+
       const folders = await prisma.sessionFolder.findMany({
+        where: ownershipFilter,
         include: {
           children: true,
           sessions: {
@@ -67,7 +73,8 @@ export function createFoldersRouter(prisma) {
           color: color || null,
           icon: icon || null,
           parentId: parentId || null,
-          sortOrder: sortOrder ?? 0
+          sortOrder: sortOrder ?? 0,
+          ownerId: getOwnerIdForCreate(req)
         },
         include: {
           children: true,
