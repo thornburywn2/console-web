@@ -306,7 +306,7 @@ export function buildOwnershipFilter(req, options = {}) {
 }
 
 /**
- * Build session ownership filter
+ * Build session ownership filter (sync version for backward compatibility)
  * Sessions don't have isShared/isPublic fields, so we use different logic
  */
 export function buildSessionFilter(req, options = {}) {
@@ -341,6 +341,172 @@ export function buildSessionFilter(req, options = {}) {
   }
 
   return { OR: orConditions };
+}
+
+/**
+ * Build session ownership filter with team access (async version)
+ * Includes sessions from projects assigned to the user's team
+ *
+ * @param {Object} prisma - Prisma client
+ * @param {Object} req - Express request
+ * @param {Object} options - Filter options
+ */
+export async function buildSessionFilterWithTeam(prisma, req, options = {}) {
+  const { includeLegacy = true } = options;
+
+  const userId = req.user?.id;
+  const userRole = req.dbUser?.role || roleFromGroups(req.user?.groups);
+  const teamId = req.dbUser?.teamId;
+
+  // SUPER_ADMIN and ADMIN see all sessions
+  if (userRole === 'SUPER_ADMIN' || userRole === 'ADMIN') {
+    return {};
+  }
+
+  // VIEWER cannot see sessions (terminal access is write operation)
+  if (userRole === 'VIEWER') {
+    return { ownerId: 'impossible-id-no-access' };
+  }
+
+  // USER sees own sessions + legacy sessions + team project sessions
+  const orConditions = [];
+
+  if (userId) {
+    orConditions.push({ ownerId: userId });
+  }
+
+  if (includeLegacy) {
+    orConditions.push({ ownerId: null });
+  }
+
+  // Add team project paths if user is in a team
+  if (teamId) {
+    const teamProjectPaths = await getTeamProjectPaths(prisma, req);
+    if (teamProjectPaths.length > 0) {
+      orConditions.push({ projectPath: { in: teamProjectPaths } });
+    }
+  }
+
+  if (orConditions.length === 0) {
+    return { ownerId: 'impossible-id-no-access' };
+  }
+
+  return { OR: orConditions };
+}
+
+/**
+ * Check if user can access a specific session
+ * Returns { canAccess, accessLevel, reason }
+ *
+ * @param {Object} prisma - Prisma client
+ * @param {Object} req - Express request
+ * @param {Object} session - Session object with ownerId and projectPath
+ */
+export async function checkSessionAccess(prisma, req, session) {
+  const userId = req.user?.id;
+  const userRole = req.dbUser?.role || roleFromGroups(req.user?.groups);
+  const teamId = req.dbUser?.teamId;
+
+  // SUPER_ADMIN and ADMIN have full access
+  if (userRole === 'SUPER_ADMIN' || userRole === 'ADMIN') {
+    return { canAccess: true, accessLevel: 'ADMIN', reason: 'admin_role' };
+  }
+
+  // VIEWER cannot access sessions
+  if (userRole === 'VIEWER') {
+    return { canAccess: false, accessLevel: null, reason: 'viewer_role' };
+  }
+
+  // Owner has full access
+  if (session.ownerId === userId) {
+    return { canAccess: true, accessLevel: 'ADMIN', reason: 'owner' };
+  }
+
+  // Legacy sessions (no owner) are accessible
+  if (session.ownerId === null) {
+    return { canAccess: true, accessLevel: 'READ_WRITE', reason: 'legacy' };
+  }
+
+  // Check team access via project assignment
+  if (teamId && session.projectPath) {
+    const { hasAccess, accessLevel } = await checkTeamProjectAccess(prisma, teamId, session.projectPath);
+    if (hasAccess) {
+      return { canAccess: true, accessLevel, reason: 'team_project' };
+    }
+  }
+
+  return { canAccess: false, accessLevel: null, reason: 'no_access' };
+}
+
+/**
+ * Middleware: Require access to a session
+ * Checks ownership, team access, and role
+ *
+ * @param {Object} prisma - Prisma client
+ * @param {string} accessRequired - Minimum access level required ('READ_ONLY', 'READ_WRITE', 'ADMIN')
+ */
+export function requireSessionAccess(prisma, accessRequired = 'READ_ONLY') {
+  const ACCESS_LEVELS = { READ_ONLY: 0, READ_WRITE: 1, ADMIN: 2 };
+
+  return async (req, res, next) => {
+    const sessionId = req.params.id || req.params.sessionId;
+
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session ID required' });
+    }
+
+    try {
+      const session = await prisma.session.findUnique({
+        where: { id: sessionId },
+        select: { id: true, ownerId: true, projectPath: true },
+      });
+
+      if (!session) {
+        return res.status(404).json({ error: 'Session not found' });
+      }
+
+      const { canAccess, accessLevel, reason } = await checkSessionAccess(prisma, req, session);
+
+      if (!canAccess) {
+        log.warn({
+          userId: req.user?.id,
+          sessionId,
+          reason,
+        }, 'RBAC: session access denied');
+
+        return res.status(403).json({
+          error: 'Access denied',
+          message: 'You do not have permission to access this session',
+        });
+      }
+
+      // Check if access level is sufficient
+      const userLevel = ACCESS_LEVELS[accessLevel] ?? 0;
+      const requiredLevel = ACCESS_LEVELS[accessRequired] ?? 0;
+
+      if (userLevel < requiredLevel) {
+        log.warn({
+          userId: req.user?.id,
+          sessionId,
+          accessLevel,
+          accessRequired,
+        }, 'RBAC: insufficient session access level');
+
+        return res.status(403).json({
+          error: 'Insufficient permissions',
+          message: `This action requires ${accessRequired} access`,
+        });
+      }
+
+      // Attach session and access info to request
+      req.session = session;
+      req.sessionAccessLevel = accessLevel;
+      next();
+    } catch (error) {
+      log.error({ error: error.message, sessionId }, 'RBAC: session access check failed');
+      return res.status(500).json({ error: 'Failed to check session access' });
+    }
+  };
 }
 
 /**
@@ -508,4 +674,8 @@ export default {
   requireTeamAccess,
   canTeamWrite,
   canTeamAdmin,
+  // Phase 6: Session access with team support
+  buildSessionFilterWithTeam,
+  checkSessionAccess,
+  requireSessionAccess,
 };

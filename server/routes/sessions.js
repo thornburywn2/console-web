@@ -13,7 +13,13 @@ import {
   tagAssignmentsSchema,
 } from '../validation/schemas.js';
 import { sendSafeError } from '../utils/errorResponse.js';
-import { buildSessionFilter, getOwnerIdForCreate } from '../middleware/rbac.js';
+import {
+  buildSessionFilterWithTeam,
+  getOwnerIdForCreate,
+  requireSessionAccess,
+  checkSessionAccess,
+  canTeamWrite,
+} from '../middleware/rbac.js';
 import { enforceQuota } from '../middleware/quotas.js';
 
 const log = createLogger('sessions');
@@ -95,17 +101,17 @@ export function createSessionsRouter(prisma) {
 
   /**
    * Get all sessions with folder and tag info
-   * RBAC: Users see only their own sessions + legacy sessions
+   * RBAC: Users see only their own sessions + legacy sessions + team project sessions
    */
   router.get('/', async (req, res) => {
     try {
       const { includeArchived = 'false', folderId, tagId } = req.query;
 
-      // RBAC: Build ownership filter (Phase 2)
-      const ownershipFilter = buildSessionFilter(req);
+      // RBAC: Build ownership filter with team access (Phase 6)
+      const ownershipFilter = await buildSessionFilterWithTeam(prisma, req);
 
       const where = {
-        ...ownershipFilter, // Apply RBAC ownership filter
+        ...ownershipFilter, // Apply RBAC ownership filter with team access
       };
 
       // Filter by archived status
@@ -155,8 +161,9 @@ export function createSessionsRouter(prisma) {
 
   /**
    * Get a single session
+   * RBAC: Requires READ_ONLY access (ownership, legacy, or team project access)
    */
-  router.get('/:id', async (req, res) => {
+  router.get('/:id', requireSessionAccess(prisma, 'READ_ONLY'), async (req, res) => {
     try {
       const session = await prisma.session.findUnique({
         where: { id: req.params.id },
@@ -184,8 +191,9 @@ export function createSessionsRouter(prisma) {
 
   /**
    * Update session metadata
+   * RBAC: Requires READ_WRITE access (ownership, legacy, or team project with write access)
    */
-  router.patch('/:id', validateBody(sessionMetadataUpdateSchema), async (req, res) => {
+  router.patch('/:id', requireSessionAccess(prisma, 'READ_WRITE'), validateBody(sessionMetadataUpdateSchema), async (req, res) => {
     try {
       const { displayName, folderId, isPinned, isTemporary } = req.body;
 
@@ -216,8 +224,9 @@ export function createSessionsRouter(prisma) {
 
   /**
    * Pin/unpin a session
+   * RBAC: Requires READ_WRITE access
    */
-  router.post('/:id/pin', async (req, res) => {
+  router.post('/:id/pin', requireSessionAccess(prisma, 'READ_WRITE'), async (req, res) => {
     try {
       const session = await prisma.session.findUnique({
         where: { id: req.params.id }
@@ -245,8 +254,9 @@ export function createSessionsRouter(prisma) {
 
   /**
    * Archive a session
+   * RBAC: Requires READ_WRITE access
    */
-  router.post('/:id/archive', async (req, res) => {
+  router.post('/:id/archive', requireSessionAccess(prisma, 'READ_WRITE'), async (req, res) => {
     try {
       const session = await prisma.session.update({
         where: { id: req.params.id },
@@ -269,8 +279,9 @@ export function createSessionsRouter(prisma) {
 
   /**
    * Restore an archived session
+   * RBAC: Requires READ_WRITE access
    */
-  router.post('/:id/restore', async (req, res) => {
+  router.post('/:id/restore', requireSessionAccess(prisma, 'READ_WRITE'), async (req, res) => {
     try {
       const session = await prisma.session.update({
         where: { id: req.params.id },
@@ -293,8 +304,9 @@ export function createSessionsRouter(prisma) {
 
   /**
    * Add tags to a session
+   * RBAC: Requires READ_WRITE access
    */
-  router.post('/:id/tags', validateBody(tagAssignmentsSchema), async (req, res) => {
+  router.post('/:id/tags', requireSessionAccess(prisma, 'READ_WRITE'), validateBody(tagAssignmentsSchema), async (req, res) => {
     try {
       const { tagIds } = req.validatedBody;
 
@@ -327,8 +339,9 @@ export function createSessionsRouter(prisma) {
 
   /**
    * Remove a tag from a session
+   * RBAC: Requires READ_WRITE access
    */
-  router.delete('/:id/tags/:tagId', async (req, res) => {
+  router.delete('/:id/tags/:tagId', requireSessionAccess(prisma, 'READ_WRITE'), async (req, res) => {
     try {
       await prisma.sessionTagAssignment.deleteMany({
         where: {
@@ -357,38 +370,77 @@ export function createSessionsRouter(prisma) {
 
   /**
    * Bulk actions on sessions
+   * RBAC: Checks access for each session - only operates on accessible sessions
    */
   router.post('/bulk', validateBody(sessionBulkActionSchema), async (req, res) => {
     try {
       const { sessionIds, action, folderId } = req.validatedBody;
+
+      // Determine required access level based on action
+      const writeActions = ['pin', 'unpin', 'archive', 'restore', 'move', 'addTag'];
+      const adminActions = ['delete'];
+      let requiredAccess = 'READ_ONLY';
+      if (writeActions.includes(action)) requiredAccess = 'READ_WRITE';
+      if (adminActions.includes(action)) requiredAccess = 'ADMIN';
+
+      // Fetch sessions and check access for each
+      const sessions = await prisma.session.findMany({
+        where: { id: { in: sessionIds } },
+        select: { id: true, ownerId: true, projectPath: true },
+      });
+
+      // Check access for each session
+      const accessResults = await Promise.all(
+        sessions.map(async (session) => {
+          const access = await checkSessionAccess(prisma, req, session);
+          return { sessionId: session.id, ...access };
+        })
+      );
+
+      // Filter to sessions with sufficient access
+      const ACCESS_LEVELS = { READ_ONLY: 0, READ_WRITE: 1, ADMIN: 2 };
+      const requiredLevel = ACCESS_LEVELS[requiredAccess] ?? 0;
+
+      const accessibleSessionIds = accessResults
+        .filter(r => r.canAccess && (ACCESS_LEVELS[r.accessLevel] ?? 0) >= requiredLevel)
+        .map(r => r.sessionId);
+
+      const deniedCount = sessionIds.length - accessibleSessionIds.length;
+
+      if (accessibleSessionIds.length === 0) {
+        return res.status(403).json({
+          error: 'Access denied',
+          message: 'You do not have permission to perform this action on any of the selected sessions',
+        });
+      }
 
       let result;
 
       switch (action) {
         case 'pin':
           result = await prisma.session.updateMany({
-            where: { id: { in: sessionIds } },
+            where: { id: { in: accessibleSessionIds } },
             data: { isPinned: true }
           });
           break;
 
         case 'unpin':
           result = await prisma.session.updateMany({
-            where: { id: { in: sessionIds } },
+            where: { id: { in: accessibleSessionIds } },
             data: { isPinned: false }
           });
           break;
 
         case 'archive':
           result = await prisma.session.updateMany({
-            where: { id: { in: sessionIds } },
+            where: { id: { in: accessibleSessionIds } },
             data: { isArchived: true, archivedAt: new Date() }
           });
           break;
 
         case 'restore':
           result = await prisma.session.updateMany({
-            where: { id: { in: sessionIds } },
+            where: { id: { in: accessibleSessionIds } },
             data: { isArchived: false, archivedAt: null }
           });
           break;
@@ -398,7 +450,7 @@ export function createSessionsRouter(prisma) {
             return res.status(400).json({ error: 'folderId required for move action' });
           }
           result = await prisma.session.updateMany({
-            where: { id: { in: sessionIds } },
+            where: { id: { in: accessibleSessionIds } },
             data: { folderId }
           });
           break;
@@ -409,7 +461,7 @@ export function createSessionsRouter(prisma) {
             return res.status(400).json({ error: 'tagId required for addTag action' });
           }
           result = await prisma.sessionTagAssignment.createMany({
-            data: sessionIds.map(sessionId => ({
+            data: accessibleSessionIds.map(sessionId => ({
               sessionId,
               tagId
             })),
@@ -420,7 +472,7 @@ export function createSessionsRouter(prisma) {
 
         case 'delete':
           result = await prisma.session.deleteMany({
-            where: { id: { in: sessionIds } }
+            where: { id: { in: accessibleSessionIds } }
           });
           break;
 
@@ -428,7 +480,12 @@ export function createSessionsRouter(prisma) {
           return res.status(400).json({ error: `Unknown action: ${action}` });
       }
 
-      res.json({ success: true, affected: result.count });
+      res.json({
+        success: true,
+        affected: result.count,
+        skipped: deniedCount,
+        message: deniedCount > 0 ? `${deniedCount} session(s) skipped due to insufficient permissions` : undefined,
+      });
     } catch (error) {
       return sendSafeError(res, error, {
         userMessage: 'Failed to perform bulk action',
@@ -441,8 +498,9 @@ export function createSessionsRouter(prisma) {
   /**
    * Export session memory/context as JSON
    * Includes: metadata, command history, notes, tags, terminal state
+   * RBAC: Requires READ_ONLY access
    */
-  router.get('/:id/export', async (req, res) => {
+  router.get('/:id/export', requireSessionAccess(prisma, 'READ_ONLY'), async (req, res) => {
     try {
       const { format = 'json' } = req.query;
 
@@ -684,8 +742,9 @@ ${exportData.context?.notes?.map(n => `- ${n.title || 'Note'}: ${n.content.subst
 
   /**
    * Fork a session (create copy)
+   * RBAC: Requires READ_ONLY access to source session (new session owned by current user)
    */
-  router.post('/:id/fork', enforceQuota(prisma, 'session'), async (req, res) => {
+  router.post('/:id/fork', requireSessionAccess(prisma, 'READ_ONLY'), enforceQuota(prisma, 'session'), async (req, res) => {
     try {
       const original = await prisma.session.findUnique({
         where: { id: req.params.id },
