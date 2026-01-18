@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 **Project:** Console.web (console-web)
-**Version:** 1.0.24
+**Version:** 1.0.25
 **Last Updated:** 2026-01-18
 **Type:** Web Application
 **Port:** 7777 (Frontend), 5275 (API)

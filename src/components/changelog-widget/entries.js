@@ -4,6 +4,24 @@
 
 export const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.25',
+    date: '2026-01-18',
+    type: 'patch',
+    title: 'Documentation Alignment & Roadmap Updates',
+    highlights: [
+      'Comprehensive documentation review and alignment',
+      'ENTERPRISE_ROADMAP.md updated with implementation status',
+      'README.md updated to reflect current features',
+      'All roadmaps now accurately reflect project state',
+    ],
+    features: [
+      { title: 'ENTERPRISE_ROADMAP Updates', description: 'Updated to show Phases 1, 2, 3, 5 complete. RBAC, quotas, API keys, and agent observability all implemented.' },
+      { title: 'README.md Updates', description: 'Updated version to v1.0.24, test counts (~2,000 tests), architecture diagram, and added enterprise features section.' },
+      { title: 'Documentation Accuracy', description: 'All roadmap documents now accurately reflect the current implementation status of the project.' },
+      { title: 'Enterprise Features Documented', description: 'Added section documenting RBAC, resource quotas, API key authentication, and audit logging.' },
+    ],
+  },
+  {
     version: '1.0.24',
     date: '2026-01-18',
     type: 'major',

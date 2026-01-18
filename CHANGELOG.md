@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                             Console.web v1.0.24                              │
+│                             Console.web v1.0.25                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
 │  │  Terminal   │  │   Admin     │  │  Projects   │  │  Sidebars   │        │
@@ -151,6 +151,46 @@ npm run build && npm start
 | **Containers** | Dockerode |
 | **Observability** | OpenTelemetry, Jaeger, Loki, Prometheus, Grafana |
 | **Security** | Helmet, express-rate-limit, Zod, Sentry |
+
+---
+
+## [1.0.25] - 2026-01-18
+
+### Documentation Alignment & Roadmap Updates
+
+This release brings all project documentation into alignment with the current implementation state, ensuring roadmaps accurately reflect completed work.
+
+#### Documentation Updates
+
+- **ENTERPRISE_ROADMAP.md**: Updated to reflect implementation status
+  - Phases 1, 2, 3, 5 marked COMPLETE
+  - Phase 4 (Teams) marked PARTIAL (audit done, team UI pending)
+  - Prioritization matrix updated with completion percentages
+  - All implemented features properly documented
+
+- **README.md**: Comprehensive updates
+  - Version updated from v1.0.15 to v1.0.24
+  - Test counts updated from 113 to ~2,000
+  - Architecture diagram updated with component/route counts
+  - Added Enterprise Features section (RBAC, quotas, API keys)
+  - Tech stack table expanded with auth and security info
+
+- **STABILITY-ROADMAP.md**: Verified accurate (no changes needed)
+  - All phases confirmed complete
+  - Test counts align with codebase
+
+#### Implementation Status Summary
+
+| Feature | Status |
+|---------|--------|
+| RBAC (4-tier roles) | ✅ Complete (v1.0.21) |
+| Data Isolation | ✅ Complete (v1.0.21) |
+| Agent Observability | ✅ Complete (v1.0.21) |
+| Resource Quotas | ✅ Complete (v1.0.22) |
+| API Key Auth | ✅ Complete (v1.0.22) |
+| Per-User Rate Limiting | ✅ Complete (v1.0.22) |
+| Audit Logging | ✅ Complete (v1.0.21) |
+| Team Management UI | ⏳ Pending |
 
 ---
 

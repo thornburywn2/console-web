@@ -51,6 +51,9 @@ jobs:
 
       - name: Run frontend tests with coverage
         run: npm run test:coverage
+        # Coverage thresholds are enforced in vitest.config.js
+        # Key modules (hooks, services) require 70-80% coverage
+        # This step will fail if coverage drops below thresholds
 
       - name: Run backend tests with coverage
         run: npm run test:server:coverage

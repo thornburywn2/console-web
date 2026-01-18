@@ -8,7 +8,7 @@ Console.web transforms how you work with AI coding assistants. Instead of juggli
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  CONSOLE.WEB v1.0.15                                          ⚡ LIVE       │
+│  CONSOLE.WEB v1.0.24                                          ⚡ LIVE       │
 ├─────────────┬───────────────────────────────────────────────────────────────┤
 │             │                                                               │
 │  📁 PROJECTS│   $ claude "refactor auth to use JWT"                        │
@@ -107,6 +107,14 @@ Console.web gives you **persistent AI sessions** backed by shpool, a **unified d
 - **Prompt library** with variable substitution
 - **MCP server catalog** - 22+ servers with one-click setup
 
+### 🔐 Enterprise Features (v1.0.21+)
+- **Role-Based Access Control (RBAC)** - 4-tier hierarchy: SUPER_ADMIN, ADMIN, USER, VIEWER
+- **Resource Quotas** - Per-user limits on sessions, agents, prompts, snippets
+- **API Key Authentication** - Scoped keys (read, write, agents, admin) with IP whitelisting
+- **Per-User Rate Limiting** - Sliding window algorithm with X-RateLimit headers
+- **Audit Logging** - Complete audit trail for compliance
+- **Ownership-Based Data Isolation** - Users see only their own resources
+
 ---
 
 ## 📦 Quick Start
@@ -158,24 +166,25 @@ docker-compose up -d
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           Console.web v1.0.15                               │
+│                           Console.web v1.0.24                               │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
-│   │                    React Frontend (Vite + Tailwind)                 │   │
+│   │               React Frontend (109 Components, Vite + Tailwind)      │   │
 │   │  Terminal │ Dashboard │ Projects │ Security │ Settings │ Agents    │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
 │                                    │                                        │
 │                             Socket.IO + REST                                │
 │                                    │                                        │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
-│   │                 Express Backend (41+ Route Files)                   │   │
+│   │                Express Backend (45 Route Files, RBAC Middleware)    │   │
 │   │  Sessions │ Docker │ Git │ Agents │ Search │ Monitoring │ Security │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
 │                                    │                                        │
 │   ┌──────────────┬─────────────────┼─────────────────┬──────────────────┐   │
 │   │   Shpool     │   PostgreSQL    │   Prometheus    │   Sentry         │   │
-│   │  (Sessions)  │    (Prisma)     │   (Metrics)     │  (Errors)        │   │
+│   │  (Sessions)  │  (Prisma, 61    │   (Metrics)     │  (Errors)        │   │
+│   │              │    models)      │                 │                  │   │
 │   └──────────────┴─────────────────┴─────────────────┴──────────────────┘   │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -185,13 +194,14 @@ docker-compose up -d
 
 | Layer | Technology |
 |-------|------------|
-| **Frontend** | React 18, Vite, Tailwind CSS, xterm.js |
-| **Backend** | Node.js, Express, Socket.IO |
-| **Database** | PostgreSQL with Prisma 7 |
+| **Frontend** | React 18, Vite, Tailwind CSS, xterm.js (109 components) |
+| **Backend** | Node.js, Express, Socket.IO (45 route files) |
+| **Database** | PostgreSQL with Prisma 7 (61 models) |
 | **Sessions** | shpool (persistent terminal sessions) |
 | **Containers** | Dockerode |
-| **Observability** | Prometheus, Grafana, Loki, Sentry |
-| **Security** | Helmet, Zod validation, rate limiting |
+| **Observability** | Prometheus, Grafana, Loki, Sentry, OpenTelemetry |
+| **Security** | RBAC, Helmet, Zod validation, rate limiting, API keys |
+| **Auth** | Authentik SSO, JWT, API key authentication |
 
 ---
 
@@ -234,9 +244,17 @@ Console.web is designed for self-hosted environments with defense in depth:
 
 ## 🧪 Testing
 
+Console.web has comprehensive test coverage with ~2,000 tests across unit, integration, and E2E tests.
+
 ```bash
-# Unit tests (113 tests)
+# Frontend tests (975 tests)
 npm test
+
+# Backend route tests (~950 tests)
+npm run test:server
+
+# All tests
+npm run test:all
 
 # E2E tests with Playwright (36 tests)
 npm run test:e2e
@@ -248,13 +266,19 @@ npm run test:coverage
 npm run storybook
 ```
 
+**Test Coverage:**
+- 109/109 React components have test files
+- 44/44 backend route files have comprehensive tests
+- E2E tests cover terminal, projects, server, and security workflows
+
 ---
 
 ## 📚 Documentation
 
 - [CHANGELOG.md](./CHANGELOG.md) - Version history and detailed release notes
 - [CLAUDE.md](./CLAUDE.md) - AI agent context and project documentation
-- [STABILITY-ROADMAP.md](./STABILITY-ROADMAP.md) - Development roadmap and progress
+- [STABILITY-ROADMAP.md](./STABILITY-ROADMAP.md) - Stability roadmap (✅ Complete)
+- [ENTERPRISE_ROADMAP.md](./ENTERPRISE_ROADMAP.md) - Enterprise features & RBAC implementation
 - [monitoring/README.md](./monitoring/README.md) - Observability stack setup
 
 ---
