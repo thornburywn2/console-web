@@ -428,8 +428,9 @@ export async function checkSessionAccess(prisma, req, session) {
   }
 
   // Check team access via project assignment
-  if (teamId && session.projectPath) {
-    const { hasAccess, accessLevel } = await checkTeamProjectAccess(prisma, teamId, session.projectPath);
+  const projectPath = session.projectPath || session.project?.path;
+  if (teamId && projectPath) {
+    const { hasAccess, accessLevel } = await checkTeamProjectAccess(prisma, teamId, projectPath);
     if (hasAccess) {
       return { canAccess: true, accessLevel, reason: 'team_project' };
     }
@@ -458,7 +459,7 @@ export function requireSessionAccess(prisma, accessRequired = 'READ_ONLY') {
     try {
       const session = await prisma.session.findUnique({
         where: { id: sessionId },
-        select: { id: true, ownerId: true, projectPath: true },
+        select: { id: true, ownerId: true, project: { select: { path: true } } },
       });
 
       if (!session) {

@@ -15,7 +15,7 @@ We take the security of Console.web seriously. If you believe you have found a s
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
-Instead, please report them via email to: [INSERT SECURITY EMAIL]
+Instead, please report them via email to: TBD-WIP (thornburywn)
 
 You should receive a response within 48 hours. If for some reason you do not, please follow up to ensure we received your original message.
 

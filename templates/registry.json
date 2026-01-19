@@ -1,6 +1,14 @@
 {
+  "schemaVersion": "1.1.0",
   "version": "1.0.0",
-  "lastUpdated": "2026-01-13",
+  "lastUpdated": "2026-01-18",
+  "categoryDescriptions": {
+    "web": "Web applications (frontend, fullstack)",
+    "mobile": "Mobile applications (Flutter)",
+    "desktop": "Desktop applications (Tauri)",
+    "cli": "Command-line tools",
+    "infrastructure": "Docker Compose stacks"
+  },
   "templates": [
     {
       "id": "web-app-fullstack",
@@ -13,6 +21,12 @@
       "difficulty": "intermediate",
       "estimatedSetupTime": "5 minutes",
       "inheritsFrom": "base",
+      "tags": ["react", "fastify", "prisma", "postgresql", "typescript", "fullstack", "vite", "tailwind", "shadcn"],
+      "documentation": "./web-app-fullstack/README.md",
+      "minimumVersions": {
+        "node": "18.0.0",
+        "bun": "1.0.0"
+      },
       "variables": [
         {
           "name": "PROJECT_NAME",
@@ -73,6 +87,12 @@
       "difficulty": "beginner",
       "estimatedSetupTime": "2 minutes",
       "inheritsFrom": "base",
+      "tags": ["react", "typescript", "vite", "tailwind", "shadcn", "frontend", "spa"],
+      "documentation": "./web-app-frontend/README.md",
+      "minimumVersions": {
+        "node": "18.0.0",
+        "bun": "1.0.0"
+      },
       "variables": [
         {
           "name": "PROJECT_NAME",
@@ -118,6 +138,14 @@
       "estimatedSetupTime": "10 minutes",
       "inheritsFrom": "base",
       "requirements": ["rust", "cargo"],
+      "tags": ["tauri", "rust", "react", "typescript", "desktop", "cross-platform", "native", "electron-alternative"],
+      "documentation": "./desktop-tauri/README.md",
+      "minimumVersions": {
+        "node": "18.0.0",
+        "bun": "1.0.0",
+        "rust": "1.70.0",
+        "tauri-cli": "2.0.0"
+      },
       "variables": [
         {
           "name": "PROJECT_NAME",
@@ -153,6 +181,12 @@
       "difficulty": "intermediate",
       "estimatedSetupTime": "5 minutes",
       "inheritsFrom": "base",
+      "tags": ["docker", "docker-compose", "infrastructure", "devops", "cloudflare", "tunnel", "self-hosted"],
+      "documentation": "./infrastructure/README.md",
+      "minimumVersions": {
+        "docker": "20.10.0",
+        "docker-compose": "2.0.0"
+      },
       "variables": [
         {
           "name": "PROJECT_NAME",
@@ -188,6 +222,12 @@
       "difficulty": "beginner",
       "estimatedSetupTime": "3 minutes",
       "inheritsFrom": "base",
+      "tags": ["cli", "bun", "typescript", "commander", "zod", "terminal", "utility", "tool"],
+      "documentation": "./cli-tool/README.md",
+      "minimumVersions": {
+        "node": "18.0.0",
+        "bun": "1.0.0"
+      },
       "variables": [
         {
           "name": "PROJECT_NAME",
@@ -224,6 +264,12 @@
       "estimatedSetupTime": "5 minutes",
       "inheritsFrom": null,
       "requirements": ["flutter", "dart"],
+      "tags": ["flutter", "dart", "mobile", "ios", "android", "cross-platform", "riverpod", "state-management"],
+      "documentation": "./mobile-flutter/README.md",
+      "minimumVersions": {
+        "flutter": "3.16.0",
+        "dart": "3.2.0"
+      },
       "variables": [
         {
           "name": "PROJECT_NAME",

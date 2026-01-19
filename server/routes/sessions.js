@@ -11,6 +11,9 @@ import {
   sessionBulkActionSchema,
   sessionImportSchema,
   tagAssignmentsSchema,
+  tabCreateSchema,
+  tabUpdateSchema,
+  tabReorderSchema,
 } from '../validation/schemas.js';
 import { sendSafeError } from '../utils/errorResponse.js';
 import {
@@ -739,6 +742,307 @@ ${exportData.context?.notes?.map(n => `- ${n.title || 'Note'}: ${n.content.subst
       });
     }
   });
+
+  // =============================================================================
+  // TERMINAL TAB ENDPOINTS
+  // =============================================================================
+
+  /**
+   * List open tabs for a project
+   * Returns all sessions with isOpen=true for the project, ordered by tabOrder
+   */
+  router.get('/project/:projectPath(*)/tabs', async (req, res) => {
+    try {
+      // projectPath can contain slashes, captured with wildcard
+      const projectPath = decodeURIComponent(req.params.projectPath);
+
+      // First find the project
+      const project = await prisma.project.findFirst({
+        where: { path: { endsWith: projectPath } }
+      });
+
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+
+      // Use "not false" to include sessions with NULL isOpen (backward compatibility)
+      const tabs = await prisma.session.findMany({
+        where: {
+          projectId: project.id,
+          isOpen: { not: false },
+        },
+        orderBy: { tabOrder: 'asc' },
+        select: {
+          id: true,
+          sessionName: true,
+          displayName: true,
+          tabColor: true,
+          tabOrder: true,
+          isOpen: true,
+          lastActiveAt: true,
+          status: true,
+        }
+      });
+
+      // Debug: log tabs being returned
+      req.log?.info({ projectPath, tabCount: tabs.length, tabIds: tabs.map(t => t.id), tabNames: tabs.map(t => t.displayName || t.sessionName) }, 'returning tabs for project');
+
+      res.json(tabs);
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to fetch tabs',
+        operation: 'fetch project tabs',
+        requestId: req.id,
+        context: { projectPath: req.params.projectPath },
+      });
+    }
+  });
+
+  /**
+   * Create a new tab for a project
+   * Creates a new session with the next available tabOrder
+   */
+  router.post('/project/:projectPath(*)/tabs', enforceQuota(prisma, 'session'), validateBody(tabCreateSchema), async (req, res) => {
+    try {
+      // projectPath can contain slashes, captured with wildcard
+      const projectPath = decodeURIComponent(req.params.projectPath);
+      const { displayName, color } = req.validatedBody || req.body;
+
+      // Debug logging
+      log.info({
+        rawBody: req.body,
+        validatedBody: req.validatedBody,
+        displayName,
+        color,
+        projectPath
+      }, 'creating new tab');
+
+      // Find the project
+      const project = await prisma.project.findFirst({
+        where: { path: { endsWith: projectPath } }
+      });
+
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+
+      // Count existing open tabs (include NULL isOpen for backward compatibility)
+      const openTabCount = await prisma.session.count({
+        where: {
+          projectId: project.id,
+          isOpen: { not: false },
+        }
+      });
+
+      // Max 8 tabs per project
+      if (openTabCount >= 8) {
+        return res.status(400).json({ error: 'Maximum 8 tabs per project reached' });
+      }
+
+      // Get the next tab order
+      const maxTabOrder = await prisma.session.aggregate({
+        where: { projectId: project.id },
+        _max: { tabOrder: true }
+      });
+      const nextTabOrder = (maxTabOrder._max.tabOrder ?? -1) + 1;
+
+      // Generate session name using displayName if provided
+      // Format: sp-{project-name} for first tab, sp-{project-name}-{tabName} for subsequent
+      const projectName = project.name.replace(/[^a-zA-Z0-9_-]/g, '-');
+      const sanitizedTabName = displayName
+        ? displayName.replace(/[^a-zA-Z0-9_-]/g, '-').substring(0, 30)
+        : null;
+      const sessionName = nextTabOrder === 0
+        ? `sp-${projectName}`
+        : `sp-${projectName}-${sanitizedTabName || nextTabOrder}`;
+
+      // Create the session/tab
+      const tab = await prisma.session.create({
+        data: {
+          projectId: project.id,
+          sessionName,
+          displayName: displayName || `Tab ${nextTabOrder + 1}`,
+          tabColor: color || null,
+          tabOrder: nextTabOrder,
+          isOpen: true,
+          status: 'ACTIVE',
+          ownerId: getOwnerIdForCreate(req),
+        },
+        select: {
+          id: true,
+          sessionName: true,
+          displayName: true,
+          tabColor: true,
+          tabOrder: true,
+          isOpen: true,
+          lastActiveAt: true,
+          status: true,
+        }
+      });
+
+      res.status(201).json(tab);
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to create tab',
+        operation: 'create tab',
+        requestId: req.id,
+        context: { projectPath: req.params.projectPath },
+      });
+    }
+  });
+
+  /**
+   * Update tab properties (color, displayName)
+   * RBAC: Requires READ_WRITE access
+   */
+  router.patch('/:id/tab', requireSessionAccess(prisma, 'READ_WRITE'), validateBody(tabUpdateSchema), async (req, res) => {
+    try {
+      const { displayName, color } = req.validatedBody || req.body;
+
+      const tab = await prisma.session.update({
+        where: { id: req.params.id },
+        data: {
+          ...(displayName !== undefined && { displayName }),
+          ...(color !== undefined && { tabColor: color }),
+        },
+        select: {
+          id: true,
+          sessionName: true,
+          displayName: true,
+          tabColor: true,
+          tabOrder: true,
+          isOpen: true,
+          lastActiveAt: true,
+          status: true,
+        }
+      });
+
+      res.json(tab);
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to update tab',
+        operation: 'update tab',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
+    }
+  });
+
+  /**
+   * Close a tab (set isOpen=false)
+   * Does not delete the session, just closes the tab
+   * RBAC: Requires READ_WRITE access
+   */
+  router.delete('/:id/tab', requireSessionAccess(prisma, 'READ_WRITE'), async (req, res) => {
+    try {
+      const session = await prisma.session.findUnique({
+        where: { id: req.params.id },
+        select: { projectId: true, isOpen: true }
+      });
+
+      if (!session) {
+        return res.status(404).json({ error: 'Session not found' });
+      }
+
+      // Check if this is the last open tab
+      const openTabCount = await prisma.session.count({
+        where: {
+          projectId: session.projectId,
+          isOpen: true,
+        }
+      });
+
+      if (openTabCount <= 1) {
+        return res.status(400).json({ error: 'Cannot close the last tab' });
+      }
+
+      const tab = await prisma.session.update({
+        where: { id: req.params.id },
+        data: { isOpen: false },
+        select: {
+          id: true,
+          sessionName: true,
+          displayName: true,
+          tabColor: true,
+          tabOrder: true,
+          isOpen: true,
+        }
+      });
+
+      res.json(tab);
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to close tab',
+        operation: 'close tab',
+        requestId: req.id,
+        context: { sessionId: req.params.id },
+      });
+    }
+  });
+
+  /**
+   * Reorder tabs within a project
+   * Takes an array of session IDs in the desired order
+   */
+  router.post('/project/:projectPath(*)/tabs/reorder', validateBody(tabReorderSchema), async (req, res) => {
+    try {
+      // projectPath can contain slashes, captured with wildcard
+      const projectPath = decodeURIComponent(req.params.projectPath);
+      const { sessionIds } = req.validatedBody || req.body;
+
+      // Find the project
+      const project = await prisma.project.findFirst({
+        where: { path: { endsWith: projectPath } }
+      });
+
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+
+      // Update tab orders in a transaction
+      await prisma.$transaction(
+        sessionIds.map((sessionId, index) =>
+          prisma.session.update({
+            where: { id: sessionId },
+            data: { tabOrder: index }
+          })
+        )
+      );
+
+      // Fetch updated tabs
+      // Use "not false" to include sessions with NULL isOpen (backward compatibility)
+      const tabs = await prisma.session.findMany({
+        where: {
+          projectId: project.id,
+          isOpen: { not: false },
+        },
+        orderBy: { tabOrder: 'asc' },
+        select: {
+          id: true,
+          sessionName: true,
+          displayName: true,
+          tabColor: true,
+          tabOrder: true,
+          isOpen: true,
+          lastActiveAt: true,
+          status: true,
+        }
+      });
+
+      res.json(tabs);
+    } catch (error) {
+      return sendSafeError(res, error, {
+        userMessage: 'Failed to reorder tabs',
+        operation: 'reorder tabs',
+        requestId: req.id,
+        context: { projectPath: req.params.projectPath },
+      });
+    }
+  });
+
+  // =============================================================================
+  // SESSION FORK ENDPOINT
+  // =============================================================================
 
   /**
    * Fork a session (create copy)

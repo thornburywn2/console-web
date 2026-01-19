@@ -195,7 +195,7 @@ docker-compose up -d
 | Layer | Technology |
 |-------|------------|
 | **Frontend** | React 18, Vite, Tailwind CSS, xterm.js (109 components) |
-| **Backend** | Node.js, Express, Socket.IO (45 route files) |
+| **Backend** | Node.js, Express, Socket.IO (45 routes, 89 files with tests) |
 | **Database** | PostgreSQL with Prisma 7 (61 models) |
 | **Sessions** | shpool (persistent terminal sessions) |
 | **Containers** | Dockerode |

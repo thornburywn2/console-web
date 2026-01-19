@@ -16,13 +16,17 @@ import {
 } from './terminal';
 import { CompletionToast, CopyToast, LoadingOverlay } from './terminal';
 
-function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
+function Terminal({ socket, isReady, onInput, onResize, projectPath, sessionId = null }) {
   const terminalRef = useRef(null);
   const xtermRef = useRef(null);
   const fitAddonRef = useRef(null);
   const serializeAddonRef = useRef(null);
   const containerRef = useRef(null);
   const prevProjectPathRef = useRef(null); // Track previous project to avoid unnecessary clears
+  const prevSessionIdRef = useRef(null); // Track previous session for tab switches
+
+  // Use sessionId for buffer caching if available, otherwise fall back to projectPath
+  const bufferKey = sessionId || projectPath;
   const [notificationPermission, setNotificationPermission] = useState('default');
   const [showCompletionToast, setShowCompletionToast] = useState(false);
   const [completionMessage, setCompletionMessage] = useState('');
@@ -472,29 +476,30 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     };
   }, [socket, isTerminalReady]);
 
-  // Save/restore terminal buffer when switching projects
+  // Save/restore terminal buffer when switching projects or tabs
   useEffect(() => {
     const term = xtermRef.current;
     const serializeAddon = serializeAddonRef.current;
-    const prevPath = prevProjectPathRef.current;
-    const isDifferentProject = prevPath && prevPath !== projectPath;
+    const prevKey = prevSessionIdRef.current || prevProjectPathRef.current;
+    const currentKey = bufferKey;
+    const isDifferentContext = prevKey && prevKey !== currentKey;
 
     if (term && isTerminalReady()) {
       // Save current buffer before switching
-      if (isDifferentProject && prevPath && serializeAddon) {
+      if (isDifferentContext && prevKey && serializeAddon) {
         try {
           const serialized = serializeAddon.serialize();
           if (serialized && serialized.length > 0) {
-            terminalBufferCache.set(prevPath, serialized);
-            console.debug(`[Terminal] Saved buffer for ${prevPath} (${serialized.length} chars)`);
+            terminalBufferCache.set(prevKey, serialized);
+            console.debug(`[Terminal] Saved buffer for ${prevKey} (${serialized.length} chars)`);
           }
         } catch (err) {
           console.debug('Failed to save terminal buffer:', err.message);
         }
       }
 
-      // Clear terminal for the new project
-      if (isDifferentProject) {
+      // Clear terminal for the new context (project or tab)
+      if (isDifferentContext) {
         try {
           term.clear();
           term.reset();
@@ -503,11 +508,11 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
         }
 
         // Restore cached buffer if available
-        const cachedBuffer = terminalBufferCache.get(projectPath);
+        const cachedBuffer = terminalBufferCache.get(currentKey);
         if (cachedBuffer) {
           try {
             term.write(cachedBuffer);
-            console.debug(`[Terminal] Restored buffer for ${projectPath}`);
+            console.debug(`[Terminal] Restored buffer for ${currentKey}`);
           } catch (err) {
             console.debug('Failed to restore terminal buffer:', err.message);
           }
@@ -535,7 +540,8 @@ function Terminal({ socket, isReady, onInput, onResize, projectPath }) {
     }
 
     prevProjectPathRef.current = projectPath;
-  }, [projectPath, onResize, isTerminalReady]);
+    prevSessionIdRef.current = sessionId;
+  }, [projectPath, sessionId, bufferKey, onResize, isTerminalReady]);
 
   // Focus terminal and refresh screen when ready
   useEffect(() => {

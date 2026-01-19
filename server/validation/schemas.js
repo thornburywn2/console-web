@@ -478,6 +478,40 @@ export const tagAssignmentsSchema = z.object({
 });
 
 // =============================================================================
+// TERMINAL TAB SCHEMAS
+// =============================================================================
+
+/**
+ * Tab color preset - matches theme colors
+ */
+export const tabColorSchema = z.enum([
+  'green', 'cyan', 'purple', 'warning', 'blue', 'error', 'pink', 'orange'
+]);
+
+/**
+ * Tab create schema - for creating a new tab within a project
+ */
+export const tabCreateSchema = z.object({
+  displayName: z.string().max(50).optional(),
+  color: tabColorSchema.nullable().optional(),
+});
+
+/**
+ * Tab update schema - for updating tab properties (color, name)
+ */
+export const tabUpdateSchema = z.object({
+  displayName: z.string().max(50).optional(),
+  color: tabColorSchema.nullable().optional(),
+});
+
+/**
+ * Tab reorder schema - for reordering tabs within a project
+ */
+export const tabReorderSchema = z.object({
+  sessionIds: z.array(z.string()).min(1).max(8),
+});
+
+// =============================================================================
 // SESSION BULK ACTION SCHEMAS
 // =============================================================================
 
@@ -710,4 +744,10 @@ export default {
 
   // Monitoring
   uptimeCheckSchema,
+
+  // Terminal Tabs
+  tabColorSchema,
+  tabCreateSchema,
+  tabUpdateSchema,
+  tabReorderSchema,
 };

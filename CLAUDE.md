@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 **Project:** Console.web (console-web)
-**Version:** 1.0.26
+**Version:** 1.0.27
 **Last Updated:** 2026-01-18
 **Type:** Web Application
 **Port:** 7777 (Frontend), 5275 (API)
@@ -36,8 +36,8 @@ Console.web is a comprehensive web-based management interface for Claude Code pr
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | React 18, Vite, Tailwind CSS, xterm.js (109 components) |
-| Backend | Node.js, Express, Socket.IO (45 route files) |
+| Frontend | React 18, Vite, Tailwind CSS, xterm.js (109 components, 357 files with tests*) |
+| Backend | Node.js, Express, Socket.IO (45 routes, 89 files with tests*) |
 | Terminal | xterm.js, node-pty, shpool |
 | Database | PostgreSQL, Prisma 7 (61 models) |
 | Process | PM2 |
@@ -49,6 +49,8 @@ Console.web is a comprehensive web-based management interface for Claude Code pr
 | Search | Fuse.js |
 | Auth | Authentik OAuth2, JWT, API Keys |
 
+*\*Counts include sub-components, tests, and stories*
+
 ---
 
 ## Project Structure
@@ -59,7 +61,7 @@ console-web/
 │   ├── index.js              # Main Express + Socket.IO server
 │   ├── middleware/
 │   │   └── authentik.js      # Authentik SSO authentication
-│   ├── routes/               # 45 modular API route handlers
+│   ├── routes/               # 89 route files (includes tests)
 │   │   ├── sessions.js       # Session CRUD
 │   │   ├── folders.js        # Folders & tags
 │   │   ├── notes.js          # Session notes
@@ -86,7 +88,7 @@ console-web/
 │   ├── App.jsx               # Main React app
 │   ├── main.jsx              # Entry point
 │   ├── index.css             # Global styles
-│   ├── components/           # 109 React components
+│   ├── components/           # 109 components (357 files with sub-components, tests)
 │   │   ├── Terminal.jsx          # xterm.js terminal
 │   │   ├── HomeDashboard.jsx     # Customizable widget dashboard
 │   │   ├── Sidebar.jsx           # Project navigation with favorites
@@ -101,12 +103,15 @@ console-web/
 │   │   ├── WorkflowBuilder.jsx   # Automation builder
 │   │   ├── DatabaseBrowser.jsx   # Database explorer
 │   │   ├── SystemStats.jsx       # CPU/memory/disk
-│   │   └── ...                   # 90+ more components
-│   └── hooks/                # Custom React hooks
-│       ├── useAuth.jsx           # Authentication
+│   │   └── ...                   # 340+ more files
+│   └── hooks/                # 20 custom React hooks
+│       ├── useAuth.jsx           # Authentication + RBAC
 │       ├── useSessionManagement.js
 │       ├── useKeyboardShortcuts.js
-│       └── useTheme.js
+│       ├── useTheme.js
+│       ├── useApiQuery.js        # API data fetching
+│       ├── useAgentSocket.js     # Agent real-time updates
+│       └── ...                   # 14 more hooks
 ├── prisma/
 │   ├── schema.prisma         # Database schema (61 models)
 │   └── migrations/           # Database migrations
@@ -978,4 +983,4 @@ Full-featured deployment with enterprise integrations:
 ---
 
 Created: 2024-10-01
-Version: 1.0.25
+Version: 1.0.27

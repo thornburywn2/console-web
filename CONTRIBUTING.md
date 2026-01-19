@@ -42,7 +42,7 @@ Feature suggestions are welcome! Please:
 
 ```bash
 # Clone the repository
-git clone https://github.com/thornburywn/console-web.git
+git clone https://github.com/thornburywn2/console-web.git
 cd console-web
 
 # Install dependencies
@@ -134,17 +134,17 @@ Look for issues labeled `good-first-issue` for beginner-friendly tasks.
 
 ### Priority Areas
 
-- Voice command improvements (P0)
-- Aider integration (P1)
 - Documentation improvements
-- Test coverage
+- Test coverage enhancements
 - Accessibility improvements
 - Performance optimizations
+- New MCP server integrations
+- Agent marketplace expansion
 
 ## Getting Help
 
 - Check existing [documentation](docs/)
-- Search [existing issues](https://github.com/thornburywn/console-web/issues)
+- Search [existing issues](https://github.com/thornburywn2/console-web/issues)
 - Open a new issue for questions
 
 ## License

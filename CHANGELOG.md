@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                             Console.web v1.0.26                              │
+│                             Console.web v1.0.27                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
 │  │  Terminal   │  │   Admin     │  │  Projects   │  │  Sidebars   │        │
@@ -151,6 +151,30 @@ npm run build && npm start
 | **Containers** | Dockerode |
 | **Observability** | OpenTelemetry, Jaeger, Loki, Prometheus, Grafana |
 | **Security** | Helmet, express-rate-limit, Zod, Sentry |
+
+---
+
+## [1.0.27] - 2026-01-19
+
+### Tabbed Terminal Sessions
+
+This release adds multi-tab terminal support, allowing users to run multiple terminal sessions per project with custom names and colors.
+
+#### Features
+
+- **Terminal Tabs**: Create up to 8 terminal tabs per project, each with its own shpool session
+- **Custom Tab Names**: Name tabs when creating them - shpool sessions use tab names (e.g., `sp-Project-Backend`)
+- **Tab Colors**: 8 preset colors (green, cyan, purple, warning, blue, error, pink, orange) for visual organization
+- **New Tab Dialog**: Dialog prompts for tab name and color when clicking + to create a new tab
+- **Tab Persistence**: Tabs persist in database and restore when reopening a project
+
+#### Technical Changes
+
+- Added `useTerminalTabs` hook for tab state management and Socket.IO events
+- Added `NewTabDialog` component for tab creation with name/color selection
+- Updated `TerminalTabBar` to use dialog instead of direct creation
+- Modified session creation to use tab displayName for shpool session naming
+- Fixed URL encoding for project paths with slashes in tab API calls
 
 ---
 

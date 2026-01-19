@@ -4,6 +4,25 @@
 
 export const CHANGELOG_ENTRIES = [
   {
+    version: '1.0.27',
+    date: '2026-01-19',
+    type: 'minor',
+    title: 'Tabbed Terminal Sessions',
+    highlights: [
+      'Multi-tab terminal support (max 8 tabs per project)',
+      'Custom tab names with shpool session naming',
+      'Tab color presets (8 colors matching theme)',
+      'New Tab dialog for name and color selection',
+    ],
+    features: [
+      { title: 'Terminal Tabs', description: 'Create multiple terminal tabs per project, each with its own shpool session for persistence.' },
+      { title: 'Custom Tab Names', description: 'Name tabs when creating them - shpool sessions now use tab names (e.g., sp-Project-Backend).' },
+      { title: 'Tab Colors', description: '8 preset colors (green, cyan, purple, warning, blue, error, pink, orange) for visual organization.' },
+      { title: 'New Tab Dialog', description: 'Dialog prompts for tab name and color when clicking + to create a new tab.' },
+      { title: 'Tab Persistence', description: 'Tabs persist in database and restore when reopening a project.' },
+    ],
+  },
+  {
     version: '1.0.26',
     date: '2026-01-18',
     type: 'patch',

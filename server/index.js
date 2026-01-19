@@ -728,11 +728,15 @@ const io = new Server(server, {
 // Inject Socket.IO into system router for real-time update progress
 systemRouter.setSocketIO(io);
 
-// Store active PTY sessions mapped by project ID
+// Store active PTY sessions mapped by sessionName (e.g., sp-console-web, sp-console-web-1)
+// For multi-tab support, each tab has its own PTY session
 const sessions = new Map();
 
-// Store socket-to-project mappings
+// Store socket-to-project mappings (which project the socket is viewing)
 const socketProjects = new Map();
+
+// Store socket-to-session mappings (which PTY session/tab the socket is attached to)
+const socketSessions = new Map();
 
 // Store previous CPU stats for delta-based calculation
 let prevCpuStats = null;
@@ -1206,6 +1210,79 @@ function createPtySession(projectPath, socket, options = {}) {
   return {
     pty: ptyProcess,
     sessionName,
+    projectPath,
+    aiSolution,
+    isNew: !sessionExists
+  };
+}
+
+/**
+ * Create or attach to a PTY session for a specific tab
+ * This allows multiple PTY sessions per project (one per tab)
+ * @param {string} tabSessionName - The sessionName from the database (e.g., sp-console-web-1)
+ * @param {string} projectPath - The project working directory
+ * @param {Object} socket - Socket.IO socket instance
+ * @param {Object} options - Session options
+ */
+function createPtySessionForTab(tabSessionName, projectPath, socket, options = {}) {
+  const {
+    skipPermissions = false,
+    aiSolution = 'claude-code',
+    codePuppyModel,
+    codePuppyProvider,
+    hybridMode = 'code-puppy-with-claude-tools'
+  } = options;
+
+  // Validate the session name
+  const validSessionName = validateSessionName(tabSessionName);
+  if (!validSessionName) {
+    sessionLog.error({ tabSessionName }, 'invalid tab session name');
+    return null;
+  }
+
+  const sessionExists = shpoolSessionExists(validSessionName);
+
+  // Shpool attach creates session if it doesn't exist, attaches if it does
+  const shpoolArgs = ['attach', validSessionName];
+
+  const ptyProcess = spawn('shpool', shpoolArgs, {
+    name: 'xterm-256color',
+    cols: 120,
+    rows: 30,
+    cwd: projectPath,
+    env: {
+      ...process.env,
+      TERM: 'xterm-256color',
+      COLORTERM: 'truecolor',
+      LANG: 'en_US.UTF-8',
+      LC_ALL: 'en_US.UTF-8'
+    }
+  });
+
+  // If this is a new session (not attaching to existing), initialize it
+  if (!sessionExists) {
+    // Small delay to let shpool fully start
+    setTimeout(() => {
+      // Clear screen and cd to project directory
+      ptyProcess.write(`cd "${projectPath}" && clear\r`);
+      // Start the appropriate AI CLI based on user preference
+      setTimeout(() => {
+        const aiCmd = buildAICommand({
+          aiSolution,
+          skipPermissions,
+          codePuppyModel,
+          codePuppyProvider,
+          hybridMode,
+          projectPath
+        });
+        ptyProcess.write(`${aiCmd}\r`);
+      }, 100);
+    }, 300);
+  }
+
+  return {
+    pty: ptyProcess,
+    sessionName: validSessionName,
     projectPath,
     aiSolution,
     isNew: !sessionExists
@@ -4486,22 +4563,21 @@ io.on('connection', (socket) => {
       data: { socketId: socket.id, projectPath },
     });
 
-    // Clean up any existing session for this socket
-    const existingProject = socketProjects.get(socket.id);
-    if (existingProject) {
-      const existingSession = sessions.get(existingProject);
+    // Clean up any existing session attachment for this socket
+    const existingSessionName = socketSessions.get(socket.id);
+    if (existingSessionName) {
+      const existingSession = sessions.get(existingSessionName);
       if (existingSession) {
         existingSession.sockets.delete(socket.id);
-        // Don't kill the PTY - it's backed by shpool and should persist
-        // When no sockets are connected, the PTY wrapper can be cleaned up
-        // but the shpool session continues running in the background
+        sockLog.debug({ existingSessionName }, 'removed socket from previous session');
       }
     }
 
-    // Look up project settings from database
+    // Look up project from database
+    let project;
     const projectSettings = { skipPermissions: false };
     try {
-      const project = await prisma.project.findUnique({ where: { path: projectPath } });
+      project = await prisma.project.findUnique({ where: { path: projectPath } });
       if (project) {
         projectSettings.skipPermissions = project.skipPermissions || false;
       }
@@ -4528,12 +4604,39 @@ io.on('connection', (socket) => {
       sockLog.error({ error: err.message }, 'failed to fetch user settings');
     }
 
-    // Check if we already have a PTY session for this project
-    let session = sessions.get(projectPath);
+    // Find the first/default tab for this project
+    let tabSessionName;
+    try {
+      if (project) {
+        const firstTab = await prisma.session.findFirst({
+          where: {
+            projectId: project.id,
+            isOpen: { not: false }
+          },
+          orderBy: { tabOrder: 'asc' },
+          select: { sessionName: true, id: true }
+        });
+
+        if (firstTab) {
+          tabSessionName = firstTab.sessionName;
+          socketActiveTabs.set(socket.id, firstTab.id);
+        }
+      }
+    } catch (err) {
+      sockLog.error({ error: err.message, projectPath }, 'failed to fetch first tab');
+    }
+
+    // If no tab found, generate default session name
+    if (!tabSessionName) {
+      tabSessionName = `sp-${basename(projectPath).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+    }
+
+    // Check if we already have a PTY session for this tab
+    let session = sessions.get(tabSessionName);
 
     if (!session) {
-      // Create new PTY session with project and user settings
-      const ptySession = createPtySession(projectPath, socket, {
+      // Create new PTY session for this tab
+      const ptySession = createPtySessionForTab(tabSessionName, projectPath, socket, {
         skipPermissions: projectSettings.skipPermissions,
         aiSolution: userSettings.preferredAISolution,
         codePuppyModel: userSettings.codePuppyModel,
@@ -4541,20 +4644,23 @@ io.on('connection', (socket) => {
         hybridMode: userSettings.hybridMode
       });
 
+      if (!ptySession) {
+        sockLog.error({ tabSessionName }, 'failed to create PTY session');
+        return;
+      }
+
       session = {
         ...ptySession,
         sockets: new Set([socket.id]),
-        // Default dimensions for reconnection refresh
         cols: 120,
         rows: 30,
-        // Activity tracking for command completion detection
         lastOutputTime: null,
         activityStartTime: null,
         idleTimer: null,
         isActive: false
       };
 
-      sessions.set(projectPath, session);
+      sessions.set(tabSessionName, session);
 
       // Save session state to database
       saveSessionState(projectPath, ptySession.sessionName, { cols: 120, rows: 30 }, projectPath)
@@ -4576,7 +4682,7 @@ io.on('connection', (socket) => {
           clearTimeout(session.idleTimer);
         }
 
-        // Broadcast to all sockets watching this project
+        // Broadcast to all sockets watching this session
         session.sockets.forEach(socketId => {
           io.to(socketId).emit('terminal-output', data);
         });
@@ -4605,8 +4711,8 @@ io.on('connection', (socket) => {
 
       // Handle PTY exit
       session.pty.onExit(({ exitCode }) => {
-        log.info({ projectPath, exitCode }, 'PTY exited');
-        sessions.delete(projectPath);
+        log.info({ tabSessionName, exitCode }, 'PTY exited');
+        sessions.delete(tabSessionName);
         session.sockets.forEach(socketId => {
           io.to(socketId).emit('terminal-exit', { exitCode, projectPath });
         });
@@ -4632,8 +4738,9 @@ io.on('connection', (socket) => {
       }
     }
 
-    // Update socket-to-project mapping
+    // Update socket mappings
     socketProjects.set(socket.id, projectPath);
+    socketSessions.set(socket.id, tabSessionName);
 
     // Notify client that connection is ready
     socket.emit('terminal-ready', {
@@ -4646,9 +4753,21 @@ io.on('connection', (socket) => {
 
   // Handle terminal input from client
   socket.on('terminal-input', (data) => {
+    // Route to the socket's active session
+    const activeSessionName = socketSessions.get(socket.id);
+    if (activeSessionName) {
+      const session = sessions.get(activeSessionName);
+      if (session && session.pty) {
+        session.pty.write(data);
+      }
+      return;
+    }
+
+    // Fallback: legacy project-based lookup (backward compatibility)
     const projectPath = socketProjects.get(socket.id);
     if (projectPath) {
-      const session = sessions.get(projectPath);
+      const sessionName = `sp-${basename(projectPath).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+      const session = sessions.get(sessionName);
       if (session && session.pty) {
         session.pty.write(data);
       }
@@ -4661,9 +4780,27 @@ io.on('connection', (socket) => {
 
   // Handle terminal resize
   socket.on('terminal-resize', ({ cols, rows }) => {
+    // Route to the socket's active session
+    const activeSessionName = socketSessions.get(socket.id);
+    if (activeSessionName) {
+      const session = sessions.get(activeSessionName);
+      if (session && session.pty) {
+        try {
+          session.pty.resize(cols, rows);
+          session.cols = cols;
+          session.rows = rows;
+        } catch (error) {
+          sessionLog.error({ error: error.message, activeSessionName }, 'failed to resize PTY');
+        }
+      }
+      return;
+    }
+
+    // Fallback: legacy project-based lookup
     const projectPath = socketProjects.get(socket.id);
     if (projectPath) {
-      const session = sessions.get(projectPath);
+      const sessionName = `sp-${basename(projectPath).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+      const session = sessions.get(sessionName);
       if (session && session.pty) {
         try {
           session.pty.resize(cols, rows);
@@ -4789,23 +4926,26 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     sockLog.info('client disconnected');
 
+    const projectPath = socketProjects.get(socket.id);
+    const sessionName = socketSessions.get(socket.id);
+
     // Add Sentry breadcrumb for disconnection
     addBreadcrumb({
       category: 'socket',
       message: 'Client disconnected',
       level: 'info',
-      data: { socketId: socket.id, projectPath: socketProjects.get(socket.id) },
+      data: { socketId: socket.id, projectPath, sessionName },
     });
 
-    const projectPath = socketProjects.get(socket.id);
-    if (projectPath) {
-      const session = sessions.get(projectPath);
+    // Clean up session attachment
+    if (sessionName) {
+      const session = sessions.get(sessionName);
       if (session) {
         session.sockets.delete(socket.id);
 
         // If no more sockets are connected, clean up the PTY but keep shpool running
         if (session.sockets.size === 0) {
-          sockLog.info({ projectPath }, 'no more clients, cleaning up PTY session');
+          sockLog.info({ sessionName, projectPath }, 'no more clients, cleaning up PTY session');
 
           // Clear any pending idle timer
           if (session.idleTimer) {
@@ -4816,41 +4956,52 @@ io.on('connection', (socket) => {
           try {
             session.pty.kill();
           } catch (err) {
-            sockLog.error({ error: err.message, projectPath }, 'failed to kill PTY');
+            sockLog.error({ error: err.message, sessionName }, 'failed to kill PTY');
             captureException(err, {
               tags: { component: 'socket.io', event: 'disconnect', operation: 'pty-kill' },
-              extra: { socketId: socket.id, projectPath },
+              extra: { socketId: socket.id, sessionName },
             });
           }
 
           // Remove from sessions map so reconnect creates fresh PTY
-          sessions.delete(projectPath);
+          sessions.delete(sessionName);
 
           // Mark session as disconnected in database
-          markSessionDisconnected(projectPath, session.sessionName)
-            .catch(err => {
-              sockLog.error({ error: err.message, projectPath }, 'failed to mark session disconnected');
-              captureException(err, {
-                tags: { component: 'socket.io', event: 'disconnect', operation: 'mark-disconnected' },
-                extra: { socketId: socket.id, projectPath, sessionName: session.sessionName },
+          if (projectPath) {
+            markSessionDisconnected(projectPath, session.sessionName)
+              .catch(err => {
+                sockLog.error({ error: err.message, sessionName }, 'failed to mark session disconnected');
+                captureException(err, {
+                  tags: { component: 'socket.io', event: 'disconnect', operation: 'mark-disconnected' },
+                  extra: { socketId: socket.id, projectPath, sessionName: session.sessionName },
+                });
               });
-            });
+          }
         }
       }
     }
 
     socketProjects.delete(socket.id);
+    socketSessions.delete(socket.id);
   });
 
   // Handle kill session request
   socket.on('kill-session', (projectPath) => {
-    const session = sessions.get(projectPath);
-    const sessionName = getSessionName(projectPath);
+    // Find session by sessionName (try active session first, then default)
+    const activeSessionName = socketSessions.get(socket.id);
+    let session = activeSessionName ? sessions.get(activeSessionName) : null;
+    let sessionName = activeSessionName;
+
+    // Fallback to default session name if no active session
+    if (!session) {
+      sessionName = getSessionName(projectPath);
+      session = sessions.get(sessionName);
+    }
 
     if (session) {
       // Kill the PTY
       session.pty.kill();
-      sessions.delete(projectPath);
+      sessions.delete(sessionName);
     }
 
     // Validate session name before using in shell command
@@ -4869,6 +5020,313 @@ io.on('connection', (socket) => {
     }
 
     socket.emit('session-killed', { projectPath, sessionName });
+  });
+
+  // =============================================================================
+  // MULTI-TAB TERMINAL SUPPORT (v1.0.27)
+  // =============================================================================
+
+  // Track active session per socket for multi-tab support
+  // Maps: socket.id → sessionId (active tab's database session ID)
+  const socketActiveTabs = new Map();
+
+  /**
+   * Handle tab-input: Input to a specific tab/session
+   * Routes input to the appropriate PTY based on the socket's active session
+   */
+  socket.on('tab-input', ({ sessionId, data }) => {
+    // Get the session this socket is attached to
+    const activeSessionName = socketSessions.get(socket.id);
+    if (!activeSessionName) {
+      // Fallback: try the old project-based lookup
+      const projectPath = socketProjects.get(socket.id);
+      if (projectPath) {
+        const session = sessions.get(`sp-${basename(projectPath).replace(/[^a-zA-Z0-9_-]/g, '_')}`);
+        if (session && session.pty) {
+          session.pty.write(data);
+        }
+      }
+      return;
+    }
+
+    const session = sessions.get(activeSessionName);
+    if (session && session.pty) {
+      session.pty.write(data);
+    }
+  });
+
+  /**
+   * Handle tab-select: Switch the active tab for this socket
+   * Creates PTY session if needed and attaches socket to it
+   */
+  socket.on('tab-select', async ({ projectPath: tabProjectPath, sessionId }) => {
+    sockLog.info({ sessionId, projectPath: tabProjectPath }, 'tab selected');
+
+    // Store the active tab for this socket
+    socketActiveTabs.set(socket.id, sessionId);
+
+    // Fetch tab details from database
+    try {
+      const tab = await prisma.session.findUnique({
+        where: { id: sessionId },
+        select: {
+          id: true,
+          sessionName: true,
+          displayName: true,
+          tabColor: true,
+          tabOrder: true,
+        }
+      });
+
+      if (!tab) {
+        sockLog.warn({ sessionId }, 'tab not found in database');
+        return;
+      }
+
+      const tabSessionName = tab.sessionName;
+
+      // Remove socket from previous session (if any)
+      const prevSessionName = socketSessions.get(socket.id);
+      if (prevSessionName && prevSessionName !== tabSessionName) {
+        const prevSession = sessions.get(prevSessionName);
+        if (prevSession) {
+          prevSession.sockets.delete(socket.id);
+          sockLog.debug({ prevSessionName }, 'removed socket from previous session');
+        }
+      }
+
+      // Check if we have a PTY session for this tab
+      let session = sessions.get(tabSessionName);
+
+      if (!session) {
+        // Fetch project settings and user settings for AI preferences
+        const project = await prisma.project.findFirst({
+          where: { path: { endsWith: tabProjectPath } }
+        });
+
+        const userSettings = {
+          preferredAISolution: 'claude-code',
+          codePuppyModel: null,
+          codePuppyProvider: null,
+          hybridMode: 'code-puppy-with-claude-tools'
+        };
+        try {
+          const settings = await prisma.userSettings.findUnique({ where: { id: 'default' } });
+          if (settings) {
+            userSettings.preferredAISolution = settings.preferredAISolution || 'claude-code';
+            userSettings.codePuppyModel = settings.codePuppyModel;
+            userSettings.codePuppyProvider = settings.codePuppyProvider;
+            userSettings.hybridMode = settings.hybridMode || 'code-puppy-with-claude-tools';
+          }
+        } catch (err) {
+          sockLog.error({ error: err.message }, 'failed to fetch user settings for tab');
+        }
+
+        // Create new PTY session for this tab
+        const ptySession = createPtySessionForTab(tabSessionName, tabProjectPath, socket, {
+          skipPermissions: project?.skipPermissions || false,
+          aiSolution: userSettings.preferredAISolution,
+          codePuppyModel: userSettings.codePuppyModel,
+          codePuppyProvider: userSettings.codePuppyProvider,
+          hybridMode: userSettings.hybridMode
+        });
+
+        if (!ptySession) {
+          sockLog.error({ tabSessionName }, 'failed to create PTY session for tab');
+          return;
+        }
+
+        session = {
+          ...ptySession,
+          sockets: new Set([socket.id]),
+          cols: 120,
+          rows: 30,
+          lastOutputTime: null,
+          activityStartTime: null,
+          idleTimer: null,
+          isActive: false
+        };
+
+        sessions.set(tabSessionName, session);
+        sockLog.info({ tabSessionName }, 'created new PTY session for tab');
+
+        // Handle PTY output for this session
+        session.pty.onData((data) => {
+          const now = Date.now();
+
+          // Track activity start
+          if (!session.isActive) {
+            session.isActive = true;
+            session.activityStartTime = now;
+          }
+          session.lastOutputTime = now;
+
+          // Clear existing idle timer
+          if (session.idleTimer) {
+            clearTimeout(session.idleTimer);
+          }
+
+          // Broadcast to all sockets watching this session
+          session.sockets.forEach(socketId => {
+            io.to(socketId).emit('terminal-output', data);
+          });
+
+          // Set new idle timer for command completion detection
+          session.idleTimer = setTimeout(() => {
+            const activityDuration = session.lastOutputTime - session.activityStartTime;
+
+            if (session.isActive && activityDuration >= MIN_ACTIVITY_MS) {
+              session.sockets.forEach(socketId => {
+                io.to(socketId).emit('command-complete', {
+                  projectPath: session.projectPath,
+                  duration: activityDuration
+                });
+              });
+            }
+
+            session.isActive = false;
+            session.activityStartTime = null;
+          }, IDLE_TIMEOUT_MS);
+        });
+      } else {
+        // Add socket to existing session
+        session.sockets.add(socket.id);
+        sockLog.debug({ tabSessionName }, 'attached socket to existing session');
+      }
+
+      // Update socket-to-session mapping
+      socketSessions.set(socket.id, tabSessionName);
+
+      // Emit tab-selected confirmation
+      socket.emit('tab-selected', {
+        projectPath: tabProjectPath,
+        sessionId,
+        tab
+      });
+    } catch (err) {
+      sockLog.error({ error: err.message, sessionId }, 'failed to fetch tab on select');
+    }
+  });
+
+  /**
+   * Handle tab-resize: Resize a specific tab's terminal
+   */
+  socket.on('tab-resize', ({ sessionId, cols, rows }) => {
+    // Get the session this socket is attached to
+    const activeSessionName = socketSessions.get(socket.id);
+    if (!activeSessionName) return;
+
+    const session = sessions.get(activeSessionName);
+    if (session && session.pty) {
+      try {
+        session.pty.resize(cols, rows);
+        session.cols = cols;
+        session.rows = rows;
+      } catch (error) {
+        sessionLog.error({ error: error.message, sessionId }, 'failed to resize tab PTY');
+      }
+    }
+  });
+
+  /**
+   * Handle tabs-sync request: Send current tabs state for a project
+   */
+  socket.on('tabs-sync', async ({ projectPath: tabProjectPath }) => {
+    sockLog.info({ projectPath: tabProjectPath }, 'tabs sync requested');
+
+    try {
+      // Find the project
+      const project = await prisma.project.findFirst({
+        where: { path: { endsWith: tabProjectPath } }
+      });
+
+      if (!project) {
+        socket.emit('tabs-sync', { projectPath: tabProjectPath, tabs: [], activeSessionId: null });
+        return;
+      }
+
+      // Get all open tabs for the project
+      // Note: isOpen can be NULL for existing sessions, treat NULL as open (backward compatibility)
+      // Use "not false" to include both true and null values
+      const tabs = await prisma.session.findMany({
+        where: {
+          projectId: project.id,
+          isOpen: { not: false }
+        },
+        orderBy: { tabOrder: 'asc' },
+        select: {
+          id: true,
+          sessionName: true,
+          displayName: true,
+          tabColor: true,
+          tabOrder: true,
+          isOpen: true,
+          lastActiveAt: true,
+          status: true,
+        }
+      });
+
+      // If no tabs exist, create a default one
+      // Use upsert to handle race conditions when multiple tabs-sync events arrive simultaneously
+      if (tabs.length === 0) {
+        const projectName = project.name.replace(/[^a-zA-Z0-9_-]/g, '-');
+        const sessionName = `sp-${projectName}`;
+
+        const defaultTab = await prisma.session.upsert({
+          where: {
+            projectId_sessionName: {
+              projectId: project.id,
+              sessionName,
+            }
+          },
+          create: {
+            projectId: project.id,
+            sessionName,
+            displayName: 'Tab 1',
+            tabColor: null,
+            tabOrder: 0,
+            isOpen: true,
+            status: 'ACTIVE',
+          },
+          update: {
+            // If it already exists, just ensure it's open
+            isOpen: true,
+          },
+          select: {
+            id: true,
+            sessionName: true,
+            displayName: true,
+            tabColor: true,
+            tabOrder: true,
+            isOpen: true,
+            lastActiveAt: true,
+            status: true,
+          }
+        });
+
+        tabs.push(defaultTab);
+      }
+
+      // Active tab is the first one or the one stored for this socket
+      const activeSessionId = socketActiveTabs.get(socket.id) || tabs[0]?.id || null;
+
+      // Debug: log tabs being sent
+      sockLog.info({ projectPath: tabProjectPath, tabCount: tabs.length, tabIds: tabs.map(t => t.id), tabNames: tabs.map(t => t.displayName || t.sessionName) }, 'sending tabs-sync response');
+
+      socket.emit('tabs-sync', {
+        projectPath: tabProjectPath,
+        tabs,
+        activeSessionId
+      });
+    } catch (err) {
+      sockLog.error({ error: err.message, projectPath: tabProjectPath }, 'failed to sync tabs');
+      socket.emit('tabs-sync', { projectPath: tabProjectPath, tabs: [], activeSessionId: null, error: err.message });
+    }
+  });
+
+  // Cleanup socketActiveTabs on disconnect (extend existing handler)
+  socket.on('disconnect', () => {
+    socketActiveTabs.delete(socket.id);
   });
 });
 

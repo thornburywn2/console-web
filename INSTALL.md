@@ -9,7 +9,7 @@ Console.web is designed to run on Windows via WSL2 (Windows Subsystem for Linux)
 Open **PowerShell as Administrator** and run:
 
 ```powershell
-Set-ExecutionPolicy Bypass -Scope Process -Force; irm https://raw.githubusercontent.com/YOUR_GITHUB_USER/console-web/main/scripts/windows-setup.ps1 | iex
+Set-ExecutionPolicy Bypass -Scope Process -Force; irm https://raw.githubusercontent.com/thornburywn2/console-web/main/scripts/windows-setup.ps1 | iex
 ```
 
 This will:
@@ -93,7 +93,7 @@ npm install -g pm2
 ```bash
 # Clone the repository
 cd ~
-git clone https://github.com/YOUR_GITHUB_USER/console-web.git
+git clone https://github.com/thornburywn2/console-web.git
 cd console-web
 
 # Install dependencies
@@ -266,7 +266,7 @@ pm2 restart console-web
 ## Support
 
 - **Documentation**: See the `docs/` folder
-- **Issues**: [GitHub Issues](https://github.com/YOUR_GITHUB_USER/console-web/issues)
+- **Issues**: [GitHub Issues](https://github.com/thornburywn2/console-web/issues)
 - **Code Puppy**: Ask your AI assistant for help!
 
 ---
@@ -285,4 +285,4 @@ Code Puppy is your AI coding companion, designed to make AI-assisted development
 
 ---
 
-*Console.web v1.0 - Making AI development accessible*
+*Console.web v1.0.26 - Making AI development accessible*

@@ -11,6 +11,8 @@ import { projectsApi, systemApi, notesApi, sessionsPersistedApi } from './servic
 // Core components (always loaded - essential for initial render)
 import LeftSidebar from './components/LeftSidebar';
 import Terminal from './components/Terminal';
+import { TerminalTabBar } from './components/terminal';
+import { useTerminalTabs } from './hooks/useTerminalTabs';
 import RightSidebar from './components/RightSidebar';
 import CommandPalette from './components/CommandPalette';
 import BulkActionBar from './components/BulkActionBar';
@@ -154,6 +156,9 @@ function App() {
       console.log('Aider command:', cmd);
     }
   });
+
+  // Terminal tabs hook (multi-tab support v1.0.27)
+  const terminalTabs = useTerminalTabs(socket, selectedProject?.path);
 
   // Track selected project for reconnection (ref to avoid stale closures)
   const selectedProjectRef = useRef(null);
@@ -662,37 +667,116 @@ function App() {
       else if (focusMode) setFocusMode(false);
     },
     newSession: () => {
-      setShowTemplateModal(true);
+      // Ctrl+N: Create new terminal tab when project is selected
+      if (selectedProject && terminalTabs.tabs.length > 0) {
+        terminalTabs.createTab();
+      } else {
+        setShowTemplateModal(true);
+      }
+    },
+    newTab: () => {
+      // Ctrl+T: Create new terminal tab
+      if (selectedProject) {
+        terminalTabs.createTab();
+      }
     },
     closeSession: () => {
-      if (selectedProject) {
+      // Ctrl+W: Close current tab (or kill session if only one tab)
+      if (selectedProject && terminalTabs.tabs.length > 1) {
+        terminalTabs.closeTab(terminalTabs.activeSessionId);
+      } else if (selectedProject) {
         handleKillSession(selectedProject.path);
       }
     },
-    switchToSession1: () => projects[0] && handleSelectProject(projects[0]),
-    switchToSession2: () => projects[1] && handleSelectProject(projects[1]),
-    switchToSession3: () => projects[2] && handleSelectProject(projects[2]),
-    switchToSession4: () => projects[3] && handleSelectProject(projects[3]),
-    switchToSession5: () => projects[4] && handleSelectProject(projects[4]),
-    switchToSession6: () => projects[5] && handleSelectProject(projects[5]),
-    switchToSession7: () => projects[6] && handleSelectProject(projects[6]),
-    switchToSession8: () => projects[7] && handleSelectProject(projects[7]),
-    switchToSession9: () => projects[8] && handleSelectProject(projects[8]),
-    nextSession: () => {
-      if (projects.length === 0) return;
-      const currentIndex = selectedProject
-        ? projects.findIndex(p => p.path === selectedProject.path)
-        : -1;
-      const nextIndex = (currentIndex + 1) % projects.length;
-      handleSelectProject(projects[nextIndex]);
+    // Ctrl+1-8: Switch to tab by index when project is selected, otherwise switch projects
+    switchToSession1: () => {
+      if (selectedProject && terminalTabs.tabs.length > 0) {
+        terminalTabs.selectTabByIndex(1);
+      } else if (projects[0]) {
+        handleSelectProject(projects[0]);
+      }
     },
+    switchToSession2: () => {
+      if (selectedProject && terminalTabs.tabs.length > 1) {
+        terminalTabs.selectTabByIndex(2);
+      } else if (projects[1]) {
+        handleSelectProject(projects[1]);
+      }
+    },
+    switchToSession3: () => {
+      if (selectedProject && terminalTabs.tabs.length > 2) {
+        terminalTabs.selectTabByIndex(3);
+      } else if (projects[2]) {
+        handleSelectProject(projects[2]);
+      }
+    },
+    switchToSession4: () => {
+      if (selectedProject && terminalTabs.tabs.length > 3) {
+        terminalTabs.selectTabByIndex(4);
+      } else if (projects[3]) {
+        handleSelectProject(projects[3]);
+      }
+    },
+    switchToSession5: () => {
+      if (selectedProject && terminalTabs.tabs.length > 4) {
+        terminalTabs.selectTabByIndex(5);
+      } else if (projects[4]) {
+        handleSelectProject(projects[4]);
+      }
+    },
+    switchToSession6: () => {
+      if (selectedProject && terminalTabs.tabs.length > 5) {
+        terminalTabs.selectTabByIndex(6);
+      } else if (projects[5]) {
+        handleSelectProject(projects[5]);
+      }
+    },
+    switchToSession7: () => {
+      if (selectedProject && terminalTabs.tabs.length > 6) {
+        terminalTabs.selectTabByIndex(7);
+      } else if (projects[6]) {
+        handleSelectProject(projects[6]);
+      }
+    },
+    switchToSession8: () => {
+      if (selectedProject && terminalTabs.tabs.length > 7) {
+        terminalTabs.selectTabByIndex(8);
+      } else if (projects[7]) {
+        handleSelectProject(projects[7]);
+      }
+    },
+    switchToSession9: () => projects[8] && handleSelectProject(projects[8]),
+    // Ctrl+]: Next tab or project
+    nextSession: () => {
+      if (selectedProject && terminalTabs.tabs.length > 1) {
+        // Cycle to next tab
+        const nextTab = terminalTabs.getNextTab();
+        if (nextTab) {
+          terminalTabs.selectTab(nextTab.id);
+        }
+      } else if (projects.length > 0) {
+        const currentIndex = selectedProject
+          ? projects.findIndex(p => p.path === selectedProject.path)
+          : -1;
+        const nextIndex = (currentIndex + 1) % projects.length;
+        handleSelectProject(projects[nextIndex]);
+      }
+    },
+    // Ctrl+[: Previous tab or project
     previousSession: () => {
-      if (projects.length === 0) return;
-      const currentIndex = selectedProject
-        ? projects.findIndex(p => p.path === selectedProject.path)
-        : 0;
-      const prevIndex = currentIndex <= 0 ? projects.length - 1 : currentIndex - 1;
-      handleSelectProject(projects[prevIndex]);
+      if (selectedProject && terminalTabs.tabs.length > 1) {
+        // Cycle to previous tab
+        const prevTab = terminalTabs.getPreviousTab();
+        if (prevTab) {
+          terminalTabs.selectTab(prevTab.id);
+        }
+      } else if (projects.length > 0) {
+        const currentIndex = selectedProject
+          ? projects.findIndex(p => p.path === selectedProject.path)
+          : 0;
+        const prevIndex = currentIndex <= 0 ? projects.length - 1 : currentIndex - 1;
+        handleSelectProject(projects[prevIndex]);
+      }
     },
   };
 
@@ -740,7 +824,7 @@ function App() {
                 style={{ color: 'var(--text-muted)', background: 'var(--bg-glass)' }}
                 title="About Console.web"
               >
-                v1.0.26
+                v1.0.27
               </button>
             </div>
             {selectedProject && (
@@ -853,15 +937,33 @@ function App() {
               />
             </ErrorBoundary>
           ) : (
-            <ErrorBoundary tabName="Terminal">
-              <Terminal
-                socket={socket}
-                isReady={terminalReady}
-                onInput={handleTerminalInput}
-                onResize={handleTerminalResize}
-                projectPath={selectedProject.path}
+            <div className="flex flex-col h-full">
+              {/* Terminal Tab Bar */}
+              <TerminalTabBar
+                tabs={terminalTabs.tabs}
+                activeTabId={terminalTabs.activeSessionId}
+                onTabSelect={terminalTabs.selectTab}
+                onTabCreate={terminalTabs.createTab}
+                onTabClose={terminalTabs.closeTab}
+                onTabRename={terminalTabs.renameTab}
+                onTabColorChange={terminalTabs.setTabColor}
+                isLoading={terminalTabs.isLoading}
               />
-            </ErrorBoundary>
+
+              {/* Terminal */}
+              <ErrorBoundary tabName="Terminal">
+                <div className="flex-1 min-h-0">
+                  <Terminal
+                    socket={socket}
+                    isReady={terminalReady}
+                    onInput={handleTerminalInput}
+                    onResize={handleTerminalResize}
+                    projectPath={selectedProject.path}
+                    sessionId={terminalTabs.activeSessionId}
+                  />
+                </div>
+              </ErrorBoundary>
+            </div>
           )}
         </div>
       </main>

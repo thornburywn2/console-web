@@ -20,6 +20,8 @@ export const DEFAULT_SHORTCUTS = {
   'Ctrl+9': 'switchToSession9',
   'Ctrl+]': 'nextSession',
   'Ctrl+[': 'previousSession',
+  'Ctrl+Tab': 'nextSession', // Also cycle tabs with Ctrl+Tab
+  'Ctrl+Shift+Tab': 'previousSession', // Cycle tabs backward
   'Ctrl+N': 'newSession',
   'Ctrl+W': 'closeSession',
   'Ctrl+F': 'focusSearch',
@@ -29,7 +31,7 @@ export const DEFAULT_SHORTCUTS = {
   'Escape': 'exitFocusMode',
   'F11': 'toggleFullscreen',
   'Ctrl+Shift+A': 'openAdmin',
-  'Ctrl+T': 'openTemplates',
+  'Ctrl+T': 'newTab', // New tab (changed from openTemplates)
   'Ctrl+Shift+N': 'openNotes',
   'Ctrl+Shift+T': 'openThemes',
   'Ctrl+/': 'showShortcuts',
@@ -38,19 +40,20 @@ export const DEFAULT_SHORTCUTS = {
 // Human-readable descriptions for each action
 export const ACTION_DESCRIPTIONS = {
   openCommandPalette: 'Open Command Palette',
-  switchToSession1: 'Switch to Session 1',
-  switchToSession2: 'Switch to Session 2',
-  switchToSession3: 'Switch to Session 3',
-  switchToSession4: 'Switch to Session 4',
-  switchToSession5: 'Switch to Session 5',
-  switchToSession6: 'Switch to Session 6',
-  switchToSession7: 'Switch to Session 7',
-  switchToSession8: 'Switch to Session 8',
+  switchToSession1: 'Switch to Tab/Session 1',
+  switchToSession2: 'Switch to Tab/Session 2',
+  switchToSession3: 'Switch to Tab/Session 3',
+  switchToSession4: 'Switch to Tab/Session 4',
+  switchToSession5: 'Switch to Tab/Session 5',
+  switchToSession6: 'Switch to Tab/Session 6',
+  switchToSession7: 'Switch to Tab/Session 7',
+  switchToSession8: 'Switch to Tab/Session 8',
   switchToSession9: 'Switch to Session 9',
-  nextSession: 'Next Session (Cycle Forward)',
-  previousSession: 'Previous Session (Cycle Backward)',
+  nextSession: 'Next Tab/Session (Cycle Forward)',
+  previousSession: 'Previous Tab/Session (Cycle Backward)',
   newSession: 'New Session',
-  closeSession: 'Close Current Session',
+  newTab: 'New Terminal Tab',
+  closeSession: 'Close Current Tab/Session',
   focusSearch: 'Focus Search',
   openSettings: 'Open Settings',
   toggleSidebar: 'Toggle Left Sidebar',
@@ -164,11 +167,13 @@ export function useKeyboardShortcuts(handlers = {}, options = {}) {
 export function getShortcutsByCategory() {
   return {
     'Navigation': [
-      { keys: 'Ctrl+]', action: 'nextSession', description: 'Cycle to Next Session' },
-      { keys: 'Ctrl+[', action: 'previousSession', description: 'Cycle to Previous Session' },
+      { keys: 'Ctrl+Tab', action: 'nextSession', description: 'Cycle to Next Tab' },
+      { keys: 'Ctrl+Shift+Tab', action: 'previousSession', description: 'Cycle to Previous Tab' },
+      { keys: 'Ctrl+]', action: 'nextSession', description: 'Cycle to Next Tab/Session' },
+      { keys: 'Ctrl+[', action: 'previousSession', description: 'Cycle to Previous Tab/Session' },
       { keys: 'Ctrl+B', action: 'toggleSidebar', description: 'Toggle Left Sidebar' },
       { keys: 'Ctrl+Shift+B', action: 'toggleRightSidebar', description: 'Toggle Right Sidebar' },
-      { keys: 'Ctrl+1-9', action: 'switchToSession', description: 'Switch to Session 1-9' },
+      { keys: 'Ctrl+1-8', action: 'switchToSession', description: 'Switch to Tab 1-8' },
       { keys: 'F11', action: 'toggleFullscreen', description: 'Toggle Fullscreen' },
     ],
     'Commands': [
@@ -176,10 +181,10 @@ export function getShortcutsByCategory() {
       { keys: 'Ctrl+F', action: 'focusSearch', description: 'Focus Search' },
       { keys: 'Ctrl+/', action: 'showShortcuts', description: 'Show Keyboard Shortcuts' },
     ],
-    'Sessions': [
-      { keys: 'Ctrl+N', action: 'newSession', description: 'New Session' },
-      { keys: 'Ctrl+W', action: 'closeSession', description: 'Close Current Session' },
-      { keys: 'Ctrl+T', action: 'openTemplates', description: 'Open Session Templates' },
+    'Tabs & Sessions': [
+      { keys: 'Ctrl+T', action: 'newTab', description: 'New Terminal Tab' },
+      { keys: 'Ctrl+W', action: 'closeSession', description: 'Close Current Tab' },
+      { keys: 'Ctrl+N', action: 'newSession', description: 'New Tab/Session' },
       { keys: 'Ctrl+Shift+N', action: 'openNotes', description: 'Open Session Notes' },
     ],
     'General': [

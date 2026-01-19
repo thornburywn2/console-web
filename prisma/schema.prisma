@@ -279,7 +279,14 @@ model Session {
   sharedLinks       SharedSession[]
   comments          SessionComment[]
 
+  // Terminal tab customization (multi-tab support)
+  tabColor      String?   // Preset color: green, cyan, purple, warning, blue, error, pink, orange
+  tabOrder      Int       @default(0)  // Order within project (0, 1, 2...)
+  isOpen        Boolean   @default(true)  // Whether tab is currently open in UI
+
   @@unique([projectId, sessionName])
+  @@index([projectId, tabOrder])
+  @@index([projectId, isOpen])
   @@index([status])
   @@index([lastActiveAt])
   @@index([folderId])
