@@ -1,11 +1,43 @@
 /**
  * OverviewPane Component
- * System overview with key metrics (new - combines quick stats)
+ * System overview with key metrics - cohesive Panel design
  */
 
 import { useState, useEffect } from 'react';
+import { Panel, PanelGroup, InfoRow, Meter } from '../../../shared';
 import { formatBytes, formatUptime } from '../../utils';
 import { useApiQuery } from '../../../../hooks/useApiQuery';
+
+// Icons
+const CpuIcon = (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+  </svg>
+);
+
+const MemoryIcon = (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+  </svg>
+);
+
+const DiskIcon = (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+  </svg>
+);
+
+const ServerIcon = (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+  </svg>
+);
+
+const LoadIcon = (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+  </svg>
+);
 
 export function OverviewPane() {
   const [lastUpdated, setLastUpdated] = useState(new Date());
@@ -30,23 +62,24 @@ export function OverviewPane() {
   // Show error state with retry button
   if (error && !systemInfo) {
     return (
-      <div className="space-y-6 animate-fade-in">
-        <div className="hacker-card p-6 text-center border-hacker-error/50 bg-hacker-error/10">
-          <div className="text-4xl mb-4">&#9888;</div>
-          <h3 className="text-lg font-mono text-hacker-error mb-2">
-            Failed to Load System Info
-          </h3>
-          <p className="text-sm text-hacker-text-dim mb-4 font-mono">
-            {error.getUserMessage()}
-          </p>
-          <button
-            onClick={fetchSystemInfo}
-            disabled={loading}
-            className="hacker-btn"
-          >
-            {loading ? '[RETRYING...]' : '[RETRY]'}
-          </button>
-        </div>
+      <div className="space-y-1 animate-fade-in">
+        <Panel id="server-overview-error" title="Error" icon={ServerIcon}>
+          <div className="text-center py-4">
+            <p className="text-[var(--status-error)] font-mono mb-4">
+              {error.getUserMessage?.() || 'Failed to load system info'}
+            </p>
+            <button
+              onClick={fetchSystemInfo}
+              disabled={loading}
+              className="px-3 py-1.5 text-xs font-mono rounded border transition-colors
+                         border-[var(--border-subtle)] text-[var(--text-secondary)]
+                         hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]
+                         disabled:opacity-50"
+            >
+              {loading ? 'Retrying...' : 'Retry'}
+            </button>
+          </div>
+        </Panel>
       </div>
     );
   }
@@ -55,7 +88,7 @@ export function OverviewPane() {
   if (!systemInfo && loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin w-8 h-8 border-2 border-hacker-green border-t-transparent rounded-full" />
+        <div className="animate-spin w-8 h-8 border-2 border-[var(--accent-primary)] border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -64,204 +97,144 @@ export function OverviewPane() {
   if (!systemInfo) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin w-8 h-8 border-2 border-hacker-green border-t-transparent rounded-full" />
+        <div className="animate-spin w-8 h-8 border-2 border-[var(--accent-primary)] border-t-transparent rounded-full" />
       </div>
     );
   }
 
+  const cpuUsage = Math.round(systemInfo.cpu?.usage || 0);
+  const memUsage = Math.round(systemInfo.memory?.usedPercent || 0);
+  const diskUsage = Math.round(systemInfo.disk?.usedPercent || 0);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-1 animate-fade-in">
       {/* Error Banner (shown when refresh fails but we have stale data) */}
       {error && systemInfo && (
-        <div className="hacker-card border-hacker-error/50 bg-hacker-error/10 flex items-center justify-between">
-          <p className="text-sm text-hacker-error font-mono">{error.getUserMessage()}</p>
+        <div className="mb-2 p-3 rounded border border-[var(--status-error)]/30 bg-[var(--status-error)]/10
+                        flex items-center justify-between">
+          <p className="text-sm text-[var(--status-error)] font-mono">{error.getUserMessage?.() || 'Refresh failed'}</p>
           <button
             onClick={fetchSystemInfo}
             disabled={loading}
-            className="hacker-btn text-xs"
+            className="px-2 py-1 text-xs font-mono rounded border transition-colors
+                       border-[var(--border-subtle)] hover:border-[var(--status-error)]
+                       disabled:opacity-50"
           >
-            {loading ? '[RETRYING...]' : '[RETRY]'}
+            {loading ? 'Retrying...' : 'Retry'}
           </button>
         </div>
       )}
 
-      {/* Quick Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="hacker-card text-center">
-          <div className="stat-value text-hacker-green">{Math.round(systemInfo.cpu?.usage || 0)}%</div>
-          <div className="stat-label">CPU USAGE</div>
+      {/* Quick Stats */}
+      <Panel id="server-quick-stats" title="Quick Stats" icon={ServerIcon}>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="text-center p-3 rounded bg-[var(--bg-primary)]/50 border border-[var(--border-subtle)]">
+            <div className="text-2xl font-bold font-mono text-[var(--accent-primary)]">{cpuUsage}%</div>
+            <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">CPU</div>
+          </div>
+          <div className="text-center p-3 rounded bg-[var(--bg-primary)]/50 border border-[var(--border-subtle)]">
+            <div className="text-2xl font-bold font-mono text-[var(--accent-secondary)]">{memUsage}%</div>
+            <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Memory</div>
+          </div>
+          <div className="text-center p-3 rounded bg-[var(--bg-primary)]/50 border border-[var(--border-subtle)]">
+            <div className="text-2xl font-bold font-mono text-[var(--accent-tertiary)]">{diskUsage}%</div>
+            <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Disk</div>
+          </div>
+          <div className="text-center p-3 rounded bg-[var(--bg-primary)]/50 border border-[var(--border-subtle)]">
+            <div className="text-2xl font-bold font-mono text-[var(--status-warning)]">{formatUptime(systemInfo.uptime || 0)}</div>
+            <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Uptime</div>
+          </div>
         </div>
-        <div className="hacker-card text-center">
-          <div className="stat-value text-hacker-cyan">{Math.round(systemInfo.memory?.usedPercent || 0)}%</div>
-          <div className="stat-label">MEMORY</div>
-        </div>
-        <div className="hacker-card text-center">
-          <div className="stat-value text-hacker-purple">{Math.round(systemInfo.disk?.usedPercent || 0)}%</div>
-          <div className="stat-label">DISK</div>
-        </div>
-        <div className="hacker-card text-center">
-          <div className="stat-value text-hacker-warning">{formatUptime(systemInfo.uptime || 0)}</div>
-          <div className="stat-label">UPTIME</div>
-        </div>
-      </div>
+      </Panel>
 
-      {/* System Details */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {/* CPU Info */}
-        <div className="hacker-card">
-          <h4 className="text-sm font-semibold text-hacker-green mb-4 uppercase tracking-wider flex items-center gap-2">
-            <span>&#9654;</span> CPU
-          </h4>
-          <div className="space-y-2 font-mono text-sm">
-            <div className="flex justify-between">
-              <span className="text-hacker-text-dim">model</span>
-              <span className="text-hacker-text truncate max-w-[60%]">{systemInfo.cpu?.model || 'N/A'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-hacker-text-dim">cores</span>
-              <span className="text-hacker-cyan">{systemInfo.cpu?.count || 'N/A'}</span>
-            </div>
+      <PanelGroup>
+        {/* CPU Panel */}
+        <Panel id="server-cpu" title="CPU" icon={CpuIcon}>
+          <InfoRow label="Model" value={systemInfo.cpu?.model || 'N/A'} truncate />
+          <InfoRow label="Cores" value={systemInfo.cpu?.count || 'N/A'} valueColor="var(--accent-secondary)" />
+          <InfoRow label="Usage" value={`${cpuUsage}%`} valueColor={cpuUsage > 80 ? 'var(--status-error)' : 'var(--accent-primary)'} />
+          <div className="mt-3">
+            <Meter value={cpuUsage} color={cpuUsage > 80 ? 'var(--status-error)' : 'var(--accent-primary)'} />
           </div>
-          {/* CPU Usage Bar */}
-          <div className="mt-4">
-            <div className="hacker-progress h-2">
-              <div
-                className="hacker-progress-bar"
-                style={{
-                  width: `${systemInfo.cpu?.usage || 0}%`,
-                  background: systemInfo.cpu?.usage > 80 ? '#ff3333' : '#00ff41'
-                }}
-              />
-            </div>
-          </div>
-        </div>
+        </Panel>
 
-        {/* Memory Info */}
-        <div className="hacker-card">
-          <h4 className="text-sm font-semibold text-hacker-cyan mb-4 uppercase tracking-wider flex items-center gap-2">
-            <span>&#9654;</span> MEMORY
-          </h4>
-          <div className="space-y-2 font-mono text-sm">
-            <div className="flex justify-between">
-              <span className="text-hacker-text-dim">total</span>
-              <span className="text-hacker-text">{formatBytes(systemInfo.memory?.total || 0)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-hacker-text-dim">used</span>
-              <span className="text-hacker-cyan">{formatBytes(systemInfo.memory?.used || 0)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-hacker-text-dim">free</span>
-              <span className="text-hacker-green">{formatBytes(systemInfo.memory?.free || 0)}</span>
-            </div>
+        {/* Memory Panel */}
+        <Panel id="server-memory" title="Memory" icon={MemoryIcon}>
+          <InfoRow label="Total" value={formatBytes(systemInfo.memory?.total || 0)} />
+          <InfoRow label="Used" value={formatBytes(systemInfo.memory?.used || 0)} valueColor="var(--accent-secondary)" />
+          <InfoRow label="Free" value={formatBytes(systemInfo.memory?.free || 0)} valueColor="var(--accent-primary)" />
+          <div className="mt-3">
+            <Meter value={memUsage} color={memUsage > 80 ? 'var(--status-error)' : 'var(--accent-secondary)'} />
           </div>
-          {/* Memory Usage Bar */}
-          <div className="mt-4">
-            <div className="hacker-progress h-2">
-              <div
-                className="hacker-progress-bar"
-                style={{
-                  width: `${systemInfo.memory?.usedPercent || 0}%`,
-                  background: systemInfo.memory?.usedPercent > 80 ? '#ff3333' : '#00d4ff'
-                }}
-              />
-            </div>
-          </div>
-        </div>
+        </Panel>
 
-        {/* Disk Info */}
-        <div className="hacker-card">
-          <h4 className="text-sm font-semibold text-hacker-purple mb-4 uppercase tracking-wider flex items-center gap-2">
-            <span>&#9654;</span> DISK
-          </h4>
-          <div className="space-y-2 font-mono text-sm">
-            <div className="flex justify-between">
-              <span className="text-hacker-text-dim">total</span>
-              <span className="text-hacker-text">{formatBytes(systemInfo.disk?.total || 0)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-hacker-text-dim">used</span>
-              <span className="text-hacker-purple">{formatBytes(systemInfo.disk?.used || 0)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-hacker-text-dim">free</span>
-              <span className="text-hacker-green">{formatBytes(systemInfo.disk?.free || 0)}</span>
-            </div>
+        {/* Disk Panel */}
+        <Panel id="server-disk" title="Disk" icon={DiskIcon}>
+          <InfoRow label="Total" value={formatBytes(systemInfo.disk?.total || 0)} />
+          <InfoRow label="Used" value={formatBytes(systemInfo.disk?.used || 0)} valueColor="var(--accent-tertiary)" />
+          <InfoRow label="Free" value={formatBytes(systemInfo.disk?.free || 0)} valueColor="var(--accent-primary)" />
+          <div className="mt-3">
+            <Meter value={diskUsage} color={diskUsage > 80 ? 'var(--status-error)' : 'var(--accent-tertiary)'} />
           </div>
-          {/* Disk Usage Bar */}
-          <div className="mt-4">
-            <div className="hacker-progress h-2">
-              <div
-                className="hacker-progress-bar"
-                style={{
-                  width: `${systemInfo.disk?.usedPercent || 0}%`,
-                  background: systemInfo.disk?.usedPercent > 80 ? '#ff3333' : '#bd00ff'
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+        </Panel>
+      </PanelGroup>
 
-      {/* System Info */}
-      <div className="hacker-card">
-        <div className="flex items-center justify-between mb-4">
-          <h4 className="text-sm font-semibold text-hacker-warning uppercase tracking-wider flex items-center gap-2">
-            <span>&#9654;</span> SYSTEM INFO
-          </h4>
+      {/* System Info Panel */}
+      <Panel id="server-system-info" title="System Info" icon={ServerIcon}>
+        <div className="flex justify-end mb-2 -mt-1">
           <button
             onClick={fetchSystemInfo}
             disabled={loading}
-            className="hacker-btn text-xs"
+            className="px-2 py-1 text-xs font-mono rounded border transition-colors
+                       border-[var(--border-subtle)] text-[var(--text-secondary)]
+                       hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]
+                       disabled:opacity-50"
           >
-            {loading ? '[REFRESHING...]' : '[REFRESH]'}
+            {loading ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 font-mono text-sm">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
-            <span className="text-hacker-text-dim block text-xs">hostname</span>
-            <span className="text-hacker-green">{systemInfo.system?.hostname || 'N/A'}</span>
+            <span className="text-[var(--text-muted)] block text-xs font-mono uppercase">Hostname</span>
+            <span className="text-[var(--accent-primary)] font-mono text-sm">{systemInfo.system?.hostname || 'N/A'}</span>
           </div>
           <div>
-            <span className="text-hacker-text-dim block text-xs">platform</span>
-            <span className="text-hacker-text">{systemInfo.system?.platform || 'N/A'}</span>
+            <span className="text-[var(--text-muted)] block text-xs font-mono uppercase">Platform</span>
+            <span className="text-[var(--text-primary)] font-mono text-sm">{systemInfo.system?.platform || 'N/A'}</span>
           </div>
           <div>
-            <span className="text-hacker-text-dim block text-xs">node</span>
-            <span className="text-hacker-text">{systemInfo.process?.nodeVersion || 'N/A'}</span>
+            <span className="text-[var(--text-muted)] block text-xs font-mono uppercase">Node</span>
+            <span className="text-[var(--text-primary)] font-mono text-sm">{systemInfo.process?.nodeVersion || 'N/A'}</span>
           </div>
           <div>
-            <span className="text-hacker-text-dim block text-xs">arch</span>
-            <span className="text-hacker-text">{systemInfo.system?.arch || 'N/A'}</span>
+            <span className="text-[var(--text-muted)] block text-xs font-mono uppercase">Arch</span>
+            <span className="text-[var(--text-primary)] font-mono text-sm">{systemInfo.system?.arch || 'N/A'}</span>
           </div>
         </div>
-      </div>
+      </Panel>
 
-      {/* Load Average */}
+      {/* Load Average Panel */}
       {systemInfo.loadAvg && (
-        <div className="hacker-card">
-          <h4 className="text-sm font-semibold text-hacker-cyan mb-4 uppercase tracking-wider flex items-center gap-2">
-            <span>&#9654;</span> LOAD AVERAGE
-          </h4>
-          <div className="grid grid-cols-3 gap-4 text-center font-mono">
+        <Panel id="server-load-avg" title="Load Average" icon={LoadIcon}>
+          <div className="grid grid-cols-3 gap-4 text-center">
             <div>
-              <div className="text-2xl font-bold text-hacker-green">{systemInfo.loadAvg[0]?.toFixed(2)}</div>
-              <div className="text-xs text-hacker-text-dim">1 min</div>
+              <div className="text-2xl font-bold font-mono text-[var(--accent-primary)]">{systemInfo.loadAvg[0]?.toFixed(2)}</div>
+              <div className="text-xs text-[var(--text-muted)] font-mono">1 min</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-hacker-cyan">{systemInfo.loadAvg[1]?.toFixed(2)}</div>
-              <div className="text-xs text-hacker-text-dim">5 min</div>
+              <div className="text-2xl font-bold font-mono text-[var(--accent-secondary)]">{systemInfo.loadAvg[1]?.toFixed(2)}</div>
+              <div className="text-xs text-[var(--text-muted)] font-mono">5 min</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-hacker-purple">{systemInfo.loadAvg[2]?.toFixed(2)}</div>
-              <div className="text-xs text-hacker-text-dim">15 min</div>
+              <div className="text-2xl font-bold font-mono text-[var(--accent-tertiary)]">{systemInfo.loadAvg[2]?.toFixed(2)}</div>
+              <div className="text-xs text-[var(--text-muted)] font-mono">15 min</div>
             </div>
           </div>
-        </div>
+        </Panel>
       )}
 
       {/* Last Updated */}
-      <p className="text-xs text-hacker-text-dim font-mono text-right">
+      <p className="text-xs text-[var(--text-muted)] font-mono text-right pt-2">
         Last updated: {lastUpdated.toLocaleTimeString()}
       </p>
     </div>

@@ -152,8 +152,8 @@ function App() {
         setShowAiderPanel(true);
       }
     },
-    onAiderCommand: (cmd) => {
-      console.log('Aider command:', cmd);
+    onAiderCommand: () => {
+      // Aider command handled by hook
     }
   });
 
@@ -185,7 +185,6 @@ function App() {
     });
 
     newSocket.on('connect', async () => {
-      console.log('Socket connected:', newSocket.id);
       setIsConnected(true);
       setError(null);
 
@@ -195,7 +194,6 @@ function App() {
       if (currentProject) {
         // Already have a project selected, just reconnect to it
         // Small delay to ensure server has cleaned up any stale PTY sessions
-        console.log('Reconnecting to current project:', currentProject.path);
         setTimeout(() => {
           newSocket.emit('reconnect-session', currentProject.path);
         }, 100);
@@ -211,7 +209,6 @@ function App() {
 
         // Check if auto-reconnect is enabled (default to true)
         if (settings.autoReconnect === false) {
-          console.log('Auto-reconnect disabled in settings');
           return;
         }
 
@@ -227,11 +224,8 @@ function App() {
           if (!projectPath || !projectName ||
               projectName === 'Home' || projectName === 'Projects' ||
               normalizedPath === PROJECTS_DIR) {
-            console.log('Skipping invalid project path for auto-reconnect:', projectPath);
             return;
           }
-
-          console.log('Auto-reconnecting to last active session:', lastSession.project.path);
           // Set the selected project in state so UI shows correctly
           setSelectedProject({
             name: lastSession.project.name,
@@ -241,16 +235,13 @@ function App() {
           setTimeout(() => {
             newSocket.emit('reconnect-session', lastSession.project.path);
           }, 100);
-        } else {
-          console.log('No previous sessions to reconnect to');
         }
       } catch (err) {
         console.error('Error checking for auto-reconnect:', err);
       }
     });
 
-    newSocket.on('disconnect', (reason) => {
-      console.log('Socket disconnected:', reason);
+    newSocket.on('disconnect', () => {
       setIsConnected(false);
       setTerminalReady(false);
       // Don't clear selected project - we'll try to reconnect when socket comes back
@@ -262,8 +253,7 @@ function App() {
       setIsConnected(false);
     });
 
-    newSocket.on('terminal-ready', ({ projectPath, sessionName, isNew, reconnected }) => {
-      console.log('Terminal ready:', { projectPath, sessionName, isNew, reconnected });
+    newSocket.on('terminal-ready', ({ projectPath, reconnected }) => {
       setTerminalReady(true);
       // Reset reconnect counter on successful connection
       if (projectPath) {
@@ -274,8 +264,7 @@ function App() {
       }
     });
 
-    newSocket.on('terminal-exit', ({ exitCode, projectPath }) => {
-      console.log('Terminal exited:', { exitCode, projectPath });
+    newSocket.on('terminal-exit', ({ projectPath }) => {
       const currentProject = selectedProjectRef.current;
 
       // If this is our current project, try to reconnect (shpool session may still exist)
@@ -284,7 +273,6 @@ function App() {
         reconnectAttemptsRef.current[projectPath] = attempts;
 
         if (attempts <= MAX_RECONNECT_ATTEMPTS) {
-          console.log(`Attempting to reconnect to shpool session (attempt ${attempts}/${MAX_RECONNECT_ATTEMPTS})...`);
           setTerminalReady(false);
           // Exponential backoff: 500ms, 1000ms, 2000ms
           const delay = 500 * Math.pow(2, attempts - 1);
@@ -303,8 +291,7 @@ function App() {
       fetchProjects();
     });
 
-    newSocket.on('session-killed', ({ projectPath, sessionName }) => {
-      console.log('Session killed:', { projectPath, sessionName });
+    newSocket.on('session-killed', ({ projectPath }) => {
       if (selectedProjectRef.current?.path === projectPath) {
         setSelectedProject(null);
         setTerminalReady(false);
@@ -529,7 +516,8 @@ function App() {
         setVoicePanelCollapsed(false);
         break;
       default:
-        console.log('Unknown command:', commandId);
+        // Unknown command - no action needed
+        break;
     }
   }, [handleSelectProject, handleKillSession, selectedProject, fetchProjects, cycleTheme]);
 
@@ -598,7 +586,7 @@ function App() {
 
       default:
         // Terminal commands are handled by VoiceCommandPanel directly
-        console.log('Voice command:', command.action);
+        break;
     }
   }, [setTheme, fetchProjects, selectedProject, handleKillSession]);
 
@@ -1158,8 +1146,7 @@ function App() {
           isOpen={showHandoffModal}
           onClose={() => setShowHandoffModal(false)}
           session={selectedProject}
-          onHandoff={(handoff) => {
-            console.log('Session handed off:', handoff);
+          onHandoff={() => {
             setShowHandoffModal(false);
           }}
         />

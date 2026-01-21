@@ -15,12 +15,20 @@ import {
   TagsSection,
 } from './context-menu';
 
+// AI Solution options for launch menu
+const AI_SOLUTIONS = [
+  { id: 'claude-code', name: 'Claude Code', icon: '💻', description: 'Official Anthropic CLI' },
+  { id: 'opencode', name: 'OpenCode', icon: '🌐', description: 'Open source, multi-provider' },
+  { id: 'code-puppy', name: 'Code Puppy', icon: '🐕', description: 'Open source alternative' },
+];
+
 export default function ProjectContextMenu({
   isOpen,
   position,
   project,
   onClose,
   onSelectProject,
+  onSelectProjectWithAI,
   onToggleFavorite,
   onKillSession,
   isFavorite,
@@ -417,7 +425,35 @@ export default function ProjectContextMenu({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
           {project.hasActiveSession ? 'Open Terminal' : 'Start Session'}
+          <span className="ml-auto text-2xs text-muted">(default)</span>
         </button>
+
+        {/* AI-specific launch options - always show */}
+        {onSelectProjectWithAI && (
+          <div className="mt-1 pt-1" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+            <div className="px-3 py-1 text-2xs text-muted">
+              {project.hasActiveSession ? 'Start new session with:' : 'Start with specific AI:'}
+            </div>
+            {AI_SOLUTIONS.map(ai => (
+              <button
+                key={ai.id}
+                onClick={() => {
+                  // Kill existing session first if needed
+                  if (project.hasActiveSession && onKillSession) {
+                    onKillSession(project.path);
+                  }
+                  onSelectProjectWithAI?.(project, ai.id);
+                  onClose();
+                }}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-secondary hover:bg-white/5 rounded transition-colors"
+              >
+                <span className="text-sm">{ai.icon}</span>
+                <span className="flex-1">{ai.name}</span>
+                <span className="text-2xs text-muted">{ai.description}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {project.hasActiveSession && (
           <button

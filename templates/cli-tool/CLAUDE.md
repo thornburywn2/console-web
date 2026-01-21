@@ -2,7 +2,8 @@
 
 **Project:** {{PROJECT_NAME}}
 **Version:** 0.1.0
-**Type:** cli
+**Port:** {{PORT}}
+**Type:** {{PROJECT_TYPE}}
 
 ---
 

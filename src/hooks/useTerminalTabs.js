@@ -93,9 +93,7 @@ export function useTerminalTabs(socket, projectPath) {
 
   // Create a new tab
   const createTab = useCallback(async (options = {}) => {
-    console.log('[useTerminalTabs] createTab called, projectPath:', projectPath);
     if (!projectPath) {
-      console.warn('[useTerminalTabs] createTab: no projectPath, returning early');
       return null;
     }
 
@@ -108,7 +106,6 @@ export function useTerminalTabs(socket, projectPath) {
         .map(encodeURIComponent)
         .join('/');
       const url = `${API_BASE}/project/${encodedPath}/tabs`;
-      console.log('[useTerminalTabs] createTab: POSTing to', url);
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -116,15 +113,12 @@ export function useTerminalTabs(socket, projectPath) {
         body: JSON.stringify(options),
       });
 
-      console.log('[useTerminalTabs] createTab: response status', response.status, response.ok);
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('[useTerminalTabs] createTab: error response', errorText);
         throw new Error(JSON.parse(errorText).error || 'Failed to create tab');
       }
 
       const newTab = await response.json();
-      console.log('[useTerminalTabs] createTab: success, newTab:', newTab);
 
       // Add to local state
       setTabs(prev => [...prev, newTab]);

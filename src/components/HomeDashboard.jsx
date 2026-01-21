@@ -1,26 +1,26 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { ErrorBoundary } from './admin/shared/ErrorBoundary';
-import { useApiQueries } from '../hooks/useApiQuery';
+/**
+ * HomeDashboard - Unified Project Command Center
+ *
+ * Features:
+ * - Chat-style "What would you like to create?" prompt
+ * - Unified table view with projects aligned to:
+ *   - Git status (uncommitted changes)
+ *   - Docker containers
+ *   - Cloudflare tunnels/routes
+ *   - Active sessions
+ *   - Port numbers
+ *   - Health scores
+ */
+
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useApiQueries, useApiQuery } from '../hooks/useApiQuery';
 import {
   LAST_ACCESSED_KEY,
-  DASHBOARD_LAYOUT_KEY,
-  WIDGET_TYPES,
-  SIZE_OPTIONS,
-  DEFAULT_LAYOUT,
-  formatUptime,
   formatTimeAgo,
-  formatBytes,
-  formatTokens,
-  MiniStat,
-  EmptyState,
-  TechBadge,
+  formatRelativeDate,
 } from './home-dashboard';
 
-/**
- * Home Dashboard - Customizable widget-based dashboard
- * Uses useApiQueries hook for standardized data fetching with automatic refresh
- */
-// Dashboard query configuration - memoized to prevent infinite re-renders
+// Dashboard API queries
 const DASHBOARD_QUERIES = [
   { key: 'projectsExtended', endpoint: '/admin/projects-extended' },
   { key: 'system', endpoint: '/admin/system' },
@@ -28,20 +28,348 @@ const DASHBOARD_QUERIES = [
   { key: 'dashboard', endpoint: '/dashboard' },
 ];
 
-function HomeDashboard({ onSelectProject, projects = [] }) {
-  // Fetch dashboard data using standardized API hook
-  const {
-    loading,
-    data: apiData,
-    errors,
-    hasErrors,
-    refetchAll,
-  } = useApiQueries(DASHBOARD_QUERIES, {
-    refetchInterval: 15000,
+// Icons
+const Icons = {
+  sparkle: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+    </svg>
+  ),
+  folder: (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+    </svg>
+  ),
+  git: (
+    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+    </svg>
+  ),
+  docker: (
+    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M13.983 11.078h2.119a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.119a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 00.186-.186V3.574a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.186m0 2.716h2.118a.187.187 0 00.186-.186V6.29a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.887c0 .102.082.185.185.186m-2.93 0h2.12a.186.186 0 00.184-.186V6.29a.185.185 0 00-.185-.185H8.1a.185.185 0 00-.185.185v1.887c0 .102.083.185.185.186m-2.964 0h2.119a.186.186 0 00.185-.186V6.29a.185.185 0 00-.185-.185H5.136a.186.186 0 00-.186.185v1.887c0 .102.084.185.186.186m5.893 2.715h2.118a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m-2.93 0h2.12a.185.185 0 00.184-.185V9.006a.185.185 0 00-.184-.186h-2.12a.185.185 0 00-.184.185v1.888c0 .102.083.185.185.185m-2.964 0h2.119a.185.185 0 00.185-.185V9.006a.185.185 0 00-.185-.186h-2.119a.185.185 0 00-.186.185v1.888c0 .102.084.185.186.185m-2.92 0h2.12a.185.185 0 00.184-.185V9.006a.185.185 0 00-.184-.186h-2.12a.186.186 0 00-.186.185v1.888c0 .102.084.185.186.185M23.763 9.89c-.065-.051-.672-.51-1.954-.51-.338.001-.676.03-1.01.087-.248-1.7-1.653-2.53-1.716-2.566l-.344-.199-.226.327c-.284.438-.49.922-.612 1.43-.23.97-.09 1.882.403 2.661-.595.332-1.55.413-1.744.42H.751a.751.751 0 00-.75.748 11.376 11.376 0 00.692 4.062c.545 1.428 1.355 2.48 2.41 3.124 1.18.723 3.1 1.137 5.275 1.137.983.003 1.963-.086 2.93-.266a12.248 12.248 0 003.823-1.389c.98-.567 1.86-1.288 2.61-2.136 1.252-1.418 1.998-2.997 2.553-4.4h.221c1.372 0 2.215-.549 2.68-1.009.309-.293.55-.65.707-1.046l.098-.288z"/>
+    </svg>
+  ),
+  cloud: (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z" />
+    </svg>
+  ),
+  terminal: (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z" />
+    </svg>
+  ),
+  link: (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+    </svg>
+  ),
+  refresh: (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+    </svg>
+  ),
+};
+
+/**
+ * CreationPrompt - Chat-style prompt for creating new projects
+ */
+function CreationPrompt({ onCreateProject }) {
+  const [inputValue, setInputValue] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
+
+  const handleSubmit = useCallback((e) => {
+    e.preventDefault();
+    if (onCreateProject) {
+      // Pass the prompt text so the wizard can use it to pre-fill details
+      onCreateProject({ initialPrompt: inputValue.trim() || '' });
+    }
+    setInputValue('');
+  }, [inputValue, onCreateProject]);
+
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      handleSubmit(e);
+    }
+  }, [handleSubmit]);
+
+  return (
+    <div className={`
+      relative rounded-xl border transition-all duration-300
+      ${isFocused
+        ? 'border-[var(--accent-primary)] shadow-lg shadow-[var(--accent-primary)]/10'
+        : 'border-[var(--border-subtle)] hover:border-[var(--border-default)]'
+      }
+      bg-gradient-to-br from-[var(--bg-tertiary)] to-[var(--bg-primary)]
+    `}>
+      <form onSubmit={handleSubmit} className="flex items-center gap-3 p-4">
+        <div className={`
+          flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center
+          transition-colors duration-300
+          ${isFocused
+            ? 'bg-[var(--accent-primary)] text-white'
+            : 'bg-[var(--accent-primary)]/10 text-[var(--accent-primary)]'
+          }
+        `}>
+          {Icons.sparkle}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <input
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            onKeyDown={handleKeyDown}
+            placeholder="What would you like to create?"
+            className="w-full bg-transparent text-[var(--text-primary)] placeholder-[var(--text-muted)]
+                       text-lg font-medium outline-none"
+          />
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">
+            Press Enter to start a new project
+          </p>
+        </div>
+
+        <button
+          type="submit"
+          className={`
+            flex-shrink-0 px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200
+            ${inputValue.trim() || isFocused
+              ? 'bg-[var(--accent-primary)] text-white hover:brightness-110'
+              : 'bg-[var(--bg-primary)] text-[var(--text-muted)] border border-[var(--border-subtle)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]'
+            }
+          `}
+        >
+          Create
+        </button>
+      </form>
+    </div>
+  );
+}
+
+/**
+ * StatusBadge - Small status indicator
+ */
+function StatusBadge({ active, label, color = 'var(--accent-primary)' }) {
+  return (
+    <span
+      className={`
+        inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono
+        ${active
+          ? 'bg-opacity-20'
+          : 'bg-[var(--bg-primary)] text-[var(--text-muted)]'
+        }
+      `}
+      style={active ? { backgroundColor: `${color}20`, color } : {}}
+    >
+      {active && <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: color }} />}
+      {label}
+    </span>
+  );
+}
+
+/**
+ * ProjectRow - Single row in the unified table
+ */
+function ProjectRow({
+  project,
+  gitStatus,
+  containers,
+  route,
+  sessionActive,
+  onSelect
+}) {
+  const completion = project.completion?.percentage || 0;
+  const completionColor = completion >= 80 ? '#22c55e' : completion >= 60 ? '#06b6d4' : completion >= 40 ? '#f59e0b' : '#ef4444';
+
+  const runningContainers = containers.filter(c => c.state === 'running');
+  const hasUncommitted = gitStatus && (gitStatus.staged > 0 || gitStatus.unstaged > 0 || gitStatus.untracked > 0);
+
+  // Get port from project config or route
+  const port = project.port || route?.localPort || null;
+
+  return (
+    <tr
+      onClick={() => onSelect?.(project)}
+      className="group cursor-pointer hover:bg-white/5 transition-colors border-b border-[var(--border-subtle)]/30 last:border-0"
+    >
+      {/* Project Name */}
+      <td className="py-3 px-4">
+        <div className="flex items-center gap-3">
+          <div className={`
+            w-2 h-2 rounded-full flex-shrink-0
+            ${sessionActive ? 'bg-emerald-500 animate-pulse' : 'bg-[var(--border-default)]'}
+          `} />
+          <div className="min-w-0">
+            <div className="font-mono font-medium text-[var(--text-primary)] truncate group-hover:text-[var(--accent-primary)] transition-colors">
+              {project.name}
+            </div>
+            {project.description && (
+              <div className="text-xs text-[var(--text-muted)] truncate max-w-[200px]">
+                {project.description}
+              </div>
+            )}
+          </div>
+        </div>
+      </td>
+
+      {/* Port */}
+      <td className="py-3 px-3 text-center">
+        {port ? (
+          <span className="text-xs font-mono text-[var(--accent-secondary)]">{port}</span>
+        ) : (
+          <span className="text-xs text-[var(--text-muted)]">-</span>
+        )}
+      </td>
+
+      {/* Session */}
+      <td className="py-3 px-3 text-center">
+        {sessionActive ? (
+          <StatusBadge active label="ACTIVE" color="#22c55e" />
+        ) : (
+          <span className="text-xs text-[var(--text-muted)]">-</span>
+        )}
+      </td>
+
+      {/* Git Status */}
+      <td className="py-3 px-3">
+        {hasUncommitted ? (
+          <div className="flex items-center gap-1.5 text-xs font-mono">
+            <span className="text-[var(--text-muted)]">{gitStatus.branch}</span>
+            <div className="flex items-center gap-1">
+              {gitStatus.staged > 0 && <span className="text-emerald-400">+{gitStatus.staged}</span>}
+              {gitStatus.unstaged > 0 && <span className="text-amber-400">~{gitStatus.unstaged}</span>}
+              {gitStatus.untracked > 0 && <span className="text-red-400">?{gitStatus.untracked}</span>}
+            </div>
+          </div>
+        ) : project.hasGit ? (
+          <span className="text-xs text-emerald-500 flex items-center gap-1">
+            <span>✓</span> clean
+          </span>
+        ) : (
+          <span className="text-xs text-[var(--text-muted)]">-</span>
+        )}
+      </td>
+
+      {/* Docker */}
+      <td className="py-3 px-3">
+        {containers.length > 0 ? (
+          <div className="flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${runningContainers.length > 0 ? 'bg-emerald-500' : 'bg-[var(--text-muted)]'}`} />
+            <span className="text-xs font-mono text-[var(--text-secondary)]">
+              {runningContainers.length}/{containers.length}
+            </span>
+          </div>
+        ) : (
+          <span className="text-xs text-[var(--text-muted)]">-</span>
+        )}
+      </td>
+
+      {/* Cloudflare */}
+      <td className="py-3 px-3">
+        {route ? (
+          <a
+            href={`https://${route.hostname}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center gap-1.5 text-xs font-mono text-[var(--accent-secondary)] hover:text-[var(--accent-primary)] transition-colors"
+          >
+            <span className={`w-2 h-2 rounded-full ${route.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+            <span className="truncate max-w-[120px]">{route.subdomain}</span>
+            {Icons.link}
+          </a>
+        ) : (
+          <span className="text-xs text-[var(--text-muted)]">-</span>
+        )}
+      </td>
+
+      {/* Health */}
+      <td className="py-3 px-3">
+        <div className="flex items-center gap-2">
+          <div className="w-16 h-1.5 rounded-full bg-[var(--bg-primary)] overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all"
+              style={{ width: `${completion}%`, backgroundColor: completionColor }}
+            />
+          </div>
+          <span className="text-xs font-mono w-8" style={{ color: completionColor }}>
+            {completion}%
+          </span>
+        </div>
+      </td>
+
+      {/* Created */}
+      <td className="py-3 px-3">
+        <span className="text-xs text-[var(--text-muted)]">
+          {project.createdAt ? formatRelativeDate(project.createdAt) : '-'}
+        </span>
+      </td>
+
+      {/* Modified */}
+      <td className="py-3 px-3">
+        <span className="text-xs text-[var(--text-muted)]">
+          {project.updatedAt ? formatRelativeDate(project.updatedAt) : '-'}
+        </span>
+      </td>
+    </tr>
+  );
+}
+
+/**
+ * QuickStats - Summary stats bar
+ */
+function QuickStats({ stats }) {
+  return (
+    <div className="flex items-center gap-6 px-4 py-2 text-xs font-mono">
+      <div className="flex items-center gap-2">
+        <span className="text-[var(--text-muted)]">Projects:</span>
+        <span className="text-[var(--accent-primary)] font-semibold">{stats.total}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-[var(--text-muted)]">Active:</span>
+        <span className="text-emerald-500 font-semibold">{stats.active}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-[var(--text-muted)]">Containers:</span>
+        <span className="text-[#3b82f6] font-semibold">{stats.containersRunning}/{stats.containersTotal}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-[var(--text-muted)]">Tunnels:</span>
+        <span className="text-[var(--accent-secondary)] font-semibold">{stats.tunnels}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-[var(--text-muted)]">Uncommitted:</span>
+        <span className={`font-semibold ${stats.uncommitted > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>
+          {stats.uncommitted}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Main HomeDashboard Component
+ */
+export default function HomeDashboard({ onSelectProject, onCreateProject, projects = [] }) {
+  const [sortBy, setSortBy] = useState('name');
+  const [sortOrder, setSortOrder] = useState('asc');
+  const [filter, setFilter] = useState('');
+
+  // Fetch dashboard data
+  const { loading, data: apiData, refetchAll } = useApiQueries(DASHBOARD_QUERIES, {
+    refetchInterval: 30000, // 30 seconds
   });
 
-  // Transform API data with safe defaults for partial failures
-  // Use Array.isArray for defensive checks since API could return non-array on error
+  // Fetch Cloudflare routes (mapped to projects)
+  const { data: routesData, refetch: refetchRoutes } = useApiQuery('/cloudflare/routes/mapped', {
+    refetchInterval: 60000,
+    initialData: { routes: [] },
+  });
+
+  // Transform API data with safe defaults
   const data = useMemo(() => ({
     projectsExtended: Array.isArray(apiData.projectsExtended) ? apiData.projectsExtended : [],
     system: apiData.system || null,
@@ -49,496 +377,301 @@ function HomeDashboard({ onSelectProject, projects = [] }) {
     dashboard: apiData.dashboard || null,
   }), [apiData]);
 
-  // Log errors for debugging but don't block rendering
-  useEffect(() => {
-    if (hasErrors) {
-      Object.entries(errors).forEach(([key, error]) => {
-        if (error) {
-          console.warn(`Dashboard widget data error (${key}):`, error.message);
+  const routes = useMemo(() => {
+    return routesData?.routes || [];
+  }, [routesData]);
+
+  // Map git statuses by project path
+  const gitStatusByPath = useMemo(() => {
+    const map = new Map();
+    (data.dashboard?.gitStatuses || []).forEach(gs => {
+      map.set(gs.path, gs);
+    });
+    return map;
+  }, [data.dashboard]);
+
+  // Map containers by project name (approximate matching)
+  const containersByProject = useMemo(() => {
+    const map = new Map();
+    data.containers.forEach(container => {
+      // Try to match container name to project
+      const name = container.name?.replace(/^\//, '') || '';
+      // Look for project name in container name
+      data.projectsExtended.forEach(project => {
+        const projectLower = project.name.toLowerCase();
+        const containerLower = name.toLowerCase();
+        if (containerLower.includes(projectLower) ||
+            containerLower.startsWith(projectLower.replace(/-/g, '')) ||
+            name.includes(project.name)) {
+          const existing = map.get(project.name) || [];
+          if (!existing.find(c => c.id === container.id)) {
+            map.set(project.name, [...existing, container]);
+          }
         }
       });
-    }
-  }, [hasErrors, errors]);
-
-  // Widget state
-  const [widgets, setWidgets] = useState([]);
-  const [isEditing, setIsEditing] = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [draggedWidget, setDraggedWidget] = useState(null);
-  const [dropTargetId, setDropTargetId] = useState(null);
-
-  // Load layout from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem(DASHBOARD_LAYOUT_KEY);
-    if (saved) {
-      try {
-        setWidgets(JSON.parse(saved));
-      } catch {
-        setWidgets(DEFAULT_LAYOUT);
-      }
-    } else {
-      setWidgets(DEFAULT_LAYOUT);
-    }
-  }, []);
-
-  // Save layout
-  const saveLayout = useCallback((newWidgets) => {
-    localStorage.setItem(DASHBOARD_LAYOUT_KEY, JSON.stringify(newWidgets));
-    setWidgets(newWidgets);
-  }, []);
-
-  // Widget handlers
-  const handleRemoveWidget = useCallback((widgetId) => {
-    saveLayout(widgets.filter(w => w.id !== widgetId));
-  }, [widgets, saveLayout]);
-
-  const handleAddWidget = useCallback((type) => {
-    const config = WIDGET_TYPES[type];
-    const newWidget = {
-      id: `${type}-${Date.now()}`,
-      type,
-      size: config.defaultSize || 'medium',
-    };
-    saveLayout([...widgets, newWidget]);
-    setShowAddModal(false);
-  }, [widgets, saveLayout]);
-
-  const handleSizeChange = useCallback((widgetId, newSize) => {
-    saveLayout(widgets.map(w => w.id === widgetId ? { ...w, size: newSize } : w));
-  }, [widgets, saveLayout]);
-
-  const handleDragStart = useCallback((widgetId) => {
-    setDraggedWidget(widgetId);
-  }, []);
-
-  const handleDragOver = useCallback((e, targetId) => {
-    e.preventDefault();
-    if (draggedWidget && targetId !== draggedWidget) {
-      setDropTargetId(targetId);
-    }
-  }, [draggedWidget]);
-
-  const handleDrop = useCallback((targetId) => {
-    if (!draggedWidget || draggedWidget === targetId) {
-      setDraggedWidget(null);
-      setDropTargetId(null);
-      return;
-    }
-
-    const dragIndex = widgets.findIndex(w => w.id === draggedWidget);
-    const dropIndex = widgets.findIndex(w => w.id === targetId);
-
-    if (dragIndex === -1 || dropIndex === -1) return;
-
-    const newWidgets = [...widgets];
-    const [removed] = newWidgets.splice(dragIndex, 1);
-    newWidgets.splice(dropIndex, 0, removed);
-
-    saveLayout(newWidgets);
-    setDraggedWidget(null);
-    setDropTargetId(null);
-  }, [draggedWidget, widgets, saveLayout]);
-
-  const handleDragEnd = useCallback(() => {
-    setDraggedWidget(null);
-    setDropTargetId(null);
-  }, []);
-
-  const handleResetLayout = useCallback(() => {
-    saveLayout(DEFAULT_LAYOUT);
-  }, [saveLayout]);
-
-  // Computed data
-  const recentProjects = useMemo(() => {
-    try {
-      const lastAccessed = JSON.parse(localStorage.getItem(LAST_ACCESSED_KEY) || '{}');
-      return data.projectsExtended
-        .filter(p => lastAccessed[p.path])
-        .map(p => ({ ...p, lastAccessed: lastAccessed[p.path] }))
-        .sort((a, b) => b.lastAccessed - a.lastAccessed)
-        .slice(0, 8);
-    } catch {
-      return [];
-    }
-  }, [data.projectsExtended]);
-
-  const technologies = useMemo(() => {
-    const techCounts = {};
-    data.projectsExtended.forEach(p => {
-      (p.technologies || []).forEach(tech => {
-        techCounts[tech] = (techCounts[tech] || 0) + 1;
-      });
     });
-    return Object.entries(techCounts).sort((a, b) => b[1] - a[1]).slice(0, 12);
-  }, [data.projectsExtended]);
+    return map;
+  }, [data.containers, data.projectsExtended]);
 
-  const stats = useMemo(() => {
-    const total = data.projectsExtended.length;
-    const withClaudeMd = data.projectsExtended.filter(p => p.hasClaudeMd).length;
-    return { total, withClaudeMd };
-  }, [data.projectsExtended]);
+  // Map routes by project name
+  const routesByProject = useMemo(() => {
+    const map = new Map();
+    routes.forEach(route => {
+      if (route.project?.name) {
+        map.set(route.project.name, route);
+      } else if (route.projectId) {
+        map.set(route.projectId, route);
+      }
+    });
+    return map;
+  }, [routes]);
 
-  const containerStats = useMemo(() => {
-    const running = data.containers.filter(c => c.state === 'running').length;
-    return { running, total: data.containers.length };
-  }, [data.containers]);
+  // Active sessions by project
+  const activeSessionsByProject = useMemo(() => {
+    const set = new Set();
+    (data.dashboard?.shpoolSessions || []).forEach(session => {
+      const projectName = session.replace('sp-', '');
+      set.add(projectName);
+    });
+    return set;
+  }, [data.dashboard]);
 
-  const activeSessions = data.dashboard?.shpoolSessions || [];
-  const gitStatuses = data.dashboard?.gitStatuses || [];
-  const recentCommits = data.dashboard?.recentCommits || [];
-  const activePorts = data.dashboard?.activePorts || [];
-  const diskUsage = data.dashboard?.diskUsage || [];
-  const aiUsage = data.dashboard?.aiUsage || {};
-  const securityAlerts = data.dashboard?.securityAlerts || [];
+  // Compute stats
+  const stats = useMemo(() => ({
+    total: data.projectsExtended.length,
+    active: activeSessionsByProject.size,
+    containersRunning: data.containers.filter(c => c.state === 'running').length,
+    containersTotal: data.containers.length,
+    tunnels: routes.filter(r => r.status === 'ACTIVE').length,
+    uncommitted: (data.dashboard?.gitStatuses || []).length,
+  }), [data.projectsExtended, data.containers, routes, activeSessionsByProject, data.dashboard]);
 
-  // Derive health scores from projectsExtended completion data (same source as sidebar widget)
-  const healthScores = useMemo(() => {
-    return data.projectsExtended
-      .filter(p => p.completion?.percentage !== undefined)
-      .map(p => ({
-        name: p.name,
-        path: p.path,
-        score: Math.round(p.completion.percentage)
-      }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 20);
-  }, [data.projectsExtended]);
+  // Filter and sort projects
+  const sortedProjects = useMemo(() => {
+    let filtered = data.projectsExtended;
 
-  // Widget content renderer
-  const renderWidgetContent = useCallback((widget) => {
-    const size = SIZE_OPTIONS[widget.size] || SIZE_OPTIONS.medium;
-    const maxH = size.maxHeight ? `max-h-[${size.maxHeight}px]` : '';
-
-    switch (widget.type) {
-      case 'quickStats':
-        return (
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-            <MiniStat icon="📁" value={stats.total} label="Projects" color="var(--accent-primary)" />
-            <MiniStat icon="💻" value={activeSessions.length} label="Sessions" color="var(--status-success)" />
-            <MiniStat icon="🐳" value={containerStats.running} label="Containers" color="var(--accent-secondary)" />
-            <MiniStat icon="🔀" value={gitStatuses.length} label="Dirty" color={gitStatuses.length > 0 ? 'var(--status-warning)' : 'var(--text-muted)'} />
-            <MiniStat icon="⚡" value={`${Math.round(data.system?.cpu?.usage || 0)}%`} label="CPU" color="var(--accent-tertiary)" />
-            <MiniStat icon="⏱️" value={formatUptime(data.system?.uptime)} label="Uptime" color="var(--text-secondary)" />
-          </div>
-        );
-
-      case 'gitStatus':
-        return gitStatuses.length > 0 ? (
-          <div className={`space-y-1.5 overflow-y-auto ${maxH}`}>
-            {gitStatuses.slice(0, 8).map(repo => (
-              <div key={repo.path} className="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-white/5" style={{ background: 'var(--bg-glass)' }}
-                onClick={() => { const p = data.projectsExtended.find(pr => pr.path === repo.path); if (p) onSelectProject?.(p); }}>
-                <div className="w-2 h-2 rounded-full" style={{ background: repo.dirty ? 'var(--status-warning)' : 'var(--status-success)' }} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-mono truncate" style={{ color: 'var(--text-primary)' }}>{repo.name}</div>
-                  <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                    <span>{repo.branch}</span>
-                    {repo.staged > 0 && <span className="text-green-400">+{repo.staged}</span>}
-                    {repo.unstaged > 0 && <span className="text-yellow-400">~{repo.unstaged}</span>}
-                    {repo.untracked > 0 && <span className="text-red-400">?{repo.untracked}</span>}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : <EmptyState text="All repos clean" icon="✓" color="var(--status-success)" />;
-
-      case 'activeSessions':
-        return activeSessions.length > 0 ? (
-          <div className={`space-y-1 overflow-y-auto ${maxH}`}>
-            {activeSessions.slice(0, 10).map((session, i) => (
-              <div key={i} className="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-white/5" style={{ background: 'var(--bg-glass)' }}
-                onClick={() => { const p = data.projectsExtended.find(pr => pr.name === session.replace('sp-', '')); if (p) onSelectProject?.(p); }}>
-                <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--status-success)' }} />
-                <span className="text-xs font-mono truncate" style={{ color: 'var(--text-primary)' }}>{session.replace('sp-', '')}</span>
-              </div>
-            ))}
-          </div>
-        ) : <EmptyState text="No active sessions" />;
-
-      case 'recentProjects':
-        return recentProjects.length > 0 ? (
-          <div className={`space-y-1 overflow-y-auto ${maxH}`}>
-            {recentProjects.map(project => (
-              <div key={project.path} className="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-white/5" style={{ background: 'var(--bg-glass)' }}
-                onClick={() => onSelectProject?.(project)}>
-                <div className="w-7 h-7 rounded flex items-center justify-center" style={{ background: project.hasActiveSession ? 'rgba(34,197,94,0.2)' : 'var(--bg-surface)' }}>
-                  {project.hasActiveSession ? <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--status-success)' }} /> : <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>📁</span>}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-mono truncate" style={{ color: 'var(--text-primary)' }}>{project.name}</div>
-                  <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{formatTimeAgo(project.lastAccessed)}</div>
-                </div>
-                {project.hasClaudeMd && <span className="text-xs px-1 rounded" style={{ background: 'var(--accent-primary-glow)', color: 'var(--accent-primary)' }}>AI</span>}
-              </div>
-            ))}
-          </div>
-        ) : <EmptyState text="No recent projects" />;
-
-      case 'recentCommits':
-        return recentCommits.length > 0 ? (
-          <div className={`space-y-1 overflow-y-auto ${maxH}`}>
-            {recentCommits.slice(0, 10).map((commit, i) => (
-              <div key={i} className="p-2 rounded-lg" style={{ background: 'var(--bg-glass)' }}>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-surface)', color: 'var(--accent-secondary)' }}>{commit.hash}</span>
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{commit.project}</span>
-                  <span className="text-xs ml-auto" style={{ color: 'var(--text-muted)' }}>{commit.timeAgo}</span>
-                </div>
-                <div className="text-xs mt-1 truncate" style={{ color: 'var(--text-secondary)' }}>{commit.message}</div>
-              </div>
-            ))}
-          </div>
-        ) : <EmptyState text="No recent commits" />;
-
-      case 'docker':
-        return data.containers.length > 0 ? (
-          <div className={`space-y-1 overflow-y-auto ${maxH}`}>
-            {data.containers.slice(0, 10).map(c => (
-              <div key={c.id} className="flex items-center gap-2 p-2 rounded-lg" style={{ background: 'var(--bg-glass)' }}>
-                <div className="w-2 h-2 rounded-full" style={{ background: c.state === 'running' ? 'var(--status-success)' : 'var(--status-error)' }} />
-                <span className="text-xs font-mono truncate flex-1" style={{ color: 'var(--text-primary)' }}>{c.name}</span>
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{c.state}</span>
-              </div>
-            ))}
-          </div>
-        ) : <EmptyState text="No containers" />;
-
-      case 'activePorts':
-        return activePorts.length > 0 ? (
-          <div className={`space-y-1 overflow-y-auto ${maxH}`}>
-            {activePorts.slice(0, 10).map((port, i) => (
-              <div key={i} className="flex items-center gap-2 p-2 rounded-lg" style={{ background: 'var(--bg-glass)' }}>
-                <span className="text-xs font-mono font-bold" style={{ color: 'var(--accent-primary)' }}>{port.port}</span>
-                <span className="text-xs truncate flex-1" style={{ color: 'var(--text-secondary)' }}>{typeof port.process === 'object' ? port.process?.name : port.process || port.name || 'Unknown'}</span>
-              </div>
-            ))}
-          </div>
-        ) : <EmptyState text="No active ports" />;
-
-      case 'aiUsage':
-        return (
-          <div className="grid grid-cols-2 gap-2">
-            <div className="p-2 rounded-lg text-center" style={{ background: 'var(--bg-glass)' }}>
-              <div className="text-lg font-bold font-mono" style={{ color: 'var(--accent-primary)' }}>{formatTokens(aiUsage.totalTokens || 0)}</div>
-              <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Tokens</div>
-            </div>
-            <div className="p-2 rounded-lg text-center" style={{ background: 'var(--bg-glass)' }}>
-              <div className="text-lg font-bold font-mono" style={{ color: 'var(--status-success)' }}>${(aiUsage.costEstimate || 0).toFixed(2)}</div>
-              <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Est. Cost</div>
-            </div>
-          </div>
-        );
-
-      case 'diskUsage':
-        return diskUsage.length > 0 ? (
-          <div className={`space-y-2 overflow-y-auto ${maxH}`}>
-            {diskUsage.slice(0, 8).map(p => (
-              <div key={p.path} className="flex items-center gap-2">
-                <span className="text-xs font-mono truncate w-20" style={{ color: 'var(--text-secondary)' }}>{p.name}</span>
-                <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-glass)' }}>
-                  <div className="h-full rounded-full" style={{ width: `${Math.min(100, (p.size / (diskUsage[0]?.size || 1)) * 100)}%`, background: 'var(--accent-primary)' }} />
-                </div>
-                <span className="text-xs font-mono w-14 text-right" style={{ color: 'var(--text-muted)' }}>{formatBytes(p.size)}</span>
-              </div>
-            ))}
-          </div>
-        ) : <EmptyState text="No disk data" />;
-
-      case 'projectHealth':
-        return healthScores.length > 0 ? (
-          <div className={`space-y-2 overflow-y-auto ${maxH}`}>
-            {healthScores.slice(0, 8).map(p => (
-              <div key={p.path} className="flex items-center gap-2 cursor-pointer" onClick={() => { const pr = data.projectsExtended.find(x => x.path === p.path); if (pr) onSelectProject?.(pr); }}>
-                <span className="text-xs font-mono truncate w-20" style={{ color: 'var(--text-secondary)' }}>{p.name}</span>
-                <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-glass)' }}>
-                  <div className="h-full rounded-full" style={{ width: `${p.score}%`, background: p.score >= 80 ? 'var(--status-success)' : p.score >= 60 ? 'var(--status-warning)' : 'var(--status-error)' }} />
-                </div>
-                <span className="text-xs font-mono w-10 text-right" style={{ color: p.score >= 80 ? 'var(--status-success)' : p.score >= 60 ? 'var(--status-warning)' : 'var(--status-error)' }}>{p.score}%</span>
-              </div>
-            ))}
-          </div>
-        ) : <EmptyState text="No health data" />;
-
-      case 'techStack':
-        return technologies.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
-            {technologies.map(([tech, count]) => (
-              <TechBadge key={tech} name={tech} count={count} />
-            ))}
-          </div>
-        ) : <EmptyState text="No tech data" />;
-
-      case 'securityAlerts':
-        return securityAlerts.length > 0 ? (
-          <div className="space-y-1.5">
-            {securityAlerts.map((alert, i) => (
-              <div key={i} className="flex items-center gap-2 p-2 rounded-lg" style={{ background: 'rgba(239,68,68,0.1)' }}>
-                <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${alert.severity === 'CRITICAL' ? 'bg-red-500/20 text-red-400' : alert.severity === 'HIGH' ? 'bg-orange-500/20 text-orange-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{alert.severity}</span>
-                <span className="text-xs font-mono" style={{ color: 'var(--text-primary)' }}>{alert.project}</span>
-              </div>
-            ))}
-          </div>
-        ) : <EmptyState text="No alerts" icon="✓" color="var(--status-success)" />;
-
-      default:
-        return <EmptyState text="Unknown widget" />;
+    // Apply filter
+    if (filter.trim()) {
+      const lowerFilter = filter.toLowerCase();
+      filtered = filtered.filter(p =>
+        p.name.toLowerCase().includes(lowerFilter) ||
+        p.description?.toLowerCase().includes(lowerFilter) ||
+        p.technologies?.some(t => t.toLowerCase().includes(lowerFilter))
+      );
     }
-  }, [data, stats, containerStats, activeSessions, gitStatuses, recentCommits, activePorts, diskUsage, aiUsage, healthScores, securityAlerts, technologies, recentProjects, onSelectProject]);
 
-  // Get available widgets not yet added
-  const availableWidgets = useMemo(() => {
-    const usedTypes = new Set(widgets.map(w => w.type));
-    return Object.entries(WIDGET_TYPES).filter(([type]) => !usedTypes.has(type));
-  }, [widgets]);
+    // Sort
+    return [...filtered].sort((a, b) => {
+      let comparison = 0;
+      switch (sortBy) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'health':
+          comparison = (a.completion?.percentage || 0) - (b.completion?.percentage || 0);
+          break;
+        case 'active':
+          const aActive = activeSessionsByProject.has(a.name) ? 1 : 0;
+          const bActive = activeSessionsByProject.has(b.name) ? 1 : 0;
+          comparison = bActive - aActive;
+          break;
+        case 'tunnel':
+          const aRoute = routesByProject.get(a.name);
+          const bRoute = routesByProject.get(b.name);
+          comparison = (bRoute ? 1 : 0) - (aRoute ? 1 : 0);
+          break;
+        case 'createdAt':
+          const aCreated = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bCreated = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          comparison = aCreated - bCreated;
+          break;
+        case 'updatedAt':
+          const aUpdated = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+          const bUpdated = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+          comparison = aUpdated - bUpdated;
+          break;
+        default:
+          comparison = 0;
+      }
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+  }, [data.projectsExtended, filter, sortBy, sortOrder, activeSessionsByProject, routesByProject]);
 
-  if (loading) {
+  const handleRefresh = useCallback(() => {
+    refetchAll();
+    refetchRoutes();
+  }, [refetchAll, refetchRoutes]);
+
+  const handleSort = useCallback((column) => {
+    if (sortBy === column) {
+      setSortOrder(o => o === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+  }, [sortBy]);
+
+  if (loading && data.projectsExtended.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center" style={{ background: 'var(--bg-base)' }}>
+      <div className="h-full flex items-center justify-center bg-[var(--bg-base)]">
         <div className="text-center">
-          <div className="relative w-16 h-16 mx-auto mb-4">
-            <div className="absolute inset-0 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: 'var(--accent-primary)', borderTopColor: 'transparent' }} />
-          </div>
-          <p className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>Loading dashboard...</p>
+          <div className="w-8 h-8 border-2 border-[var(--accent-primary)] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm font-mono text-[var(--text-muted)]">Loading dashboard...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full overflow-y-auto" style={{ background: 'var(--bg-base)' }}>
+    <div className="h-full overflow-hidden flex flex-col bg-[var(--bg-base)]">
       {/* Header */}
-      <div className="sticky top-0 z-10 px-4 py-3 flex items-center justify-between" style={{ background: 'var(--bg-base)', borderBottom: '1px solid var(--border-subtle)' }}>
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: 'var(--accent-primary-glow)', border: '1px solid var(--accent-primary)' }}>
-            <span style={{ color: 'var(--accent-primary)' }}>🏠</span>
-          </div>
-          <div>
-            <h1 className="text-base font-bold font-mono" style={{ color: 'var(--text-primary)' }}>Dashboard</h1>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{stats.total} projects • {activeSessions.length} active</p>
-          </div>
+      <div className="flex-shrink-0 border-b border-[var(--border-subtle)]">
+        <div className="px-6 py-4">
+          <CreationPrompt onCreateProject={onCreateProject} />
         </div>
 
-        <div className="flex items-center gap-2">
-          {isEditing && (
-            <>
-              <button onClick={handleResetLayout} className="px-2 py-1 text-xs rounded" style={{ background: 'var(--bg-glass)', color: 'var(--text-muted)' }}>
-                Reset
-              </button>
-              <button onClick={() => setShowAddModal(true)} className="px-2 py-1 text-xs rounded flex items-center gap-1" style={{ background: 'var(--accent-primary-glow)', color: 'var(--accent-primary)' }}>
-                + Add
-              </button>
-            </>
-          )}
+        <QuickStats stats={stats} />
+      </div>
+
+      {/* Table Container */}
+      <div className="flex-1 overflow-hidden flex flex-col">
+        {/* Table Header / Controls */}
+        <div className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-tertiary)]">
+          <div className="flex items-center gap-4">
+            <h2 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+              {Icons.folder}
+              Projects
+            </h2>
+            <input
+              type="text"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Filter projects..."
+              className="px-3 py-1.5 text-xs font-mono rounded border bg-[var(--bg-primary)]
+                         border-[var(--border-subtle)] text-[var(--text-primary)] w-48
+                         focus:border-[var(--accent-primary)] focus:outline-none"
+            />
+          </div>
           <button
-            onClick={() => setIsEditing(!isEditing)}
-            className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${isEditing ? 'ring-2' : ''}`}
-            style={{ background: isEditing ? 'var(--status-warning)' : 'var(--bg-glass)', color: isEditing ? '#000' : 'var(--text-secondary)', ringColor: 'var(--status-warning)' }}
+            onClick={handleRefresh}
+            className="p-1.5 rounded hover:bg-white/10 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+            title="Refresh"
           >
-            {isEditing ? '✓ Done' : '✎ Edit'}
-          </button>
-          <button onClick={refetchAll} className="p-1.5 rounded-lg" style={{ background: 'var(--bg-glass)', color: 'var(--text-muted)' }}>
-            🔄
+            {Icons.refresh}
           </button>
         </div>
-      </div>
 
-      {/* Widgets Grid */}
-      <div className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {widgets.map(widget => {
-            const config = WIDGET_TYPES[widget.type];
-            if (!config) return null;
+        {/* Table */}
+        <div className="flex-1 overflow-auto">
+          <table className="w-full">
+            <thead className="sticky top-0 bg-[var(--bg-tertiary)] z-10">
+              <tr className="text-xs text-[var(--text-muted)] uppercase tracking-wider">
+                <th
+                  className="text-left py-3 px-4 font-medium cursor-pointer hover:text-[var(--text-primary)] transition-colors"
+                  onClick={() => handleSort('name')}
+                >
+                  <span className="flex items-center gap-1">
+                    Project
+                    {sortBy === 'name' && <span>{sortOrder === 'asc' ? '↑' : '↓'}</span>}
+                  </span>
+                </th>
+                <th className="text-center py-3 px-3 font-medium w-16">Port</th>
+                <th
+                  className="text-center py-3 px-3 font-medium w-20 cursor-pointer hover:text-[var(--text-primary)] transition-colors"
+                  onClick={() => handleSort('active')}
+                >
+                  <span className="flex items-center justify-center gap-1">
+                    {Icons.terminal}
+                    {sortBy === 'active' && <span>{sortOrder === 'asc' ? '↑' : '↓'}</span>}
+                  </span>
+                </th>
+                <th className="text-left py-3 px-3 font-medium w-32">
+                  <span className="flex items-center gap-1">
+                    {Icons.git}
+                    Git
+                  </span>
+                </th>
+                <th className="text-left py-3 px-3 font-medium w-20">
+                  <span className="flex items-center gap-1">
+                    {Icons.docker}
+                    Docker
+                  </span>
+                </th>
+                <th
+                  className="text-left py-3 px-3 font-medium w-36 cursor-pointer hover:text-[var(--text-primary)] transition-colors"
+                  onClick={() => handleSort('tunnel')}
+                >
+                  <span className="flex items-center gap-1">
+                    {Icons.cloud}
+                    Tunnel
+                    {sortBy === 'tunnel' && <span>{sortOrder === 'asc' ? '↑' : '↓'}</span>}
+                  </span>
+                </th>
+                <th
+                  className="text-left py-3 px-3 font-medium w-28 cursor-pointer hover:text-[var(--text-primary)] transition-colors"
+                  onClick={() => handleSort('health')}
+                >
+                  <span className="flex items-center gap-1">
+                    Health
+                    {sortBy === 'health' && <span>{sortOrder === 'asc' ? '↑' : '↓'}</span>}
+                  </span>
+                </th>
+                <th
+                  className="text-left py-3 px-3 font-medium w-24 cursor-pointer hover:text-[var(--text-primary)] transition-colors"
+                  onClick={() => handleSort('createdAt')}
+                >
+                  <span className="flex items-center gap-1">
+                    Created
+                    {sortBy === 'createdAt' && <span>{sortOrder === 'asc' ? '↑' : '↓'}</span>}
+                  </span>
+                </th>
+                <th
+                  className="text-left py-3 px-3 font-medium w-24 cursor-pointer hover:text-[var(--text-primary)] transition-colors"
+                  onClick={() => handleSort('updatedAt')}
+                >
+                  <span className="flex items-center gap-1">
+                    Modified
+                    {sortBy === 'updatedAt' && <span>{sortOrder === 'asc' ? '↑' : '↓'}</span>}
+                  </span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedProjects.map(project => (
+                <ProjectRow
+                  key={project.id || project.path}
+                  project={project}
+                  gitStatus={gitStatusByPath.get(project.path)}
+                  containers={containersByProject.get(project.name) || []}
+                  route={routesByProject.get(project.name)}
+                  sessionActive={activeSessionsByProject.has(project.name)}
+                  onSelect={onSelectProject}
+                />
+              ))}
+            </tbody>
+          </table>
 
-            const isFullWidth = widget.type === 'quickStats';
-            const isDragging = draggedWidget === widget.id;
-            const isDropTarget = dropTargetId === widget.id;
-
-            return (
-              <div
-                key={widget.id}
-                className={`rounded-xl overflow-hidden transition-all ${isFullWidth ? 'md:col-span-2 lg:col-span-3' : ''} ${isDragging ? 'opacity-50 scale-95' : ''} ${isDropTarget ? 'ring-2 ring-offset-2' : ''} ${isEditing ? 'cursor-grab' : ''}`}
-                style={{ background: 'var(--bg-elevated)', border: `1px solid ${isDropTarget ? config.color : 'var(--border-subtle)'}`, ringColor: config.color }}
-                draggable={isEditing}
-                onDragStart={() => handleDragStart(widget.id)}
-                onDragOver={(e) => handleDragOver(e, widget.id)}
-                onDrop={() => handleDrop(widget.id)}
-                onDragEnd={handleDragEnd}
-              >
-                {/* Widget Header */}
-                <div className="flex items-center justify-between px-3 py-2" style={{ background: `${config.color}15` }}>
-                  <div className="flex items-center gap-2">
-                    <span>{config.icon}</span>
-                    <span className="text-sm font-semibold font-mono" style={{ color: 'var(--text-primary)' }}>{config.title}</span>
-                  </div>
-                  {isEditing && (
-                    <div className="flex items-center gap-1">
-                      {Object.entries(SIZE_OPTIONS).map(([key, { label }]) => (
-                        <button
-                          key={key}
-                          onClick={() => handleSizeChange(widget.id, key)}
-                          className={`w-5 h-5 text-xs rounded ${widget.size === key ? 'font-bold' : 'opacity-50'}`}
-                          style={{ background: widget.size === key ? `${config.color}30` : 'transparent', color: config.color }}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                      <button onClick={() => handleRemoveWidget(widget.id)} className="w-5 h-5 text-xs rounded hover:bg-red-500/20 text-red-400 ml-1">✕</button>
-                    </div>
-                  )}
-                </div>
-                {/* Widget Content */}
-                <div className="p-3">
-                  <ErrorBoundary tabName={config.title}>
-                    {renderWidgetContent(widget)}
-                  </ErrorBoundary>
-                </div>
+          {/* Empty State */}
+          {sortedProjects.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-16 h-16 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center mb-4">
+                {Icons.folder}
               </div>
-            );
-          })}
-        </div>
-
-        {/* Empty state when no widgets */}
-        {widgets.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No widgets. Click "Edit" then "Add" to customize your dashboard.</p>
-          </div>
-        )}
-      </div>
-
-      {/* Add Widget Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
-          <div className="w-full max-w-md rounded-xl p-4" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>Add Widget</h2>
-              <button onClick={() => setShowAddModal(false)} className="text-xl" style={{ color: 'var(--text-muted)' }}>✕</button>
+              <p className="text-[var(--text-muted)] font-mono mb-4">
+                {filter ? 'No projects match your filter' : 'No projects found'}
+              </p>
+              {!filter && onCreateProject && (
+                <button
+                  onClick={() => onCreateProject()}
+                  className="px-4 py-2 rounded-lg font-medium text-sm bg-[var(--accent-primary)] text-white hover:brightness-110 transition-all"
+                >
+                  Create your first project
+                </button>
+              )}
             </div>
-            {availableWidgets.length > 0 ? (
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {availableWidgets.map(([type, config]) => (
-                  <button
-                    key={type}
-                    onClick={() => handleAddWidget(type)}
-                    className="w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors hover:bg-white/5"
-                    style={{ background: 'var(--bg-glass)' }}
-                  >
-                    <span className="text-xl">{config.icon}</span>
-                    <div>
-                      <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{config.title}</div>
-                      <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{config.description}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="text-center py-8 text-sm" style={{ color: 'var(--text-muted)' }}>All widgets have been added.</p>
-            )}
-          </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
-
-export default HomeDashboard;

@@ -1,11 +1,25 @@
 /**
  * ProjectsTab Component
  * Project list with completion metrics and management actions
+ * Updated to use cohesive Panel design
  */
 
 import { useState, useMemo, useCallback } from 'react';
-import { TabContainer } from '../shared';
+import { Panel, PanelGroup } from '../../shared';
 import { useApiQuery, useApiMutation } from '../../../hooks/useApiQuery';
+
+// Icons
+const FolderIcon = (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+  </svg>
+);
+
+const StatsIcon = (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+  </svg>
+);
 
 export function ProjectsTab({
   onEditClaudeMd,
@@ -69,21 +83,38 @@ export function ProjectsTab({
     return sorted;
   }, [projects, projectSortBy, projectSortOrder]);
 
+  const avgCompletion = projects.length > 0
+    ? Math.round(projects.reduce((sum, p) => sum + (p.completion?.percentage || 0), 0) / projects.length)
+    : 0;
+  const activeCount = projects.filter(p => p.hasActiveSession).length;
+  const excellentCount = projects.filter(p => (p.completion?.percentage || 0) >= 80).length;
+  const goodCount = projects.filter(p => (p.completion?.percentage || 0) >= 60 && (p.completion?.percentage || 0) < 80).length;
+  const mediumCount = projects.filter(p => (p.completion?.percentage || 0) >= 40 && (p.completion?.percentage || 0) < 60).length;
+  const needsWorkCount = projects.filter(p => (p.completion?.percentage || 0) < 40).length;
+
   return (
-    <TabContainer>
-      <div className="space-y-4 animate-fade-in">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <h3 className="text-sm font-semibold text-hacker-green uppercase tracking-wider font-mono">
-            {'>'} PROJECTS [{projects.length}]
-          </h3>
+    <div className="space-y-1 animate-fade-in">
+      {/* Projects Panel */}
+      <Panel
+        id="admin-projects-list"
+        title="Projects"
+        icon={FolderIcon}
+        badge={projects.length}
+        badgeColor="var(--accent-primary)"
+        emptyText={!loading ? "No projects found" : undefined}
+      >
+        {/* Controls Row */}
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-4 -mt-1">
           <div className="flex items-center gap-3 flex-wrap">
             {/* Sorting Controls */}
             <div className="flex items-center gap-2 text-xs font-mono">
-              <span className="text-hacker-text-dim">SORT:</span>
+              <span className="text-[var(--text-muted)]">Sort:</span>
               <select
                 value={projectSortBy}
                 onChange={(e) => setProjectSortBy(e.target.value)}
-                className="input-glass text-xs !py-1"
+                className="px-2 py-1 text-xs font-mono rounded border bg-[var(--bg-primary)]
+                           border-[var(--border-subtle)] text-[var(--text-primary)]
+                           focus:border-[var(--accent-primary)] focus:outline-none"
               >
                 <option value="name">Name</option>
                 <option value="completion">Completion</option>
@@ -92,10 +123,11 @@ export function ProjectsTab({
               </select>
               <button
                 onClick={() => setProjectSortOrder(o => o === 'asc' ? 'desc' : 'asc')}
-                className="p-1 rounded hover:bg-hacker-surface border border-hacker-border"
+                className="p-1 rounded border border-[var(--border-subtle)] text-[var(--text-secondary)]
+                           hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] transition-colors"
                 title={projectSortOrder === 'asc' ? 'Ascending' : 'Descending'}
               >
-                <svg className="w-4 h-4 text-hacker-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   {projectSortOrder === 'asc' ? (
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
                   ) : (
@@ -106,44 +138,51 @@ export function ProjectsTab({
             </div>
             {/* Stats summary */}
             <div className="hidden lg:flex items-center gap-4 text-xs font-mono">
-              <span className="text-hacker-text-dim">
-                AVG: <span className="text-hacker-cyan">
-                  {projects.length > 0
-                    ? Math.round(projects.reduce((sum, p) => sum + (p.completion?.percentage || 0), 0) / projects.length)
-                    : 0}%
-                </span>
+              <span className="text-[var(--text-muted)]">
+                Avg: <span className="text-[var(--accent-secondary)]">{avgCompletion}%</span>
               </span>
-              <span className="text-hacker-text-dim">
-                ACTIVE: <span className="text-hacker-green">{projects.filter(p => p.hasActiveSession).length}</span>
+              <span className="text-[var(--text-muted)]">
+                Active: <span className="text-[var(--accent-primary)]">{activeCount}</span>
               </span>
             </div>
-            <button onClick={fetchProjects} className="hacker-btn text-xs">
-              {loading ? '[SCANNING...]' : '[REFRESH]'}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={fetchProjects}
+              className="px-2 py-1 text-xs font-mono rounded border transition-colors
+                         border-[var(--border-subtle)] text-[var(--text-secondary)]
+                         hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]"
+            >
+              {loading ? 'Scanning...' : 'Refresh'}
             </button>
             {onCreateProject && (
               <button
                 onClick={onCreateProject}
-                className="hacker-btn text-xs bg-hacker-green/20 border-hacker-green text-hacker-green hover:bg-hacker-green/30"
+                className="px-2 py-1 text-xs font-mono rounded border transition-colors
+                           border-[var(--accent-primary)]/50 text-[var(--accent-primary)]
+                           bg-[var(--accent-primary)]/10 hover:bg-[var(--accent-primary)]/20"
               >
-                [+ NEW PROJECT]
+                + New Project
               </button>
             )}
           </div>
         </div>
 
         {error && (
-          <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-4">
-            <p className="text-red-400">{error.getUserMessage()}</p>
+          <div className="mb-4 p-3 rounded border border-[var(--status-error)]/50 bg-[var(--status-error)]/10">
+            <p className="text-[var(--status-error)] text-sm">{error.getUserMessage?.() || 'Failed to load projects'}</p>
             <button
               onClick={fetchProjects}
-              className="mt-2 px-3 py-1 bg-red-500/30 hover:bg-red-500/50 rounded text-sm"
+              className="mt-2 px-2 py-1 text-xs font-mono rounded border transition-colors
+                         border-[var(--status-error)]/50 text-[var(--status-error)]
+                         hover:bg-[var(--status-error)]/20"
             >
               Retry
             </button>
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {sortedProjects.map(project => (
             <ProjectCard
               key={project.id}
@@ -157,61 +196,55 @@ export function ProjectsTab({
           ))}
         </div>
 
-        {/* Summary Stats */}
-        {projects.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-6">
-            <div className="hacker-card p-3 text-center">
-              <div className="stat-value text-xl">{projects.length}</div>
-              <div className="stat-label text-[10px]">TOTAL</div>
-            </div>
-            <div className="hacker-card p-3 text-center">
-              <div className="stat-value text-xl" style={{color: '#00ff41'}}>
-                {projects.filter(p => (p.completion?.percentage || 0) >= 80).length}
-              </div>
-              <div className="stat-label text-[10px]">EXCELLENT (80%+)</div>
-            </div>
-            <div className="hacker-card p-3 text-center">
-              <div className="stat-value text-xl" style={{color: '#00d4ff'}}>
-                {projects.filter(p => (p.completion?.percentage || 0) >= 60 && (p.completion?.percentage || 0) < 80).length}
-              </div>
-              <div className="stat-label text-[10px]">GOOD (60-79%)</div>
-            </div>
-            <div className="hacker-card p-3 text-center">
-              <div className="stat-value text-xl" style={{color: '#ffb000'}}>
-                {projects.filter(p => (p.completion?.percentage || 0) >= 40 && (p.completion?.percentage || 0) < 60).length}
-              </div>
-              <div className="stat-label text-[10px]">MEDIUM (40-59%)</div>
-            </div>
-            <div className="hacker-card p-3 text-center">
-              <div className="stat-value text-xl" style={{color: '#ff3333'}}>
-                {projects.filter(p => (p.completion?.percentage || 0) < 40).length}
-              </div>
-              <div className="stat-label text-[10px]">NEEDS WORK (&lt;40%)</div>
-            </div>
+        {/* Empty State for Create */}
+        {projects.length === 0 && !loading && onCreateProject && (
+          <div className="text-center py-6">
+            <button
+              onClick={onCreateProject}
+              className="px-3 py-1.5 text-xs font-mono rounded border transition-colors
+                         border-[var(--accent-primary)]/50 text-[var(--accent-primary)]
+                         bg-[var(--accent-primary)]/10 hover:bg-[var(--accent-primary)]/20"
+            >
+              + Create First Project
+            </button>
           </div>
         )}
+      </Panel>
 
-        {/* Empty State */}
-        {projects.length === 0 && !loading && (
-          <div className="hacker-card p-8 text-center">
-            <p className="text-hacker-text-dim font-mono">No projects found</p>
-            {onCreateProject && (
-              <button
-                onClick={onCreateProject}
-                className="hacker-btn mt-4 text-xs bg-hacker-green/20 border-hacker-green text-hacker-green"
-              >
-                [+ CREATE FIRST PROJECT]
-              </button>
-            )}
+      {/* Summary Stats Panel */}
+      {projects.length > 0 && (
+        <Panel id="admin-projects-stats" title="Summary" icon={StatsIcon} defaultExpanded={false}>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="text-center p-3 rounded bg-[var(--bg-primary)]/50 border border-[var(--border-subtle)]">
+              <div className="text-xl font-bold font-mono text-[var(--text-primary)]">{projects.length}</div>
+              <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Total</div>
+            </div>
+            <div className="text-center p-3 rounded bg-[var(--bg-primary)]/50 border border-[var(--border-subtle)]">
+              <div className="text-xl font-bold font-mono text-[var(--accent-primary)]">{excellentCount}</div>
+              <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Excellent (80%+)</div>
+            </div>
+            <div className="text-center p-3 rounded bg-[var(--bg-primary)]/50 border border-[var(--border-subtle)]">
+              <div className="text-xl font-bold font-mono text-[var(--accent-secondary)]">{goodCount}</div>
+              <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Good (60-79%)</div>
+            </div>
+            <div className="text-center p-3 rounded bg-[var(--bg-primary)]/50 border border-[var(--border-subtle)]">
+              <div className="text-xl font-bold font-mono text-[var(--status-warning)]">{mediumCount}</div>
+              <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Medium (40-59%)</div>
+            </div>
+            <div className="text-center p-3 rounded bg-[var(--bg-primary)]/50 border border-[var(--border-subtle)]">
+              <div className="text-xl font-bold font-mono text-[var(--status-error)]">{needsWorkCount}</div>
+              <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Needs Work (&lt;40%)</div>
+            </div>
           </div>
-        )}
-      </div>
-    </TabContainer>
+        </Panel>
+      )}
+    </div>
   );
 }
 
 /**
  * ProjectCard - Individual project card component
+ * Updated to use CSS variables instead of hacker-* classes
  */
 function ProjectCard({
   project,
@@ -222,37 +255,37 @@ function ProjectCard({
   onToggleSkipPermissions
 }) {
   const completion = project.completion || { percentage: 0, missing: [], scores: {} };
-  const completionClass = completion.percentage >= 80 ? 'text-hacker-green' :
-                          completion.percentage >= 60 ? 'text-hacker-cyan' :
-                          completion.percentage >= 40 ? 'text-hacker-warning' : 'text-hacker-error';
-  const barColor = completion.percentage >= 80 ? 'bg-hacker-green' :
-                   completion.percentage >= 60 ? 'bg-hacker-cyan' :
-                   completion.percentage >= 40 ? 'bg-hacker-warning' : 'bg-hacker-error';
+  const completionColor = completion.percentage >= 80 ? 'var(--accent-primary)' :
+                          completion.percentage >= 60 ? 'var(--accent-secondary)' :
+                          completion.percentage >= 40 ? 'var(--status-warning)' : 'var(--status-error)';
 
   return (
-    <div className="hacker-card p-4 flex flex-col group/card">
+    <div className="p-4 flex flex-col group/card rounded border transition-colors
+                    bg-[var(--bg-tertiary)] border-[var(--border-subtle)]
+                    hover:border-[var(--border-default)]">
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <span
             className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-              project.hasActiveSession ? 'bg-hacker-green animate-pulse-glow' : 'bg-hacker-border'
+              project.hasActiveSession ? 'bg-[var(--accent-primary)] animate-pulse' : 'bg-[var(--border-default)]'
             }`}
           />
-          <span className="font-semibold text-sm truncate text-hacker-text font-mono">{project.name}</span>
+          <span className="font-semibold text-sm truncate text-[var(--text-primary)] font-mono">{project.name}</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`text-lg font-bold font-display ${completionClass}`}>
+          <span className="text-lg font-bold font-mono" style={{ color: completionColor }}>
             {completion.percentage}%
           </span>
           {/* Rename button */}
           {onRenameProject && (
             <button
               onClick={() => onRenameProject({ name: project.name, newName: project.name })}
-              className="p-1 rounded opacity-0 group-hover/card:opacity-100 transition-opacity hover:bg-hacker-cyan/20"
+              className="p-1 rounded opacity-0 group-hover/card:opacity-100 transition-opacity
+                         hover:bg-[var(--accent-secondary)]/20 text-[var(--accent-secondary)]"
               title="Rename project"
             >
-              <svg className="w-4 h-4 text-hacker-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
             </button>
@@ -261,10 +294,11 @@ function ProjectCard({
           {onDeleteProject && (
             <button
               onClick={() => onDeleteProject({ name: project.name, permanent: false })}
-              className="p-1 rounded opacity-0 group-hover/card:opacity-100 transition-opacity hover:bg-hacker-error/20"
+              className="p-1 rounded opacity-0 group-hover/card:opacity-100 transition-opacity
+                         hover:bg-[var(--status-error)]/20 text-[var(--status-error)]"
               title="Delete project"
             >
-              <svg className="w-4 h-4 text-hacker-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </button>
@@ -276,7 +310,7 @@ function ProjectCard({
       <div className="flex items-center gap-1.5 mb-2">
         {/* Git initialized */}
         <span
-          className={`p-1 rounded ${project.hasGit ? 'text-hacker-green' : 'text-hacker-text-dim opacity-40'}`}
+          className={`p-1 rounded ${project.hasGit ? 'text-[var(--accent-primary)]' : 'text-[var(--text-muted)] opacity-40'}`}
           title={project.hasGit ? 'Git initialized' : 'No git repository'}
         >
           <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
@@ -285,7 +319,7 @@ function ProjectCard({
         </span>
         {/* GitHub connected */}
         <span
-          className={`p-1 rounded ${project.hasGithub ? 'text-hacker-purple' : 'text-hacker-text-dim opacity-40'}`}
+          className={`p-1 rounded ${project.hasGithub ? 'text-[var(--accent-tertiary)]' : 'text-[var(--text-muted)] opacity-40'}`}
           title={project.hasGithub ? `GitHub: ${project.githubRepo || 'connected'}` : 'Not connected to GitHub'}
         >
           <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
@@ -294,7 +328,7 @@ function ProjectCard({
         </span>
         {/* Has tests */}
         <span
-          className={`p-1 rounded ${project.hasTests ? 'text-hacker-cyan' : 'text-hacker-text-dim opacity-40'}`}
+          className={`p-1 rounded ${project.hasTests ? 'text-[var(--accent-secondary)]' : 'text-[var(--text-muted)] opacity-40'}`}
           title={project.hasTests ? 'Has test suite' : 'No tests found'}
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -303,7 +337,7 @@ function ProjectCard({
         </span>
         {/* Has Docker */}
         <span
-          className={`p-1 rounded ${project.hasDocker ? 'text-hacker-blue' : 'text-hacker-text-dim opacity-40'}`}
+          className={`p-1 rounded ${project.hasDocker ? 'text-[var(--accent-secondary)]' : 'text-[var(--text-muted)] opacity-40'}`}
           title={project.hasDocker ? 'Docker configured' : 'No Docker configuration'}
         >
           <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
@@ -312,14 +346,14 @@ function ProjectCard({
         </span>
         {/* Has TypeScript */}
         <span
-          className={`p-1 rounded ${project.technologies?.includes('TypeScript') ? 'text-hacker-blue' : 'text-hacker-text-dim opacity-40'}`}
+          className={`p-1 rounded text-[10px] font-bold ${project.technologies?.includes('TypeScript') ? 'text-[var(--accent-secondary)]' : 'text-[var(--text-muted)] opacity-40'}`}
           title={project.technologies?.includes('TypeScript') ? 'TypeScript project' : 'No TypeScript'}
         >
-          <span className="text-[10px] font-bold">TS</span>
+          TS
         </span>
         {/* Has CLAUDE.md */}
         <span
-          className={`p-1 rounded ${project.hasClaudeMd ? 'text-hacker-warning' : 'text-hacker-text-dim opacity-40'}`}
+          className={`p-1 rounded ${project.hasClaudeMd ? 'text-[var(--status-warning)]' : 'text-[var(--text-muted)] opacity-40'}`}
           title={project.hasClaudeMd ? 'Has CLAUDE.md instructions' : 'No CLAUDE.md'}
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -330,22 +364,19 @@ function ProjectCard({
 
       {/* Description */}
       {project.description && (
-        <p className="text-xs text-hacker-text-dim mb-3 line-clamp-2">
+        <p className="text-xs text-[var(--text-muted)] mb-3 line-clamp-2">
           {project.description}
         </p>
       )}
 
       {/* Completion Bar */}
       <div className="mb-3">
-        <div className="hacker-progress">
+        <div className="h-1.5 rounded-full bg-[var(--bg-primary)] overflow-hidden">
           <div
-            className={`hacker-progress-bar ${barColor}`}
+            className="h-full rounded-full transition-all duration-300"
             style={{
               width: `${completion.percentage}%`,
-              background: completion.percentage >= 80 ? 'linear-gradient(90deg, #00cc33, #00ff41)' :
-                          completion.percentage >= 60 ? 'linear-gradient(90deg, #00a8cc, #00d4ff)' :
-                          completion.percentage >= 40 ? 'linear-gradient(90deg, #cc8800, #ffb000)' :
-                          'linear-gradient(90deg, #cc3333, #ff3333)'
+              backgroundColor: completionColor
             }}
           />
         </div>
@@ -355,12 +386,12 @@ function ProjectCard({
       {project.technologies && project.technologies.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-3">
           {project.technologies.slice(0, 5).map(tech => (
-            <span key={tech} className="px-2 py-0.5 text-[10px] bg-hacker-surface border border-hacker-border rounded font-mono text-hacker-text-dim">
+            <span key={tech} className="px-2 py-0.5 text-[10px] bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded font-mono text-[var(--text-muted)]">
               {tech}
             </span>
           ))}
           {project.technologies.length > 5 && (
-            <span className="px-2 py-0.5 text-[10px] bg-hacker-surface border border-hacker-border rounded font-mono text-hacker-cyan">
+            <span className="px-2 py-0.5 text-[10px] bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded font-mono text-[var(--accent-secondary)]">
               +{project.technologies.length - 5}
             </span>
           )}
@@ -370,7 +401,9 @@ function ProjectCard({
       {/* Status badges */}
       <div className="flex flex-wrap gap-1.5 mb-3">
         {project.hasActiveSession && (
-          <span className="hacker-badge hacker-badge-green text-[10px]">ACTIVE</span>
+          <span className="px-1.5 py-0.5 text-[10px] rounded font-mono bg-[var(--accent-primary)]/20 text-[var(--accent-primary)]">
+            ACTIVE
+          </span>
         )}
         {/* CLAUDE.md Edit Button */}
         {onEditClaudeMd && (
@@ -378,8 +411,8 @@ function ProjectCard({
             onClick={() => onEditClaudeMd(project.name)}
             className={`px-2 py-0.5 text-[10px] rounded font-mono transition-all flex items-center gap-1 ${
               project.hasClaudeMd
-                ? 'bg-hacker-cyan/20 border border-hacker-cyan/50 text-hacker-cyan hover:bg-hacker-cyan/30'
-                : 'bg-hacker-surface border border-hacker-border text-hacker-text-dim hover:border-hacker-cyan/50 hover:text-hacker-cyan'
+                ? 'bg-[var(--accent-secondary)]/20 border border-[var(--accent-secondary)]/50 text-[var(--accent-secondary)] hover:bg-[var(--accent-secondary)]/30'
+                : 'bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-muted)] hover:border-[var(--accent-secondary)]/50 hover:text-[var(--accent-secondary)]'
             }`}
             title={project.hasClaudeMd ? 'Edit project CLAUDE.md' : 'Create project CLAUDE.md'}
           >
@@ -396,7 +429,9 @@ function ProjectCard({
               path: project.path || project.name,
               name: project.name
             })}
-            className="px-2 py-0.5 text-[10px] rounded font-mono transition-all flex items-center gap-1 bg-hacker-surface border border-hacker-border text-hacker-text-dim hover:border-hacker-purple/50 hover:text-hacker-purple"
+            className="px-2 py-0.5 text-[10px] rounded font-mono transition-all flex items-center gap-1
+                       bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-muted)]
+                       hover:border-[var(--accent-tertiary)]/50 hover:text-[var(--accent-tertiary)]"
             title="Check project compliance with standards"
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -406,15 +441,17 @@ function ProjectCard({
           </button>
         )}
         {project.hasSessionData && (
-          <span className="hacker-badge hacker-badge-purple text-[10px]">SESSIONS</span>
+          <span className="px-1.5 py-0.5 text-[10px] rounded font-mono bg-[var(--accent-tertiary)]/20 text-[var(--accent-tertiary)]">
+            SESSIONS
+          </span>
         )}
         {/* Skip Permissions Toggle */}
         <button
           onClick={() => onToggleSkipPermissions(project.name, project.skipPermissions)}
           className={`px-2 py-0.5 text-[10px] rounded font-mono transition-all flex items-center gap-1 ${
             project.skipPermissions
-              ? 'bg-hacker-warning/20 border border-hacker-warning/50 text-hacker-warning hover:bg-hacker-warning/30'
-              : 'bg-hacker-surface border border-hacker-border text-hacker-text-dim hover:border-hacker-warning/50 hover:text-hacker-warning'
+              ? 'bg-[var(--status-warning)]/20 border border-[var(--status-warning)]/50 text-[var(--status-warning)] hover:bg-[var(--status-warning)]/30'
+              : 'bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-muted)] hover:border-[var(--status-warning)]/50 hover:text-[var(--status-warning)]'
           }`}
           title={project.skipPermissions
             ? 'Click to require permission prompts'
@@ -432,21 +469,21 @@ function ProjectCard({
 
       {/* Missing Items Callout */}
       {completion.missing && completion.missing.length > 0 && (
-        <div className="mt-auto pt-3 border-t border-hacker-border/30">
-          <div className="text-[10px] uppercase tracking-wider text-hacker-error mb-1.5 font-semibold flex items-center gap-1">
-            <span>&#9888;</span> MISSING
+        <div className="mt-auto pt-3 border-t border-[var(--border-subtle)]/30">
+          <div className="text-[10px] uppercase tracking-wider text-[var(--status-error)] mb-1.5 font-semibold flex items-center gap-1">
+            <span>⚠</span> MISSING
           </div>
           <div className="flex flex-wrap gap-1">
             {completion.missing.slice(0, 4).map(item => (
               <span
                 key={item}
-                className="px-1.5 py-0.5 text-[9px] bg-hacker-error/10 border border-hacker-error/30 rounded text-hacker-error/80 font-mono"
+                className="px-1.5 py-0.5 text-[9px] bg-[var(--status-error)]/10 border border-[var(--status-error)]/30 rounded text-[var(--status-error)]/80 font-mono"
               >
                 {item}
               </span>
             ))}
             {completion.missing.length > 4 && (
-              <span className="px-1.5 py-0.5 text-[9px] bg-hacker-error/10 border border-hacker-error/30 rounded text-hacker-error font-mono">
+              <span className="px-1.5 py-0.5 text-[9px] bg-[var(--status-error)]/10 border border-[var(--status-error)]/30 rounded text-[var(--status-error)] font-mono">
                 +{completion.missing.length - 4} more
               </span>
             )}
@@ -456,7 +493,7 @@ function ProjectCard({
 
       {/* Last Modified */}
       {project.lastModified && (
-        <div className="mt-2 text-[10px] text-hacker-text-dim font-mono">
+        <div className="mt-2 text-[10px] text-[var(--text-muted)] font-mono">
           Last modified: {new Date(project.lastModified).toLocaleDateString()}
         </div>
       )}

@@ -32,6 +32,33 @@ export function formatTimeAgo(ts) {
 }
 
 /**
+ * Format ISO date string to relative date (e.g., "2d ago", "Jan 15")
+ */
+export function formatRelativeDate(dateStr) {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+
+  // Less than 1 hour
+  if (minutes < 60) return minutes <= 1 ? 'Just now' : `${minutes}m ago`;
+  // Less than 24 hours
+  if (hours < 24) return `${hours}h ago`;
+  // Less than 7 days
+  if (days < 7) return `${days}d ago`;
+  // Less than 1 year - show month and day
+  if (days < 365) {
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+  // More than 1 year - show full date
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/**
  * Format bytes to human-readable size
  */
 export function formatBytes(b) {

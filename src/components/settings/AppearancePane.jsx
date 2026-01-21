@@ -9,12 +9,23 @@ export default function AppearancePane() {
   const { theme: currentTheme, setTheme } = useTheme();
 
   const themeColors = {
+    // Original themes
     dark: { bg: '#121217', primary: '#10b981', secondary: '#06b6d4', tertiary: '#8b5cf6' },
     dracula: { bg: '#282a36', primary: '#bd93f9', secondary: '#8be9fd', tertiary: '#ff79c6' },
     nord: { bg: '#2e3440', primary: '#88c0d0', secondary: '#81a1c1', tertiary: '#b48ead' },
     cyberpunk: { bg: '#0f1419', primary: '#22d3ee', secondary: '#e879f9', tertiary: '#fbbf24' },
     sepia: { bg: '#1c1814', primary: '#d97706', secondary: '#ca8a04', tertiary: '#c2410c' },
     light: { bg: '#f8f9fb', primary: '#0d9488', secondary: '#0284c7', tertiary: '#7c3aed' },
+    // OpenCode-compatible themes
+    matrix: { bg: '#000000', primary: '#00ff41', secondary: '#00ff41', tertiary: '#20c20e' },
+    tokyonight: { bg: '#1a1b26', primary: '#7aa2f7', secondary: '#7dcfff', tertiary: '#bb9af7' },
+    catppuccin: { bg: '#1e1e2e', primary: '#cba6f7', secondary: '#89b4fa', tertiary: '#f5c2e7' },
+    'catppuccin-macchiato': { bg: '#24273a', primary: '#c6a0f6', secondary: '#8aadf4', tertiary: '#f5bde6' },
+    gruvbox: { bg: '#282828', primary: '#fabd2f', secondary: '#83a598', tertiary: '#d3869b' },
+    kanagawa: { bg: '#1f1f28', primary: '#7e9cd8', secondary: '#7fb4ca', tertiary: '#957fb8' },
+    everforest: { bg: '#2d353b', primary: '#a7c080', secondary: '#7fbbb3', tertiary: '#d699b6' },
+    ayu: { bg: '#0d1017', primary: '#e6b450', secondary: '#59c2ff', tertiary: '#d2a6ff' },
+    'one-dark': { bg: '#282c34', primary: '#61afef', secondary: '#56b6c2', tertiary: '#c678dd' },
   };
 
   return (

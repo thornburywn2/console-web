@@ -2,8 +2,8 @@
 
 **Project:** {{PROJECT_NAME}}
 **Version:** 0.1.0
-**Port:** 1420 (Tauri dev)
-**Type:** desktop
+**Port:** {{PORT}}
+**Type:** {{PROJECT_TYPE}}
 
 ---
 

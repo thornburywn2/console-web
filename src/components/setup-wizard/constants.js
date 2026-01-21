@@ -108,12 +108,23 @@ export const WIDGET_PRESETS = {
   },
 };
 
-// Theme options
+// Theme options - gradient previews for setup wizard
 export const THEMES = [
-  { id: 'default', name: 'Emerald Dark', preview: 'linear-gradient(135deg, #0a0c14 0%, #10b981 100%)' },
-  { id: 'light', name: 'Light', preview: 'linear-gradient(135deg, #f8f9fb 0%, #0d9488 100%)' },
-  { id: 'ocean', name: 'Ocean', preview: 'linear-gradient(135deg, #0c1929 0%, #0891b2 100%)' },
-  { id: 'cyberpunk', name: 'Cyberpunk', preview: 'linear-gradient(135deg, #0f1419 0%, #22d3ee 100%)' },
+  // Original themes
+  { id: 'dark', name: 'Emerald Dark', preview: 'linear-gradient(135deg, #121217 0%, #10b981 100%)' },
   { id: 'dracula', name: 'Dracula', preview: 'linear-gradient(135deg, #282a36 0%, #bd93f9 100%)' },
   { id: 'nord', name: 'Nord', preview: 'linear-gradient(135deg, #2e3440 0%, #88c0d0 100%)' },
+  { id: 'cyberpunk', name: 'Cyberpunk', preview: 'linear-gradient(135deg, #0f1419 0%, #22d3ee 100%)' },
+  { id: 'sepia', name: 'Sepia', preview: 'linear-gradient(135deg, #1c1814 0%, #d97706 100%)' },
+  { id: 'light', name: 'Light', preview: 'linear-gradient(135deg, #f8f9fb 0%, #0d9488 100%)' },
+  // OpenCode-compatible themes
+  { id: 'matrix', name: 'Matrix', preview: 'linear-gradient(135deg, #000000 0%, #00ff41 100%)' },
+  { id: 'tokyonight', name: 'Tokyo Night', preview: 'linear-gradient(135deg, #1a1b26 0%, #7aa2f7 100%)' },
+  { id: 'catppuccin', name: 'Catppuccin Mocha', preview: 'linear-gradient(135deg, #1e1e2e 0%, #cba6f7 100%)' },
+  { id: 'catppuccin-macchiato', name: 'Catppuccin Macchiato', preview: 'linear-gradient(135deg, #24273a 0%, #c6a0f6 100%)' },
+  { id: 'gruvbox', name: 'Gruvbox', preview: 'linear-gradient(135deg, #282828 0%, #fabd2f 100%)' },
+  { id: 'kanagawa', name: 'Kanagawa', preview: 'linear-gradient(135deg, #1f1f28 0%, #7e9cd8 100%)' },
+  { id: 'everforest', name: 'Everforest', preview: 'linear-gradient(135deg, #2d353b 0%, #a7c080 100%)' },
+  { id: 'ayu', name: 'Ayu Dark', preview: 'linear-gradient(135deg, #0d1017 0%, #e6b450 100%)' },
+  { id: 'one-dark', name: 'One Dark', preview: 'linear-gradient(135deg, #282c34 0%, #61afef 100%)' },
 ];

@@ -116,14 +116,14 @@ describe('useTheme', () => {
     });
 
     it('should wrap around to first theme after last', () => {
-      localStorageMock.getItem.mockReturnValueOnce('light'); // Last theme
+      localStorageMock.getItem.mockReturnValueOnce('one-dark'); // Last theme
       const { result } = renderHook(() => useTheme());
 
       act(() => {
         result.current.cycleTheme();
       });
 
-      // light -> dark (first theme)
+      // one-dark -> dark (first theme)
       expect(result.current.theme).toBe('dark');
     });
   });
@@ -172,7 +172,7 @@ describe('useTheme', () => {
     it('should expose all available themes', () => {
       const { result } = renderHook(() => useTheme());
       expect(result.current.themes).toEqual(THEMES);
-      expect(result.current.themes.length).toBe(6);
+      expect(result.current.themes.length).toBe(15);
     });
   });
 

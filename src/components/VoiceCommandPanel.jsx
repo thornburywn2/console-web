@@ -102,9 +102,8 @@ export function VoiceCommandPanel({
         startListening();
       }
     },
-    onSpeechEnd: ({ duration }) => {
+    onSpeechEnd: () => {
       // Could be used for automatic stop after silence
-      console.log('Speech ended, duration:', duration);
     }
   });
 

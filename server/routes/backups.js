@@ -141,6 +141,7 @@ export function createBackupsRouter(prisma) {
         const proc = spawn(cmd, args, { cwd: strategy === 'git' ? fullPath : undefined });
         let stderr = '';
         proc.stderr.on('data', (data) => { stderr += data; });
+        proc.on('error', (err) => reject(new Error(`Spawn error: ${err.message}`)));
         proc.on('close', (code) => {
           if (code === 0) resolve();
           else reject(new Error(stderr || 'Backup failed'));
@@ -180,6 +181,7 @@ export function createBackupsRouter(prisma) {
         // Restore git bundle
         await new Promise((resolve, reject) => {
           const proc = spawn('git', ['bundle', 'verify', backupFile], { cwd: fullPath });
+          proc.on('error', (err) => reject(new Error(`Git spawn error: ${err.message}`)));
           proc.on('close', (code) => {
             if (code === 0) resolve();
             else reject(new Error('Invalid git bundle'));
@@ -188,6 +190,7 @@ export function createBackupsRouter(prisma) {
 
         await new Promise((resolve, reject) => {
           const proc = spawn('git', ['fetch', backupFile, 'refs/heads/*:refs/heads/*'], { cwd: fullPath });
+          proc.on('error', (err) => reject(new Error(`Git spawn error: ${err.message}`)));
           proc.on('close', (code) => {
             if (code === 0) resolve();
             else reject(new Error('Fetch failed'));
@@ -201,6 +204,7 @@ export function createBackupsRouter(prisma) {
         // Extract to temp, then move
         await new Promise((resolve, reject) => {
           const proc = spawn('tar', ['xzf', backupFile, '-C', parentDir]);
+          proc.on('error', (err) => reject(new Error(`Tar spawn error: ${err.message}`)));
           proc.on('close', (code) => {
             if (code === 0) resolve();
             else reject(new Error('Extract failed'));

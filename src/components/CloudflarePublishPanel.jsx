@@ -69,7 +69,6 @@ function CloudflarePublishPanel({ project, onRefresh }) {
 
           // If no routes found but project has configured subdomain, auto-sync from Cloudflare
           if (routeData.routes?.length === 0 && configuredSubdomain) {
-            console.log('[CloudflarePublishPanel] No routes found, auto-syncing from Cloudflare...');
             try {
               await cloudflareApi.sync();
               // Re-fetch routes after sync

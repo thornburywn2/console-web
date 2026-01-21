@@ -1,18 +1,19 @@
 /**
- * AdminDashboard - Main Admin Shell Component
- * Refactored to use extracted tab components
+ * AdminDashboard - Two-Column Layout with Vertical Navigation
+ * Clean, cohesive design matching the sidebars
  *
- * Navigation Structure:
- * PROJECTS | SETTINGS | AUTOMATION | SERVER | SECURITY | HISTORY
- *
- * Experimental (when enabled):
- * DEV | CODE PUPPY | TABBY | SWARM
+ * Layout:
+ * - Left: AdminNav sidebar (200px)
+ * - Right: Content area with tab content
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 
-// Import extracted tab components
+// Import navigation component
+import AdminNav from './admin/AdminNav';
+
+// Import tab components
 import ProjectsTab from './admin/tabs/ProjectsTab';
 import SettingsTab from './admin/tabs/SettingsTab';
 import AutomationTab from './admin/tabs/AutomationTab';
@@ -20,10 +21,18 @@ import ServerTab from './admin/tabs/ServerTab';
 import SecurityTab from './admin/tabs/SecurityTab';
 import HistoryTab from './admin/tabs/HistoryTab';
 
-// Import tab constants and RBAC utilities (Phase 3)
-import { TABS, migrateTab, canAccessTab, TAB_PERMISSIONS } from './admin/constants';
+// Import tab constants and RBAC utilities
+import {
+  TABS,
+  AUTOMATION_TABS,
+  SERVER_TABS,
+  SECURITY_TABS,
+  migrateTab,
+  canAccessTab,
+  DEFAULT_SUB_TABS,
+} from './admin/constants';
 
-// Import auth hook for RBAC (Phase 3)
+// Import auth hook for RBAC
 import { useAuth } from '../hooks/useAuth';
 
 // Import experimental components
@@ -44,28 +53,17 @@ import GitWorkflow from './GitWorkflow';
 import ProjectCreator from './ProjectCreator';
 import ComplianceChecker from './ComplianceChecker';
 
+// Import shared panel component
+import Panel, { PanelGroup } from './shared/Panel';
+
 // Re-export for use in SettingsPanel
 export { GitHubSettingsTab, CloudflareSettingsTab };
 
 // Re-export TABS for backward compatibility
 export { TABS };
 
-// ASCII Art - Terminal/Console Window
-const HACKER_ASCII = `
- ┌─────────────────────────┐
- │ ● ○ ○  CONSOLE.web     │
- ├─────────────────────────┤
- │ > claude --project _    │
- │ > npm run dev           │
- │ > git push origin main  │
- │                         │
- │ █ Ready_                │
- └─────────────────────────┘
-`;
-
 /**
  * GitHubSettingsTab - GitHub Integration Settings
- * Used by SettingsPanel in Integrations section
  */
 function GitHubSettingsTab() {
   const [authStatus, setAuthStatus] = useState(null);
@@ -143,95 +141,90 @@ function GitHubSettingsTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin w-8 h-8 border-2 border-hacker-green border-t-transparent rounded-full" />
+        <div className="w-6 h-6 border-2 border-[var(--accent-primary)] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-hacker-green uppercase tracking-wider font-mono">
-          {'>'} GITHUB_INTEGRATION
-        </h3>
-        <button onClick={fetchAuthStatus} className="px-3 py-1 text-xs font-mono border border-hacker-green/30 rounded hover:bg-hacker-green/10">[REFRESH]</button>
-      </div>
+    <div className="space-y-4">
+      {error && (
+        <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-mono">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm font-mono">
+          {success}
+        </div>
+      )}
 
-      {error && <div className="p-3 rounded-lg bg-hacker-error/10 border border-hacker-error/30 text-hacker-error text-sm font-mono">[ERROR] {error}</div>}
-      {success && <div className="p-3 rounded-lg bg-hacker-green/10 border border-hacker-green/30 text-hacker-green text-sm font-mono">[SUCCESS] {success}</div>}
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div className="hacker-card p-4">
-          <h4 className="text-sm font-semibold text-hacker-cyan mb-4 uppercase tracking-wider flex items-center gap-2">
-            <span>&#9654;</span> AUTHENTICATION
-          </h4>
-
-          {authStatus?.authenticated ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-4 p-4 rounded-lg bg-hacker-surface/50 border border-hacker-green/20">
-                {authStatus.avatarUrl && <img src={authStatus.avatarUrl} alt={authStatus.username} className="w-12 h-12 rounded-full border-2 border-hacker-green/50" />}
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-hacker-text">{authStatus.username}</span>
-                    <span className="px-2 py-0.5 text-xs rounded-full bg-hacker-green/20 text-hacker-green border border-hacker-green/30">CONNECTED</span>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <PanelGroup>
+          <Panel id="github-auth" title="Authentication" icon="🔐" defaultExpanded={true}>
+            {authStatus?.authenticated ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--bg-tertiary)]">
+                  {authStatus.avatarUrl && (
+                    <img src={authStatus.avatarUrl} alt="" className="w-10 h-10 rounded-full" />
+                  )}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[var(--text-primary)]">{authStatus.username}</span>
+                      <span className="px-1.5 py-0.5 text-xs rounded bg-emerald-500/20 text-emerald-400">Connected</span>
+                    </div>
                   </div>
-                  {authStatus.profileUrl && <a href={authStatus.profileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-hacker-cyan hover:underline font-mono">View Profile →</a>}
                 </div>
+                <button
+                  onClick={handleDisconnect}
+                  disabled={saving}
+                  className="w-full py-2 px-4 text-sm font-mono rounded border border-red-500/50 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                >
+                  {saving ? 'Disconnecting...' : 'Disconnect GitHub'}
+                </button>
               </div>
-              {authStatus.tokenScopes?.length > 0 && (
+            ) : (
+              <form onSubmit={handleConnect} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-mono text-hacker-text-dim mb-2">TOKEN SCOPES</label>
-                  <div className="flex flex-wrap gap-2">
-                    {authStatus.tokenScopes.map(scope => <span key={scope} className="px-2 py-1 text-xs font-mono rounded bg-hacker-surface border border-hacker-purple/30 text-hacker-purple">{scope}</span>)}
-                  </div>
+                  <label className="block text-xs font-mono text-[var(--text-muted)] mb-2">Personal Access Token</label>
+                  <input
+                    type={showToken ? 'text' : 'password'}
+                    value={accessToken}
+                    onChange={(e) => setAccessToken(e.target.value)}
+                    placeholder="ghp_xxxx"
+                    className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded font-mono text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]/50"
+                  />
                 </div>
-              )}
-              <button onClick={handleDisconnect} disabled={saving} className="w-full py-2 px-4 text-sm font-mono rounded border border-hacker-error/50 text-hacker-error hover:bg-hacker-error/10 disabled:opacity-50">
-                {saving ? '[DISCONNECTING...]' : '[DISCONNECT GITHUB]'}
-              </button>
-            </div>
-          ) : (
-            <form onSubmit={handleConnect} className="space-y-4">
-              <div>
-                <label className="block text-xs font-mono text-hacker-text-dim mb-2">PERSONAL ACCESS TOKEN</label>
-                <div className="relative">
-                  <input type={showToken ? 'text' : 'password'} value={accessToken} onChange={(e) => setAccessToken(e.target.value)} placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" className="input-glass font-mono pr-10" />
-                  <button type="button" onClick={() => setShowToken(!showToken)} className="absolute right-3 top-1/2 -translate-y-1/2 text-hacker-text-dim hover:text-hacker-text">{showToken ? '[HIDE]' : '[SHOW]'}</button>
-                </div>
-              </div>
-              <div className="p-3 rounded bg-hacker-surface/50 border border-hacker-cyan/20">
-                <div className="text-xs font-mono text-hacker-cyan mb-2">REQUIRED SCOPES:</div>
-                <div className="text-xs font-mono text-hacker-text-dim space-y-1">
-                  <div><span className="text-hacker-green">repo</span> - Full repository access</div>
-                  <div><span className="text-hacker-green">read:org</span> - Read organization data</div>
-                  <div><span className="text-hacker-green">workflow</span> - GitHub Actions access</div>
-                </div>
-              </div>
-              <a href="https://github.com/settings/tokens/new?scopes=repo,read:org,workflow&description=Command%20Portal" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-mono text-hacker-cyan hover:underline">[CREATE NEW TOKEN ON GITHUB →]</a>
-              <button type="submit" disabled={saving || !accessToken.trim()} className="w-full py-2.5 px-4 text-sm font-mono rounded bg-hacker-green/20 border border-hacker-green/50 text-hacker-green hover:bg-hacker-green/30 disabled:opacity-50">
-                {saving ? '[CONNECTING...]' : '[CONNECT GITHUB]'}
-              </button>
-            </form>
-          )}
-        </div>
+                <button
+                  type="submit"
+                  disabled={saving || !accessToken.trim()}
+                  className="w-full py-2 px-4 text-sm font-mono rounded bg-[var(--accent-primary)]/20 border border-[var(--accent-primary)]/50 text-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/30 disabled:opacity-50"
+                >
+                  {saving ? 'Connecting...' : 'Connect GitHub'}
+                </button>
+              </form>
+            )}
+          </Panel>
+        </PanelGroup>
 
-        <div className="hacker-card p-4">
-          <h4 className="text-sm font-semibold text-hacker-purple mb-4 uppercase tracking-wider flex items-center gap-2">
-            <span>&#9654;</span> LINKED REPOSITORIES ({linkedRepos.length})
-          </h4>
-          {linkedRepos.length === 0 ? (
-            <div className="text-center py-8 text-hacker-text-dim font-mono text-sm">No repositories linked yet.<br /><span className="text-xs">Link repos from the Project's GitHub panel</span></div>
-          ) : (
-            <div className="space-y-2 max-h-80 overflow-y-auto">
-              {linkedRepos.map(repo => (
-                <div key={repo.id} className="p-3 rounded bg-hacker-surface/50 border border-hacker-purple/20 hover:border-hacker-purple/40">
-                  <a href={repo.htmlUrl} target="_blank" rel="noopener noreferrer" className="font-mono text-sm text-hacker-cyan hover:underline">{repo.fullName}</a>
-                  <div className="text-xs text-hacker-text-dim font-mono mt-0.5">{repo.isPrivate ? '🔒 Private' : '🌐 Public'} • {repo.defaultBranch}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <PanelGroup>
+          <Panel id="github-repos" title="Linked Repositories" icon="📂" badge={linkedRepos.length} defaultExpanded={true}>
+            {linkedRepos.length === 0 ? (
+              <div className="text-xs text-[var(--text-muted)] font-mono">No repositories linked</div>
+            ) : (
+              <div className="space-y-1 max-h-60 overflow-y-auto">
+                {linkedRepos.map(repo => (
+                  <div key={repo.id} className="p-2 rounded bg-[var(--bg-tertiary)] text-xs font-mono">
+                    <a href={repo.htmlUrl} target="_blank" rel="noopener noreferrer" className="text-[var(--accent-primary)] hover:underline">
+                      {repo.fullName}
+                    </a>
+                    <div className="text-[var(--text-muted)]">{repo.isPrivate ? '🔒 Private' : '🌐 Public'}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+        </PanelGroup>
       </div>
     </div>
   );
@@ -239,28 +232,21 @@ function GitHubSettingsTab() {
 
 /**
  * CloudflareSettingsTab - Cloudflare Tunnel Settings
- * Used by SettingsPanel in Integrations section
  */
 function CloudflareSettingsTab() {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [routes, setRoutes] = useState([]);
-  const [routeSummary, setRouteSummary] = useState(null);
-  const [tunnelStatus, setTunnelStatus] = useState(null);
-  const [showToken, setShowToken] = useState(false);
-  const [syncStats, setSyncStats] = useState(null);
   const [formData, setFormData] = useState({
-    apiToken: '', accountId: '', tunnelId: '', zoneId: '', zoneName: 'example.com', tunnelName: '', defaultSubdomain: '',
+    apiToken: '', accountId: '', tunnelId: '', zoneName: 'example.com',
   });
 
   useEffect(() => {
     fetchSettings();
     fetchRoutes();
-    fetchTunnelStatus();
   }, []);
 
   const fetchSettings = async () => {
@@ -269,9 +255,9 @@ function CloudflareSettingsTab() {
       const data = await api.get('/cloudflare/settings');
       if (data.configured) {
         setSettings(data);
-        setFormData({ apiToken: '', accountId: data.accountId || '', tunnelId: data.tunnelId || '', zoneId: data.zoneId || '', zoneName: data.zoneName || 'example.com', tunnelName: data.tunnelName || '', defaultSubdomain: data.defaultSubdomain || '' });
+        setFormData(prev => ({ ...prev, accountId: data.accountId || '', tunnelId: data.tunnelId || '', zoneName: data.zoneName || 'example.com' }));
       }
-    } catch (err) {
+    } catch {
       setError('Failed to fetch Cloudflare settings');
     } finally {
       setLoading(false);
@@ -282,35 +268,8 @@ function CloudflareSettingsTab() {
     try {
       const data = await api.get('/cloudflare/routes/mapped');
       setRoutes(data.routes || []);
-      setRouteSummary(data.summary || null);
-    } catch (err) {
-      console.error('Failed to fetch routes:', err);
-    }
-  };
-
-  const fetchTunnelStatus = async () => {
-    try {
-      const data = await api.get('/cloudflare/tunnel/status');
-      setTunnelStatus(data);
-    } catch (err) {
-      console.error('Failed to fetch tunnel status:', err);
-    }
-  };
-
-  const handleSync = async () => {
-    setSyncing(true);
-    setError('');
-    setSuccess('');
-    setSyncStats(null);
-    try {
-      const data = await api.post('/cloudflare/sync');
-      setSyncStats(data);
-      setSuccess(`Synced ${data.synced} routes from Cloudflare`);
-      fetchRoutes();
-    } catch (err) {
-      setError(err.getUserMessage ? err.getUserMessage() : err.message);
-    } finally {
-      setSyncing(false);
+    } catch {
+      console.error('Failed to fetch routes');
     }
   };
 
@@ -322,7 +281,7 @@ function CloudflareSettingsTab() {
     try {
       const data = await api.post('/cloudflare/settings', formData);
       setSettings(data);
-      setSuccess('Cloudflare settings saved successfully!');
+      setSuccess('Cloudflare settings saved!');
       setFormData(prev => ({ ...prev, apiToken: '' }));
     } catch (err) {
       setError(err.getUserMessage ? err.getUserMessage() : err.message);
@@ -332,12 +291,11 @@ function CloudflareSettingsTab() {
   };
 
   const handleDisconnect = async () => {
-    if (!confirm('Are you sure you want to disconnect Cloudflare?')) return;
+    if (!confirm('Disconnect Cloudflare?')) return;
     setSaving(true);
     try {
       await api.delete('/cloudflare/settings');
       setSettings(null);
-      setFormData({ apiToken: '', accountId: '', tunnelId: '', zoneId: '', zoneName: 'example.com', tunnelName: '', defaultSubdomain: '' });
       setSuccess('Cloudflare disconnected');
     } catch (err) {
       setError(err.getUserMessage ? err.getUserMessage() : err.message);
@@ -347,94 +305,131 @@ function CloudflareSettingsTab() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center py-12"><div className="animate-spin w-8 h-8 border-2 border-hacker-warning border-t-transparent rounded-full" /></div>;
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="w-6 h-6 border-2 border-[var(--accent-primary)] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-hacker-warning uppercase tracking-wider font-mono">{'>'} CLOUDFLARE_TUNNELS</h3>
-        <div className="flex gap-2">
-          <button onClick={() => { fetchSettings(); fetchRoutes(); fetchTunnelStatus(); }} className="px-3 py-1 text-xs font-mono border border-hacker-warning/30 rounded hover:bg-hacker-warning/10">[REFRESH]</button>
-          {settings?.configured && (
-            <>
-              <button onClick={handleSync} disabled={syncing} className="px-3 py-1 text-xs font-mono border border-hacker-green/30 rounded hover:bg-hacker-green/10 disabled:opacity-50">{syncing ? '[SYNCING...]' : '[SYNC ROUTES]'}</button>
-            </>
-          )}
-        </div>
+    <div className="space-y-4">
+      {error && <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-mono">{error}</div>}
+      {success && <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm font-mono">{success}</div>}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <PanelGroup>
+          <Panel id="cf-config" title="Configuration" icon="☁️" defaultExpanded={true}>
+            {settings?.configured ? (
+              <div className="space-y-4">
+                <div className="p-3 rounded-lg bg-[var(--bg-tertiary)]">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-[var(--text-primary)] font-mono">{settings.tunnelName || 'Tunnel'}</span>
+                    <span className="px-1.5 py-0.5 text-xs rounded bg-amber-500/20 text-amber-400">Connected</span>
+                  </div>
+                  <div className="text-xs text-[var(--text-muted)] font-mono mt-1">Zone: {settings.zoneName}</div>
+                </div>
+                <button onClick={handleDisconnect} disabled={saving} className="w-full py-2 px-4 text-sm font-mono rounded border border-red-500/50 text-red-400 hover:bg-red-500/10 disabled:opacity-50">
+                  {saving ? 'Disconnecting...' : 'Disconnect'}
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleSave} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-mono text-[var(--text-muted)] mb-1">API Token</label>
+                  <input type="password" value={formData.apiToken} onChange={(e) => setFormData(prev => ({ ...prev, apiToken: e.target.value }))} className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded font-mono text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]/50" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-mono text-[var(--text-muted)] mb-1">Account ID</label>
+                    <input type="text" value={formData.accountId} onChange={(e) => setFormData(prev => ({ ...prev, accountId: e.target.value }))} className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded font-mono text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]/50" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-mono text-[var(--text-muted)] mb-1">Tunnel ID</label>
+                    <input type="text" value={formData.tunnelId} onChange={(e) => setFormData(prev => ({ ...prev, tunnelId: e.target.value }))} className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded font-mono text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]/50" />
+                  </div>
+                </div>
+                <button type="submit" disabled={saving || !formData.apiToken.trim()} className="w-full py-2 px-4 text-sm font-mono rounded bg-amber-500/20 border border-amber-500/50 text-amber-400 hover:bg-amber-500/30 disabled:opacity-50">
+                  {saving ? 'Saving...' : 'Save Configuration'}
+                </button>
+              </form>
+            )}
+          </Panel>
+        </PanelGroup>
+
+        <PanelGroup>
+          <Panel id="cf-routes" title="Published Routes" icon="🌐" badge={routes.length} defaultExpanded={true}>
+            {routes.length === 0 ? (
+              <div className="text-xs text-[var(--text-muted)] font-mono">No routes configured</div>
+            ) : (
+              <div className="space-y-1 max-h-60 overflow-y-auto">
+                {routes.slice(0, 10).map(route => (
+                  <div key={route.id} className="p-2 rounded bg-[var(--bg-tertiary)] text-xs font-mono">
+                    <a href={`https://${route.hostname}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent-primary)] hover:underline">
+                      {route.hostname}
+                    </a>
+                    <div className="text-[var(--text-muted)]">Port: {route.localPort}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+        </PanelGroup>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * DevToolsContent - Development tools panel content
+ */
+function DevToolsContent({ currentProject }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
+        <PanelGroup>
+          <Panel id="dev-api" title="API Tester" icon="🔌" defaultExpanded={true}>
+            <ApiTester embedded={true} />
+          </Panel>
+        </PanelGroup>
+
+        <PanelGroup>
+          <Panel id="dev-git" title="Git Workflow" icon="🔀" defaultExpanded={true}>
+            <GitWorkflow embedded={true} projectPath={currentProject?.path} />
+          </Panel>
+        </PanelGroup>
+
+        <PanelGroup>
+          <Panel id="dev-files" title="File Browser" icon="📁" defaultExpanded={true}>
+            <FileBrowser embedded={true} projectPath={currentProject?.path} />
+          </Panel>
+        </PanelGroup>
+
+        <PanelGroup>
+          <Panel id="dev-diff" title="Diff Viewer" icon="📝" defaultExpanded={true}>
+            <DiffViewer embedded={true} />
+          </Panel>
+        </PanelGroup>
       </div>
 
-      {tunnelStatus && settings?.configured && (
-        <div className={`p-3 rounded-lg border ${tunnelStatus.status === 'healthy' ? 'bg-hacker-green/10 border-hacker-green/30' : 'bg-hacker-error/10 border-hacker-error/30'}`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className={`w-3 h-3 rounded-full ${tunnelStatus.status === 'healthy' ? 'bg-hacker-green animate-pulse' : 'bg-hacker-error'}`} />
-              <span className="font-mono text-sm">Tunnel: <span className={tunnelStatus.status === 'healthy' ? 'text-hacker-green' : 'text-hacker-error'}>{tunnelStatus.status?.toUpperCase()}</span></span>
-            </div>
-          </div>
-        </div>
-      )}
+      <PanelGroup>
+        <Panel id="dev-db" title="Database Browser" icon="💾" defaultExpanded={true}>
+          <DatabaseBrowser embedded={true} />
+        </Panel>
+      </PanelGroup>
 
-      {error && <div className="p-3 rounded-lg bg-hacker-error/10 border border-hacker-error/30 text-hacker-error text-sm font-mono">[ERROR] {error}</div>}
-      {success && <div className="p-3 rounded-lg bg-hacker-green/10 border border-hacker-green/30 text-hacker-green text-sm font-mono">[SUCCESS] {success}</div>}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <PanelGroup>
+          <Panel id="dev-deps" title="Dependencies" icon="📦" defaultExpanded={true}>
+            <DependencyDashboard embedded={true} projectPath={currentProject?.path} />
+          </Panel>
+        </PanelGroup>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div className="hacker-card p-4">
-          <h4 className="text-sm font-semibold text-hacker-warning mb-4 uppercase tracking-wider flex items-center gap-2"><span>&#9654;</span> CONFIGURATION</h4>
-          {settings?.configured ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-4 p-4 rounded-lg bg-hacker-surface/50 border border-hacker-warning/20">
-                <div className="w-12 h-12 rounded-full border-2 border-hacker-warning/50 flex items-center justify-center bg-hacker-warning/10">
-                  <span className="text-hacker-warning text-xl">☁️</span>
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-hacker-text">{settings.tunnelName || 'Tunnel'}</span>
-                    <span className="px-2 py-0.5 text-xs rounded-full bg-hacker-warning/20 text-hacker-warning border border-hacker-warning/30">CONNECTED</span>
-                  </div>
-                  <div className="text-xs text-hacker-text-dim font-mono">Zone: {settings.zoneName}</div>
-                </div>
-              </div>
-              <button onClick={handleDisconnect} disabled={saving} className="w-full py-2 px-4 text-sm font-mono rounded border border-hacker-error/50 text-hacker-error hover:bg-hacker-error/10 disabled:opacity-50">[DISCONNECT]</button>
-            </div>
-          ) : (
-            <form onSubmit={handleSave} className="space-y-4">
-              <div>
-                <label className="block text-xs font-mono text-hacker-text-dim mb-2">API TOKEN</label>
-                <input type={showToken ? 'text' : 'password'} value={formData.apiToken} onChange={(e) => setFormData(prev => ({ ...prev, apiToken: e.target.value }))} placeholder="Enter Cloudflare API token" className="input-glass font-mono" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-mono text-hacker-text-dim mb-2">ACCOUNT ID</label>
-                  <input type="text" value={formData.accountId} onChange={(e) => setFormData(prev => ({ ...prev, accountId: e.target.value }))} className="input-glass font-mono" />
-                </div>
-                <div>
-                  <label className="block text-xs font-mono text-hacker-text-dim mb-2">TUNNEL ID</label>
-                  <input type="text" value={formData.tunnelId} onChange={(e) => setFormData(prev => ({ ...prev, tunnelId: e.target.value }))} className="input-glass font-mono" />
-                </div>
-              </div>
-              <button type="submit" disabled={saving || !formData.apiToken.trim()} className="w-full py-2.5 px-4 text-sm font-mono rounded bg-hacker-warning/20 border border-hacker-warning/50 text-hacker-warning hover:bg-hacker-warning/30 disabled:opacity-50">
-                {saving ? '[SAVING...]' : '[SAVE CONFIGURATION]'}
-              </button>
-            </form>
-          )}
-        </div>
-
-        <div className="hacker-card p-4">
-          <h4 className="text-sm font-semibold text-hacker-cyan mb-4 uppercase tracking-wider flex items-center gap-2"><span>&#9654;</span> PUBLISHED ROUTES ({routes.length})</h4>
-          {routes.length === 0 ? (
-            <div className="text-center py-8 text-hacker-text-dim font-mono text-sm">No routes configured.<br /><span className="text-xs">Use [SYNC ROUTES] to import from Cloudflare</span></div>
-          ) : (
-            <div className="space-y-2 max-h-80 overflow-y-auto">
-              {routes.slice(0, 10).map(route => (
-                <div key={route.id} className="p-3 rounded bg-hacker-surface/50 border border-hacker-cyan/20">
-                  <a href={`https://${route.hostname}`} target="_blank" rel="noopener noreferrer" className="font-mono text-sm text-hacker-cyan hover:underline">{route.hostname}</a>
-                  <div className="text-xs text-hacker-text-dim font-mono mt-0.5">Port: {route.localPort}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <PanelGroup>
+          <Panel id="dev-logs" title="Log Viewer" icon="📜" defaultExpanded={true}>
+            <LogViewer embedded={true} />
+          </Panel>
+        </PanelGroup>
       </div>
     </div>
   );
@@ -444,26 +439,24 @@ function CloudflareSettingsTab() {
  * Main AdminDashboard Component
  */
 function AdminDashboard({ onClose, initialTab = null, currentProject = null }) {
-  // RBAC: Get auth utilities (Phase 3)
   const { hasRole, userRole } = useAuth();
 
-  // Migrate old tab values if needed
+  // Tab state
   const [activeTab, setActiveTab] = useState(() => {
     if (initialTab) return migrateTab(initialTab);
     return TABS.PROJECTS;
   });
 
-  const [loading, setLoading] = useState(false);
+  const [activeSubTab, setActiveSubTab] = useState(() => {
+    return DEFAULT_SUB_TABS[activeTab] || null;
+  });
+
+  // UI state
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // User settings (for experimental features toggle)
+  // User settings
   const [userSettings, setUserSettings] = useState(null);
-
-  // Application branding
-  const [appName, setAppName] = useState('Command Portal');
 
   // Modal states
   const [showProjectCreator, setShowProjectCreator] = useState(false);
@@ -475,21 +468,26 @@ function AdminDashboard({ onClose, initialTab = null, currentProject = null }) {
   const [renameProject, setRenameProject] = useState(null);
   const [complianceCheckProject, setComplianceCheckProject] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  // Fetch user settings on mount
+  // Fetch user settings
   useEffect(() => {
-    fetchUserSettings();
+    const fetchSettings = async () => {
+      try {
+        const data = await api.get('/settings');
+        setUserSettings(data);
+      } catch {
+        console.error('Error fetching user settings');
+      }
+    };
+    fetchSettings();
   }, []);
 
-  const fetchUserSettings = async () => {
-    try {
-      const data = await api.get('/settings');
-      setUserSettings(data);
-      if (data.appName) setAppName(data.appName);
-    } catch (err) {
-      console.error('Error fetching user settings:', err);
-    }
-  };
+  // Handle tab change
+  const handleTabChange = useCallback((tab) => {
+    setActiveTab(tab);
+    setActiveSubTab(DEFAULT_SUB_TABS[tab] || null);
+  }, []);
 
   // CLAUDE.md operations
   const fetchClaudeMd = useCallback(async (projectName) => {
@@ -499,8 +497,8 @@ function AdminDashboard({ onClose, initialTab = null, currentProject = null }) {
       setClaudeMd(data);
       setClaudeMdEdited(data.content || '');
       setHasUnsavedChanges(false);
-    } catch (err) {
-      console.error('Error fetching CLAUDE.md:', err);
+    } catch {
+      console.error('Error fetching CLAUDE.md');
     } finally {
       setLoading(false);
     }
@@ -542,121 +540,23 @@ function AdminDashboard({ onClose, initialTab = null, currentProject = null }) {
     }
   }, []);
 
-  // Tab button component
-  const TabButton = ({ tab, label, icon }) => (
-    <button
-      onClick={() => setActiveTab(tab)}
-      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 border-b-2 ${
-        activeTab === tab
-          ? 'text-hacker-green border-hacker-green bg-hacker-green/5'
-          : 'text-hacker-text-dim border-transparent hover:text-hacker-green/70 hover:border-hacker-green/30'
-      }`}
-    >
-      {icon}
-      <span className="hidden sm:inline">{label}</span>
-    </button>
+  // Access denied component
+  const AccessDenied = ({ requiredRole }) => (
+    <div className="flex flex-col items-center justify-center h-64 text-center">
+      <svg className="w-16 h-16 text-red-500/50 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+      </svg>
+      <h3 className="text-lg font-mono text-red-400 mb-2">Access Denied</h3>
+      <p className="text-sm text-[var(--text-muted)] font-mono">Requires {requiredRole} role or higher</p>
+      <p className="text-xs text-[var(--text-muted)]/50 font-mono mt-2">Current role: {userRole}</p>
+    </div>
   );
 
-  return (
-    <div className="fixed inset-0 z-50 bg-hacker-bg/98 backdrop-blur-xl overflow-hidden flex flex-col scan-lines">
-      {/* Animated grid background */}
-      <div className="absolute inset-0 grid-bg opacity-50 pointer-events-none" />
-
-      {/* Header */}
-      <header className="relative z-10 flex items-center justify-between px-6 py-4 border-b border-hacker-green/20 glass-panel">
-        <div className="flex items-center gap-6">
-          <div className="hidden lg:block">
-            <pre className="ascii-art text-[6px] leading-[6px] select-none text-hacker-green">{HACKER_ASCII}</pre>
-          </div>
-          <div>
-            <h1 className="text-xl font-bold font-display tracking-wider neon-text flex items-center gap-3 uppercase">
-              <span className="text-2xl">{'>'}_</span>
-              {appName}
-            </h1>
-            <p className="text-xs text-hacker-text-dim mt-1 font-mono">
-              <span className="text-hacker-green">root@portal</span>
-              <span className="text-hacker-text-dim">:</span>
-              <span className="text-hacker-cyan">~/system</span>
-              <span className="text-hacker-text-dim">$</span>
-              <span className="cursor-blink ml-1"></span>
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div className="hidden md:flex items-center gap-4 text-xs font-mono">
-            <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${isRefreshing ? 'bg-hacker-cyan animate-spin' : 'bg-hacker-green animate-pulse-glow'}`} />
-              <span className={isRefreshing ? 'text-hacker-cyan' : 'text-hacker-green'}>
-                {isRefreshing ? 'SYNCING' : 'LIVE'}
-              </span>
-            </div>
-            <div className="text-hacker-text-dim">{lastUpdated.toLocaleTimeString()}</div>
-          </div>
-          <button onClick={onClose} className="hacker-btn flex items-center gap-2">
-            <span>[ESC]</span>
-            <span className="hidden sm:inline">EXIT</span>
-          </button>
-        </div>
-      </header>
-
-      {/* Main Tab Navigation - RBAC filtered (Phase 3) */}
-      <div className="relative z-10 flex items-center gap-1 px-6 border-b border-hacker-green/10 bg-hacker-surface/50 overflow-x-auto">
-        {/* User-level tabs - always visible */}
-        <TabButton tab={TABS.PROJECTS} label="PROJECTS" icon={<span className="text-lg">&#128193;</span>} />
-        <TabButton tab={TABS.SETTINGS} label="SETTINGS" icon={<span className="text-lg">&#9881;</span>} />
-        <TabButton tab={TABS.AUTOMATION} label="AUTOMATION" icon={<span className="text-lg">&#129302;</span>} />
-
-        {/* Admin-only tabs (Phase 3 RBAC) */}
-        {canAccessTab(TABS.SERVER, hasRole) && (
-          <TabButton tab={TABS.SERVER} label="SERVER" icon={<span className="text-lg">&#9211;</span>} />
-        )}
-        {canAccessTab(TABS.SECURITY, hasRole) && (
-          <TabButton tab={TABS.SECURITY} label="SECURITY" icon={<span className="text-lg">&#128274;</span>} />
-        )}
-
-        <TabButton tab={TABS.HISTORY} label="HISTORY" icon={<span className="text-lg">&#8986;</span>} />
-
-        {/* Experimental tabs - require both setting AND permission */}
-        {userSettings?.showExperimentalFeatures && (
-          <>
-            <span className="text-hacker-text-dim/30 mx-1">|</span>
-            {canAccessTab(TABS.DEVELOPMENT, hasRole) && (
-              <TabButton tab={TABS.DEVELOPMENT} label="DEV" icon={<span className="text-lg">&#128295;</span>} />
-            )}
-            {canAccessTab(TABS.CODE_PUPPY, hasRole) && (
-              <TabButton tab={TABS.CODE_PUPPY} label="CODE PUPPY" icon={<span className="text-lg">&#128021;</span>} />
-            )}
-            {canAccessTab(TABS.TABBY, hasRole) && (
-              <TabButton tab={TABS.TABBY} label="TABBY" icon={<span className="text-lg">&#128049;</span>} />
-            )}
-            {canAccessTab(TABS.SWARM, hasRole) && (
-              <TabButton tab={TABS.SWARM} label="SWARM" icon={<span className="text-lg">&#129433;</span>} />
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Error Banner */}
-      {error && (
-        <div className="relative z-10 mx-6 mt-4 p-3 neon-border bg-hacker-error/10 rounded-lg text-hacker-error text-sm flex items-center justify-between font-mono">
-          <span>[ERROR] {error}</span>
-          <button onClick={() => setError(null)} className="hover:text-hacker-text">[X]</button>
-        </div>
-      )}
-
-      {/* Success Banner */}
-      {success && (
-        <div className="relative z-10 mx-6 mt-4 p-3 neon-border bg-hacker-green/10 rounded-lg text-hacker-green text-sm flex items-center justify-between font-mono">
-          <span>[SUCCESS] {success}</span>
-          <button onClick={() => setSuccess(null)} className="hover:text-hacker-text">[X]</button>
-        </div>
-      )}
-
-      {/* Content */}
-      <div className="relative z-10 flex-1 overflow-y-auto p-6">
-        {/* Main Tabs */}
-        {activeTab === TABS.PROJECTS && (
+  // Render tab content
+  const renderContent = () => {
+    switch (activeTab) {
+      case TABS.PROJECTS:
+        return (
           <ProjectsTab
             onEditClaudeMd={(projectName) => {
               setSelectedProject(projectName);
@@ -668,198 +568,206 @@ function AdminDashboard({ onClose, initialTab = null, currentProject = null }) {
             onDeleteProject={setDeleteConfirm}
             onComplianceCheck={setComplianceCheckProject}
           />
-        )}
+        );
 
-        {activeTab === TABS.SETTINGS && <SettingsTab />}
+      case TABS.SETTINGS:
+        return <SettingsTab />;
 
-        {activeTab === TABS.AUTOMATION && <AutomationTab currentProject={currentProject} />}
+      case TABS.AUTOMATION:
+        return <AutomationTab currentProject={currentProject} activeSubTab={activeSubTab} />;
 
-        {/* Admin-only tabs with RBAC check (Phase 3) */}
-        {activeTab === TABS.SERVER && (
-          canAccessTab(TABS.SERVER, hasRole) ? (
-            <ServerTab />
-          ) : (
-            <div className="flex flex-col items-center justify-center h-64 text-center">
-              <svg className="w-16 h-16 text-hacker-error/50 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-              <h3 className="text-lg font-mono text-hacker-error mb-2">ACCESS DENIED</h3>
-              <p className="text-sm text-hacker-text-dim font-mono">Server management requires ADMIN role or higher</p>
-              <p className="text-xs text-hacker-text-dim/50 font-mono mt-2">Current role: {userRole}</p>
-            </div>
-          )
-        )}
+      case TABS.SERVER:
+        return canAccessTab(TABS.SERVER, hasRole) ? (
+          <ServerTab activeSubTab={activeSubTab} />
+        ) : (
+          <AccessDenied requiredRole="ADMIN" />
+        );
 
-        {activeTab === TABS.SECURITY && (
-          canAccessTab(TABS.SECURITY, hasRole) ? (
-            <SecurityTab selectedProject={selectedProject} />
-          ) : (
-            <div className="flex flex-col items-center justify-center h-64 text-center">
-              <svg className="w-16 h-16 text-hacker-error/50 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-              <h3 className="text-lg font-mono text-hacker-error mb-2">ACCESS DENIED</h3>
-              <p className="text-sm text-hacker-text-dim font-mono">Security management requires ADMIN role or higher</p>
-              <p className="text-xs text-hacker-text-dim/50 font-mono mt-2">Current role: {userRole}</p>
-            </div>
-          )
-        )}
+      case TABS.SECURITY:
+        return canAccessTab(TABS.SECURITY, hasRole) ? (
+          <SecurityTab selectedProject={selectedProject} activeSubTab={activeSubTab} />
+        ) : (
+          <AccessDenied requiredRole="ADMIN" />
+        );
 
-        {activeTab === TABS.HISTORY && <HistoryTab />}
+      case TABS.HISTORY:
+        return <HistoryTab />;
 
-        {/* Experimental Tabs */}
-        {userSettings?.showExperimentalFeatures && activeTab === TABS.DEVELOPMENT && (
-          <div className="space-y-6 animate-fade-in">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-hacker-green uppercase tracking-wider font-mono">{'>'} DEVELOPMENT_TOOLS</h3>
+      case TABS.DEVELOPMENT:
+        return userSettings?.showExperimentalFeatures ? (
+          <DevToolsContent currentProject={currentProject} />
+        ) : null;
+
+      case TABS.CODE_PUPPY:
+        return userSettings?.showExperimentalFeatures ? (
+          <CodePuppyDashboard onClose={() => handleTabChange(TABS.PROJECTS)} />
+        ) : null;
+
+      case TABS.TABBY:
+        return userSettings?.showExperimentalFeatures ? (
+          <TabbyDashboard onClose={() => handleTabChange(TABS.PROJECTS)} />
+        ) : null;
+
+      case TABS.SWARM:
+        return userSettings?.showExperimentalFeatures ? (
+          <SwarmDashboard projectPath={selectedProject?.path} socket={null} onClose={() => handleTabChange(TABS.PROJECTS)} />
+        ) : null;
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex bg-[var(--bg-base)]">
+      {/* Navigation Sidebar */}
+      <AdminNav
+        activeTab={activeTab}
+        activeSubTab={activeSubTab}
+        onTabChange={handleTabChange}
+        onSubTabChange={setActiveSubTab}
+        showExperimentalFeatures={userSettings?.showExperimentalFeatures}
+        onClose={onClose}
+      />
+
+      {/* Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <header className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-subtle)] bg-[var(--bg-primary)]">
+          <div>
+            <h1 className="text-lg font-semibold text-[var(--accent-primary)] font-mono tracking-wide uppercase">
+              {activeTab.replace(/_/g, ' ')}
+            </h1>
+            <p className="text-xs text-[var(--text-muted)] font-mono">
+              {activeSubTab ? activeSubTab.replace(/_/g, ' ').toUpperCase() : 'Admin Dashboard'}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-xs font-mono text-[var(--text-muted)]">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>{new Date().toLocaleTimeString()}</span>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
-              <div className="hacker-card p-4">
-                <h4 className="text-sm font-semibold text-hacker-cyan mb-4 uppercase tracking-wider flex items-center gap-2"><span>&#9654;</span> API TESTER</h4>
-                <ApiTester embedded={true} />
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 text-sm font-mono rounded border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-white/5 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </header>
+
+        {/* Notifications */}
+        {(error || success) && (
+          <div className="px-6 py-2">
+            {error && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-mono flex items-center justify-between">
+                <span>{error}</span>
+                <button onClick={() => setError(null)} className="hover:text-red-300">×</button>
               </div>
-              <div className="hacker-card p-4">
-                <h4 className="text-sm font-semibold text-hacker-purple mb-4 uppercase tracking-wider flex items-center gap-2"><span>&#9654;</span> GIT WORKFLOW</h4>
-                <GitWorkflow embedded={true} projectPath={currentProject?.path} />
+            )}
+            {success && (
+              <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm font-mono flex items-center justify-between">
+                <span>{success}</span>
+                <button onClick={() => setSuccess(null)} className="hover:text-emerald-300">×</button>
               </div>
-              <div className="hacker-card p-4">
-                <h4 className="text-sm font-semibold text-hacker-green mb-4 uppercase tracking-wider flex items-center gap-2"><span>&#9654;</span> FILE BROWSER</h4>
-                <FileBrowser embedded={true} projectPath={currentProject?.path} />
-              </div>
-              <div className="hacker-card p-4">
-                <h4 className="text-sm font-semibold text-hacker-warning mb-4 uppercase tracking-wider flex items-center gap-2"><span>&#9654;</span> DIFF VIEWER</h4>
-                <DiffViewer embedded={true} />
-              </div>
-            </div>
-            <div className="hacker-card p-4">
-              <h4 className="text-sm font-semibold text-hacker-cyan mb-4 uppercase tracking-wider flex items-center gap-2"><span>&#9654;</span> DATABASE BROWSER</h4>
-              <DatabaseBrowser embedded={true} />
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="hacker-card p-4">
-                <h4 className="text-sm font-semibold text-hacker-purple mb-4 uppercase tracking-wider flex items-center gap-2"><span>&#9654;</span> DEPENDENCIES</h4>
-                <DependencyDashboard embedded={true} projectPath={currentProject?.path} />
-              </div>
-              <div className="hacker-card p-4">
-                <h4 className="text-sm font-semibold text-hacker-green mb-4 uppercase tracking-wider flex items-center gap-2"><span>&#9654;</span> LOG VIEWER</h4>
-                <LogViewer embedded={true} />
-              </div>
-            </div>
+            )}
           </div>
         )}
 
-        {userSettings?.showExperimentalFeatures && activeTab === TABS.CODE_PUPPY && (
-          <CodePuppyDashboard onClose={() => setActiveTab(TABS.PROJECTS)} />
-        )}
-
-        {userSettings?.showExperimentalFeatures && activeTab === TABS.TABBY && (
-          <TabbyDashboard onClose={() => setActiveTab(TABS.PROJECTS)} />
-        )}
-
-        {userSettings?.showExperimentalFeatures && activeTab === TABS.SWARM && (
-          <SwarmDashboard projectPath={selectedProject?.path} socket={null} onClose={() => setActiveTab(TABS.PROJECTS)} />
-        )}
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto p-6">
+          {renderContent()}
+        </main>
       </div>
 
-      {/* Footer */}
-      <footer className="relative z-10 px-6 py-3 border-t border-hacker-green/10 bg-hacker-surface/50 font-mono text-xs text-hacker-text-dim flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <span className="text-hacker-green">CP://SYSTEM</span>
-          <span>v1.0.27</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <span>TAB: {activeTab.toUpperCase()}</span>
-          <span className="text-hacker-cyan">{new Date().toLocaleDateString()}</span>
-        </div>
-      </footer>
-
-      {/* CLAUDE.md Editor Modal */}
+      {/* Modals */}
+      {/* CLAUDE.md Editor */}
       {claudeMdModalProject && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="hacker-card p-6 w-full max-w-4xl mx-4 h-[80vh] flex flex-col border-hacker-cyan/50">
+          <div className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg p-6 w-full max-w-4xl mx-4 h-[80vh] flex flex-col">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-hacker-cyan flex items-center gap-2">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-                CLAUDE.MD - {claudeMdModalProject}
+              <h3 className="text-lg font-semibold text-[var(--accent-primary)] font-mono">
+                CLAUDE.md - {claudeMdModalProject}
               </h3>
               <div className="flex items-center gap-3">
-                {hasUnsavedChanges && <span className="hacker-badge hacker-badge-warning text-xs">UNSAVED</span>}
-                <button onClick={saveClaudeMd} disabled={loading || !hasUnsavedChanges} className="hacker-btn disabled:opacity-50">{loading ? '[SAVING...]' : '[SAVE]'}</button>
+                {hasUnsavedChanges && (
+                  <span className="px-2 py-0.5 text-xs rounded bg-amber-500/20 text-amber-400">Unsaved</span>
+                )}
+                <button
+                  onClick={saveClaudeMd}
+                  disabled={loading || !hasUnsavedChanges}
+                  className="px-3 py-1.5 text-sm font-mono rounded bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/30 disabled:opacity-50"
+                >
+                  {loading ? 'Saving...' : 'Save'}
+                </button>
                 <button
                   onClick={() => {
-                    if (hasUnsavedChanges) {
-                      if (window.confirm('You have unsaved changes. Discard them?')) {
-                        setClaudeMdModalProject(null);
-                        setHasUnsavedChanges(false);
-                      }
-                    } else {
-                      setClaudeMdModalProject(null);
-                    }
+                    if (hasUnsavedChanges && !window.confirm('Discard unsaved changes?')) return;
+                    setClaudeMdModalProject(null);
+                    setHasUnsavedChanges(false);
                   }}
-                  className="hacker-btn"
-                >[CLOSE]</button>
+                  className="px-3 py-1.5 text-sm font-mono rounded border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-white/5"
+                >
+                  Close
+                </button>
               </div>
             </div>
-            <div className="flex-1 min-h-0">
-              <textarea
-                value={claudeMdEdited}
-                onChange={(e) => {
-                  setClaudeMdEdited(e.target.value);
-                  setHasUnsavedChanges(e.target.value !== claudeMd.content);
-                }}
-                className="w-full h-full hacker-input resize-none font-mono text-sm"
-                placeholder="# Project instructions..."
-                spellCheck={false}
-              />
-            </div>
+            <textarea
+              value={claudeMdEdited}
+              onChange={(e) => {
+                setClaudeMdEdited(e.target.value);
+                setHasUnsavedChanges(e.target.value !== claudeMd.content);
+              }}
+              className="flex-1 w-full px-4 py-3 bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded font-mono text-sm text-[var(--text-primary)] resize-none focus:outline-none focus:border-[var(--accent-primary)]/50"
+              placeholder="# Project instructions..."
+              spellCheck={false}
+            />
           </div>
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation */}
       {deleteConfirm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="hacker-card p-6 max-w-md w-full mx-4 border-hacker-error/50">
-            <h3 className="text-lg font-bold text-hacker-error mb-4 flex items-center gap-2">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              DELETE PROJECT
-            </h3>
-            <p className="text-hacker-text mb-4">
-              Are you sure you want to delete <span className="font-bold text-hacker-cyan">{deleteConfirm.name}</span>?
+          <div className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-red-400 mb-4">Delete Project</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              Delete <span className="font-mono text-[var(--accent-primary)]">{deleteConfirm.name}</span>?
             </p>
-            <div className="mb-4 p-3 bg-hacker-surface rounded border border-hacker-border">
+            <div className="mb-4 p-3 bg-[var(--bg-tertiary)] rounded">
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={deleteConfirm.permanent} onChange={(e) => setDeleteConfirm({ ...deleteConfirm, permanent: e.target.checked })} className="w-4 h-4 accent-hacker-error" />
-                <span className="text-sm text-hacker-text-dim">Permanently delete (cannot be recovered)</span>
+                <input
+                  type="checkbox"
+                  checked={deleteConfirm.permanent}
+                  onChange={(e) => setDeleteConfirm({ ...deleteConfirm, permanent: e.target.checked })}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm text-[var(--text-muted)]">Permanently delete (cannot be recovered)</span>
               </label>
             </div>
             <div className="flex gap-3 justify-end">
-              <button onClick={() => setDeleteConfirm(null)} className="hacker-btn">CANCEL</button>
-              <button onClick={() => deleteProject(deleteConfirm.name, deleteConfirm.permanent)} className="px-4 py-2 bg-hacker-error text-white font-mono text-sm rounded hover:bg-hacker-error/80">
-                {deleteConfirm.permanent ? 'DELETE PERMANENTLY' : 'MOVE TO TRASH'}
+              <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 text-sm font-mono rounded border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-white/5">
+                Cancel
+              </button>
+              <button onClick={() => deleteProject(deleteConfirm.name, deleteConfirm.permanent)} className="px-4 py-2 text-sm font-mono rounded bg-red-500 text-white hover:bg-red-600">
+                {deleteConfirm.permanent ? 'Delete Permanently' : 'Move to Trash'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Rename Project Modal */}
+      {/* Rename Project */}
       {renameProject && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="hacker-card p-6 max-w-md w-full mx-4 border-hacker-cyan/50">
-            <h3 className="text-lg font-bold text-hacker-cyan mb-4 flex items-center gap-2">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-              RENAME PROJECT
-            </h3>
-            <p className="text-hacker-text mb-4">Current name: <span className="font-bold text-hacker-cyan">{renameProject.name}</span></p>
+          <div className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-[var(--accent-primary)] mb-4">Rename Project</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              Current: <span className="font-mono text-[var(--accent-primary)]">{renameProject.name}</span>
+            </p>
             <div className="mb-4">
-              <label className="block text-sm text-hacker-text-dim mb-2">New project name:</label>
+              <label className="block text-sm text-[var(--text-muted)] mb-2">New name:</label>
               <input
                 type="text"
                 value={renameProject.newName}
@@ -868,30 +776,34 @@ function AdminDashboard({ onClose, initialTab = null, currentProject = null }) {
                   if (e.key === 'Enter') handleRenameProject(renameProject.name, renameProject.newName);
                   if (e.key === 'Escape') setRenameProject(null);
                 }}
-                className="w-full px-3 py-2 bg-hacker-bg border border-hacker-border rounded font-mono text-hacker-text focus:border-hacker-cyan focus:outline-none"
+                className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded font-mono text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]/50"
                 autoFocus
               />
             </div>
             <div className="flex gap-3 justify-end">
-              <button onClick={() => setRenameProject(null)} className="hacker-btn">CANCEL</button>
+              <button onClick={() => setRenameProject(null)} className="px-4 py-2 text-sm font-mono rounded border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-white/5">
+                Cancel
+              </button>
               <button
                 onClick={() => handleRenameProject(renameProject.name, renameProject.newName)}
                 disabled={!renameProject.newName || renameProject.newName === renameProject.name}
-                className="px-4 py-2 bg-hacker-cyan text-hacker-bg font-mono text-sm rounded hover:bg-hacker-cyan/80 disabled:opacity-50"
-              >RENAME</button>
+                className="px-4 py-2 text-sm font-mono rounded bg-[var(--accent-primary)] text-[var(--bg-primary)] hover:bg-[var(--accent-primary)]/90 disabled:opacity-50"
+              >
+                Rename
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Project Creator Modal */}
+      {/* Project Creator */}
       <ProjectCreator
         isOpen={showProjectCreator}
         onClose={() => setShowProjectCreator(false)}
         onProjectCreated={() => setShowProjectCreator(false)}
       />
 
-      {/* Compliance Checker Modal */}
+      {/* Compliance Checker */}
       <ComplianceChecker
         isOpen={!!complianceCheckProject}
         projectPath={complianceCheckProject?.path}

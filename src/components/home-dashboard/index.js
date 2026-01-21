@@ -13,6 +13,7 @@ export {
 export {
   formatUptime,
   formatTimeAgo,
+  formatRelativeDate,
   formatBytes,
   formatTokens,
 } from './utils';

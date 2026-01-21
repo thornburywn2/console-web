@@ -108,9 +108,10 @@ export default function GeneralPane({ settings, onSave, setActiveCategory }) {
           {/* Preferred AI Solution */}
           <div className="space-y-2">
             <label className="text-sm text-hacker-text font-medium">Preferred AI Solution</label>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {[
                 { value: 'claude-code', label: 'Claude Code', icon: '💻', description: 'Official Anthropic CLI' },
+                { value: 'opencode', label: 'OpenCode', icon: '🌐', description: 'Open source, multi-provider' },
                 { value: 'code-puppy', label: 'Code Puppy', icon: '🐕', description: 'Open source alternative' },
                 { value: 'hybrid', label: 'Hybrid Mode', icon: '🔀', description: 'Code Puppy + Claude tools' },
               ].map((option) => (
@@ -145,6 +146,59 @@ export default function GeneralPane({ settings, onSave, setActiveCategory }) {
               Existing sessions will continue using their original AI solution.
             </p>
           </div>
+
+          {/* OpenCode specific settings */}
+          {settings.preferredAISolution === 'opencode' && (
+            <div className="ml-6 p-4 bg-[var(--bg-surface)] border border-hacker-cyan/20 rounded space-y-4">
+              <h5 className="text-xs font-semibold text-hacker-text uppercase tracking-wider flex items-center gap-2">
+                <span>🌐</span> OpenCode Settings
+              </h5>
+
+              {/* Provider Selection */}
+              <div className="space-y-2">
+                <label className="text-sm text-hacker-text">AI Provider</label>
+                <select
+                  value={settings.openCodeProvider || 'anthropic'}
+                  onChange={(e) => onSave({ openCodeProvider: e.target.value })}
+                  className="input-glass font-mono"
+                >
+                  <option value="anthropic">Anthropic (Claude)</option>
+                  <option value="openai">OpenAI (GPT)</option>
+                  <option value="google">Google (Gemini)</option>
+                  <option value="local">Local Models</option>
+                </select>
+                <p className="text-xs text-hacker-text-dim">
+                  OpenCode supports multiple AI providers - choose your preferred one
+                </p>
+              </div>
+
+              {/* Model Selection */}
+              <div className="space-y-2">
+                <label className="text-sm text-hacker-text">Model (optional)</label>
+                <input
+                  type="text"
+                  value={settings.openCodeModel || ''}
+                  onChange={(e) => onSave({ openCodeModel: e.target.value || null })}
+                  placeholder="e.g., claude-sonnet-4-20250514, gpt-4o"
+                  className="input-glass font-mono"
+                />
+                <p className="text-xs text-hacker-text-dim">
+                  Leave blank to use the provider's default model. Format: model-name or provider/model
+                </p>
+              </div>
+
+              {/* Info box */}
+              <div className="p-3 bg-hacker-cyan/10 border border-hacker-cyan/30 rounded text-xs">
+                <p className="font-medium text-hacker-cyan mb-2">About OpenCode</p>
+                <ul className="list-disc list-inside space-y-1 text-hacker-text-dim">
+                  <li>Open-source AI coding agent (MIT licensed)</li>
+                  <li>Two built-in agents: Build (full access) &amp; Plan (read-only)</li>
+                  <li>LSP support and client/server architecture</li>
+                  <li>Press Tab to switch between agents in the TUI</li>
+                </ul>
+              </div>
+            </div>
+          )}
 
           {/* Code Puppy specific settings */}
           {(settings.preferredAISolution === 'code-puppy' || settings.preferredAISolution === 'hybrid') && (

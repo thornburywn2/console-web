@@ -1,14 +1,19 @@
 /**
  * HistoryTab Component
- * Session history browser
- *
- * Phase 5.1: Migrated from direct fetch() to centralized API service
+ * Session history browser with cohesive Panel design
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { TabContainer } from '../shared';
+import { Panel } from '../../shared';
 import { formatTime } from '../utils';
 import { adminApi } from '../../../services/api.js';
+
+// Clock icon for history
+const HistoryIcon = (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
 
 export function HistoryTab() {
   const [history, setHistory] = useState({ total: 0, entries: [] });
@@ -31,40 +36,50 @@ export function HistoryTab() {
   }, [fetchHistory]);
 
   return (
-    <TabContainer>
-      <div className="space-y-4 animate-fade-in">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-hacker-green uppercase tracking-wider font-mono">
-            {'>'} SESSION_HISTORY [{history.total}]
-          </h3>
+    <div className="space-y-1 animate-fade-in">
+      <Panel
+        id="admin-history"
+        title="Session History"
+        icon={HistoryIcon}
+        badge={history.total}
+        badgeColor="var(--accent-tertiary)"
+        emptyText="No session history found"
+      >
+        {/* Refresh button */}
+        <div className="flex justify-end mb-3 -mt-1">
           <button
             onClick={fetchHistory}
             disabled={loading}
-            className="hacker-btn text-xs"
+            className="px-2 py-1 text-xs font-mono rounded border transition-colors
+                       border-[var(--border-subtle)] text-[var(--text-secondary)]
+                       hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]
+                       disabled:opacity-50"
           >
-            {loading ? '[LOADING...]' : '[REFRESH]'}
+            {loading ? 'Loading...' : 'Refresh'}
           </button>
         </div>
 
+        {/* History entries */}
         <div className="space-y-2">
           {(history.entries || []).map((entry, idx) => (
             <div
               key={idx}
-              className="hacker-card p-4"
+              className="p-3 rounded border border-[var(--border-subtle)] bg-[var(--bg-primary)]/50
+                         hover:border-[var(--border-default)] transition-colors"
             >
-              <p className="text-sm text-hacker-text font-mono truncate mb-2">
-                <span className="text-hacker-green">$</span> {entry.display?.substring(0, 150)}
+              <p className="text-sm text-[var(--text-primary)] font-mono truncate mb-2">
+                <span className="text-[var(--accent-primary)]">$</span> {entry.display?.substring(0, 150)}
                 {entry.display?.length > 150 && '...'}
               </p>
-              <div className="flex items-center gap-4 text-xs text-hacker-text-dim font-mono">
-                <span className="text-hacker-cyan">{formatTime(entry.timestamp)}</span>
+              <div className="flex items-center gap-4 text-xs text-[var(--text-muted)] font-mono">
+                <span className="text-[var(--accent-secondary)]">{formatTime(entry.timestamp)}</span>
                 {entry.project && (
-                  <span className="hacker-badge hacker-badge-purple text-[10px]">
+                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-[var(--accent-tertiary)]/20 text-[var(--accent-tertiary)]">
                     {entry.project.split('/').pop()}
                   </span>
                 )}
                 {entry.sessionId && (
-                  <span className="text-hacker-text-dim">
+                  <span className="text-[var(--text-muted)]">
                     #{entry.sessionId.substring(0, 8)}
                   </span>
                 )}
@@ -72,15 +87,8 @@ export function HistoryTab() {
             </div>
           ))}
         </div>
-
-        {/* Empty State */}
-        {(!history.entries || history.entries.length === 0) && !loading && (
-          <div className="hacker-card p-8 text-center">
-            <p className="text-hacker-text-dim font-mono">No session history found</p>
-          </div>
-        )}
-      </div>
-    </TabContainer>
+      </Panel>
+    </div>
   );
 }
 

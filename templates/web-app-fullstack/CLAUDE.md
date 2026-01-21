@@ -3,7 +3,7 @@
 **Project:** {{PROJECT_NAME}}
 **Version:** 0.1.0
 **Port:** {{PORT}} (frontend), {{API_PORT}} (backend)
-**Type:** web-app-fullstack
+**Type:** {{PROJECT_TYPE}}
 
 ---
 

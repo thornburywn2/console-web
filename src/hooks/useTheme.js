@@ -6,13 +6,25 @@
 import { useState, useEffect, useCallback } from 'react';
 
 // Available themes - all optimized for WCAG accessibility
+// Includes OpenCode-compatible themes for consistency across tools
 export const THEMES = [
+  // Original console-web themes
   { id: 'dark', name: 'Dark', description: 'Soft dark theme with green accents - easy on the eyes' },
   { id: 'dracula', name: 'Dracula', description: 'Popular dark theme with purple accents' },
   { id: 'nord', name: 'Nord', description: 'Arctic, north-bluish color palette' },
   { id: 'cyberpunk', name: 'Cyberpunk', description: 'Vibrant neon colors with readable contrast' },
   { id: 'sepia', name: 'Sepia', description: 'Warm amber tones for reduced eye strain at night' },
   { id: 'light', name: 'Light', description: 'Clean off-white theme for bright environments' },
+  // OpenCode-compatible themes
+  { id: 'matrix', name: 'Matrix', description: 'Hacker-style green on black theme' },
+  { id: 'tokyonight', name: 'Tokyo Night', description: 'Clean dark theme celebrating Downtown Tokyo at night' },
+  { id: 'catppuccin', name: 'Catppuccin Mocha', description: 'Soothing pastel theme - the darkest variant' },
+  { id: 'catppuccin-macchiato', name: 'Catppuccin Macchiato', description: 'Medium contrast pastel theme' },
+  { id: 'gruvbox', name: 'Gruvbox', description: 'Retro groove color scheme with warm tones' },
+  { id: 'kanagawa', name: 'Kanagawa', description: 'Inspired by the famous painting by Katsushika Hokusai' },
+  { id: 'everforest', name: 'Everforest', description: 'Comfortable green-based color scheme' },
+  { id: 'ayu', name: 'Ayu Dark', description: 'Clean and modern with golden accents' },
+  { id: 'one-dark', name: 'One Dark', description: 'Atom One Dark - classic and clean' },
 ];
 
 const THEME_STORAGE_KEY = 'cw-theme';
@@ -48,6 +60,16 @@ export function useTheme() {
       cyberpunk: '#0f1419',
       sepia: '#1c1814',
       light: '#f8f9fb',
+      // OpenCode-compatible themes
+      matrix: '#000000',
+      tokyonight: '#1a1b26',
+      catppuccin: '#1e1e2e',
+      'catppuccin-macchiato': '#24273a',
+      gruvbox: '#282828',
+      kanagawa: '#1f1f28',
+      everforest: '#2d353b',
+      ayu: '#0d1017',
+      'one-dark': '#282c34',
     };
 
     if (metaThemeColor) {

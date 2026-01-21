@@ -7,6 +7,25 @@ import { useState, useRef } from 'react';
 import { getTabColor } from './constants';
 import TerminalTabColorPicker from './TerminalTabColorPicker';
 
+/**
+ * Get display name for a tab
+ * Priority: displayName > extract from sessionName > fallback to Tab N
+ */
+function getTabDisplayName(tab) {
+  if (tab.displayName) {
+    return tab.displayName;
+  }
+  // For first tab (tabOrder 0), try to extract project name from sessionName
+  // sessionName format: sp-ProjectName or sp-ProjectName-TabName
+  if (tab.sessionName && (tab.tabOrder === 0 || tab.tabOrder === null)) {
+    const match = tab.sessionName.match(/^sp-(.+?)(?:-\d+)?$/);
+    if (match) {
+      return match[1]; // Return project name
+    }
+  }
+  return `Tab ${(tab.tabOrder ?? 0) + 1}`;
+}
+
 function TerminalTabItem({
   tab,
   isActive,
@@ -24,6 +43,7 @@ function TerminalTabItem({
   const tabRef = useRef(null);
 
   const colorConfig = getTabColor(tab.tabColor);
+  const displayName = getTabDisplayName(tab);
 
   const handleDoubleClick = (e) => {
     e.stopPropagation();
@@ -96,7 +116,7 @@ function TerminalTabItem({
         />
       ) : (
         <span className="text-sm text-text-primary truncate">
-          {tab.displayName || `Tab ${(tab.tabOrder ?? 0) + 1}`}
+          {displayName}
         </span>
       )}
 

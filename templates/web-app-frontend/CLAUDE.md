@@ -3,7 +3,7 @@
 **Project:** {{PROJECT_NAME}}
 **Version:** 0.1.0
 **Port:** {{PORT}}
-**Type:** web-app-frontend
+**Type:** {{PROJECT_TYPE}}
 
 ---
 

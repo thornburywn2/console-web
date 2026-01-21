@@ -241,6 +241,10 @@ export function createDiffRouter(prisma) {
 
         git.stdout.on('data', (data) => { output += data; });
         git.stderr.on('data', (data) => { error += data; });
+        git.on('error', (err) => {
+          // Git not found or spawn error - return empty diff
+          resolve('');
+        });
         git.on('close', (code) => {
           if (code === 0) {
             resolve(output);

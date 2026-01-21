@@ -63,7 +63,6 @@ function NewTabDialog({ isOpen, onClose, onCreate, tabCount = 0 }) {
     if (selectedColor) {
       options.color = selectedColor;
     }
-    console.log('[NewTabDialog] Creating tab with options:', options);
     onCreate(options);
     onClose();
   };
