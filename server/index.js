@@ -10,16 +10,13 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { spawn } from 'node-pty';
-import fs from 'fs';
-import { readdirSync, statSync, existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import path from 'path';
-import { join, basename, dirname } from 'path';
+import fs, { readdirSync, statSync, existsSync, readFileSync, writeFileSync, mkdirSync, createReadStream } from 'fs';
+import path, { join, basename, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execSync, execFileSync, exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
-import { createReadStream } from 'fs';
 import { createInterface } from 'readline';
 import os from 'os';
 import yaml from 'js-yaml';
@@ -170,88 +167,41 @@ import {
 // Import safe error response utility
 import { sendSafeError } from './utils/errorResponse.js';
 
+// Import path security utilities (centralized in pathSecurity.js)
+import {
+  isValidProjectName,
+  safePath,
+  validateProjectNameMiddleware as validateProjectName,
+  PROJECTS_DIR as PATH_SECURITY_PROJECTS_DIR,
+} from './utils/pathSecurity.js';
+
+// Import input validators
+import {
+  validateSessionName,
+  validateServiceName,
+  validatePort,
+  validateUnitName,
+} from './utils/validators.js';
+
+// Import sovereign services configuration
+import { SOVEREIGN_SERVICES } from './config/sovereignServices.js';
+
+// Import session persistence service
+import { createSessionPersistence } from './services/sessionPersistence.js';
+
+// Import project analyzer functions
+import {
+  getLastModifiedTime,
+  calculateProjectCompletion,
+  detectTechnologies,
+} from './services/projectAnalyzer.js';
+
 // Initialize Sentry before everything else
 initSentry();
 
 // ES modules don't have __dirname, compute it
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-// ============================================================================
-// SECURITY: Path Traversal Prevention Utilities
-// ============================================================================
-import { resolve, normalize } from 'path';
-
-/**
- * Validates a project name to prevent path traversal attacks.
- * Only allows alphanumeric characters, hyphens, underscores, and dots.
- * Rejects any path components like '..' or '/' or '\\'.
- *
- * @param {string} name - The project name to validate
- * @returns {boolean} - True if valid, false if potentially malicious
- */
-function isValidProjectName(name) {
-  if (!name || typeof name !== 'string') return false;
-
-  // Reject if contains path traversal patterns
-  if (name.includes('..') || name.includes('/') || name.includes('\\')) {
-    return false;
-  }
-
-  // Reject if starts or ends with dots (hidden files, edge cases)
-  if (name.startsWith('.') || name.endsWith('.')) {
-    return false;
-  }
-
-  // Only allow alphanumeric, hyphens, underscores, and single dots
-  // This is a strict allowlist approach
-  const validPattern = /^[a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9]$|^[a-zA-Z0-9]$/;
-  return validPattern.test(name);
-}
-
-/**
- * Safely resolves a path and ensures it stays within the allowed base directory.
- * Prevents path traversal attacks by validating the resolved path.
- *
- * @param {string} baseDir - The allowed base directory
- * @param {string[]} pathParts - Path components to join
- * @returns {string|null} - The safe resolved path, or null if traversal detected
- */
-function safePath(baseDir, ...pathParts) {
-  const normalizedBase = resolve(baseDir);
-  const targetPath = resolve(normalizedBase, ...pathParts);
-
-  // Ensure the resolved path is still within the base directory
-  if (!targetPath.startsWith(normalizedBase + '/') && targetPath !== normalizedBase) {
-    logSecurityEvent({
-      event: 'path_traversal_attempt',
-      baseDir: normalizedBase,
-      attemptedPath: pathParts.join('/'),
-      resolvedPath: targetPath,
-    });
-    return null;
-  }
-
-  return targetPath;
-}
-
-/**
- * Middleware to validate project name parameter.
- * Returns 400 if invalid, continues if valid.
- */
-function validateProjectName(req, res, next) {
-  const projectName = req.params.projectName || req.params.project;
-  if (projectName && !isValidProjectName(projectName)) {
-    logSecurityEvent({
-      event: 'invalid_project_name',
-      projectName,
-      ip: req.ip,
-      path: req.path,
-    });
-    return res.status(400).json({ error: 'Invalid project name' });
-  }
-  next();
-}
 
 // ============================================================================
 
@@ -295,6 +245,18 @@ prisma.$on('warn', (e) => {
 
 // Start database connection pool metrics collection
 startPoolMetricsCollection(pool, 5000); // Update every 5 seconds
+
+// Initialize session persistence service
+const sessionPersistence = createSessionPersistence(prisma);
+const {
+  getOrCreateProject,
+  updateProjectAccess,
+  saveSessionState,
+  getSessionState,
+  markSessionDisconnected,
+  getUserSettings,
+  updateUserSettings,
+} = sessionPersistence;
 
 const app = express();
 const server = createServer(app);
@@ -350,72 +312,7 @@ function shutdownMiddleware(req, res, next) {
 // No special directory setup needed - shpool auto-daemonizes
 // Sessions named with 'sp-' prefix for this app
 
-// Sovereign Stack service configuration
-const SOVEREIGN_SERVICES = {
-  authentik: {
-    name: 'Authentik SSO',
-    port: 6201,
-    url: 'http://localhost:9000',
-    healthEndpoint: '/api/v3/core/health/',
-    icon: 'shield',
-    description: 'Identity & Access Management',
-    containerPattern: 'authentik',
-  },
-  openwebui: {
-    name: 'Open WebUI',
-    port: 6202,
-    url: 'http://localhost:6202',
-    healthEndpoint: '/health',
-    icon: 'chat',
-    description: 'Voice & Chat Interface',
-    containerPattern: 'open-webui',
-  },
-  silverbullet: {
-    name: 'SilverBullet',
-    port: 6203,
-    url: 'http://localhost:6203',
-    healthEndpoint: '/',
-    icon: 'note',
-    description: 'Knowledge Management',
-    containerPattern: 'silverbullet',
-  },
-  plane: {
-    name: 'Plane',
-    port: 6204,
-    url: 'http://localhost:6204',
-    healthEndpoint: '/api/v1/health/',
-    icon: 'kanban',
-    description: 'Project Management',
-    containerPattern: 'plane',
-  },
-  n8n: {
-    name: 'n8n',
-    port: 6205,
-    url: 'http://localhost:6205',
-    healthEndpoint: '/healthz',
-    icon: 'workflow',
-    description: 'Automation Platform',
-    containerPattern: 'n8n',
-  },
-  voiceRouter: {
-    name: 'Voice Router',
-    port: 6206,
-    url: null,
-    healthEndpoint: '/health',
-    icon: 'mic',
-    description: 'Voice Intent Classification',
-    containerPattern: 'voice-router',
-  },
-  monitoring: {
-    name: 'Monitoring Dashboard',
-    port: 9001,
-    url: null,
-    healthEndpoint: '/health',
-    icon: 'chart',
-    description: 'System Monitoring',
-    containerPattern: 'monitoring',
-  },
-};
+// Note: SOVEREIGN_SERVICES is now imported from ./config/sovereignServices.js
 
 // =============================================================================
 // SECURITY MIDDLEWARE
@@ -887,219 +784,11 @@ mcpManager.initialize().catch(err => {
   mcpLog.error({ error: err.message, stack: err.stack }, 'MCP manager failed to initialize');
 });
 
-// =============================================================================
-// DATABASE SESSION PERSISTENCE FUNCTIONS
-// =============================================================================
+// Note: Session persistence functions (getOrCreateProject, saveSessionState, etc.)
+// are now imported from ./services/sessionPersistence.js
 
-/**
- * Get or create a project in the database
- */
-async function getOrCreateProject(projectPath) {
-  const name = basename(projectPath);
-  try {
-    let project = await prisma.project.findUnique({ where: { path: projectPath } });
-    if (!project) {
-      project = await prisma.project.create({
-        data: {
-          name,
-          path: projectPath,
-          displayName: name,
-        }
-      });
-    }
-    return project;
-  } catch (error) {
-    dbLog.error({ error: error.message, projectPath }, 'failed to get/create project');
-    return null;
-  }
-}
-
-/**
- * Update project last accessed time
- */
-async function updateProjectAccess(projectPath) {
-  try {
-    await prisma.project.update({
-      where: { path: projectPath },
-      data: { lastAccessed: new Date() }
-    });
-  } catch (error) {
-    // Project might not exist yet, ignore
-  }
-}
-
-/**
- * Save session state to database
- * @param {string} projectPath - Path to project
- * @param {string} sessionName - Terminal session name
- * @param {Object} terminalSize - Terminal dimensions
- * @param {string} workingDir - Working directory
- * @param {string} ownerId - User ID who owns/created the session (Phase 2 RBAC)
- */
-async function saveSessionState(projectPath, sessionName, terminalSize = null, workingDir = null, ownerId = null) {
-  try {
-    const project = await getOrCreateProject(projectPath);
-    if (!project) return null;
-
-    const session = await prisma.session.upsert({
-      where: {
-        projectId_sessionName: {
-          projectId: project.id,
-          sessionName
-        }
-      },
-      update: {
-        status: 'ACTIVE',
-        lastActiveAt: new Date(),
-        terminalSize: terminalSize || undefined,
-        workingDirectory: workingDir || undefined
-        // Note: Don't update ownerId on reconnect - preserve original owner
-      },
-      create: {
-        projectId: project.id,
-        sessionName,
-        status: 'ACTIVE',
-        terminalSize,
-        workingDirectory: workingDir,
-        ownerId: ownerId // Set owner on creation (Phase 2 RBAC)
-      }
-    });
-
-    await updateProjectAccess(projectPath);
-    return session;
-  } catch (error) {
-    sessionLog.error({ error: error.message, projectPath, sessionName }, 'failed to save session state');
-    return null;
-  }
-}
-
-/**
- * Get session state from database
- */
-async function getSessionState(projectPath, sessionName) {
-  try {
-    const project = await prisma.project.findUnique({ where: { path: projectPath } });
-    if (!project) return null;
-
-    return await prisma.session.findUnique({
-      where: {
-        projectId_sessionName: {
-          projectId: project.id,
-          sessionName
-        }
-      }
-    });
-  } catch (error) {
-    sessionLog.error({ error: error.message, projectPath, sessionName }, 'failed to get session state');
-    return null;
-  }
-}
-
-/**
- * Mark session as disconnected
- */
-async function markSessionDisconnected(projectPath, sessionName) {
-  try {
-    const project = await prisma.project.findUnique({ where: { path: projectPath } });
-    if (!project) return;
-
-    await prisma.session.updateMany({
-      where: {
-        projectId: project.id,
-        sessionName
-      },
-      data: {
-        status: 'DISCONNECTED',
-        lastActiveAt: new Date()
-      }
-    });
-    sessionLog.debug({ projectPath, sessionName }, 'session marked disconnected');
-  } catch (error) {
-    sessionLog.error({ error: error.message, projectPath, sessionName }, 'failed to mark session disconnected');
-  }
-}
-
-/**
- * Get user settings from database
- */
-async function getUserSettings() {
-  try {
-    let settings = await prisma.userSettings.findUnique({ where: { id: 'default' } });
-    if (!settings) {
-      settings = await prisma.userSettings.create({
-        data: { id: 'default' }
-      });
-    }
-    return settings;
-  } catch (error) {
-    dbLog.error({ error: error.message }, 'failed to get user settings');
-    return null;
-  }
-}
-
-/**
- * Update user settings
- */
-async function updateUserSettings(data) {
-  try {
-    return await prisma.userSettings.upsert({
-      where: { id: 'default' },
-      update: data,
-      create: { id: 'default', ...data }
-    });
-  } catch (error) {
-    dbLog.error({ error: error.message }, 'failed to update user settings');
-    return null;
-  }
-}
-
-// =============================================================================
-// SECURITY: INPUT VALIDATION HELPERS
-// =============================================================================
-
-/**
- * Validate and sanitize a shpool session name
- * Only allows alphanumeric, dash, and underscore
- */
-function validateSessionName(sessionName) {
-  if (typeof sessionName !== 'string') return null;
-  // Session names must start with sp- or cp- (legacy) and only contain safe characters
-  if (!/^(sp|cp)-[a-zA-Z0-9_-]+$/.test(sessionName)) return null;
-  if (sessionName.length > 100) return null;
-  return sessionName;
-}
-
-/**
- * Validate and sanitize a systemd service name
- * Only allows alphanumeric, dash, underscore, and @
- */
-function validateServiceName(serviceName) {
-  if (typeof serviceName !== 'string') return null;
-  // Service names only contain safe characters (no shell metacharacters)
-  if (!/^[a-zA-Z0-9_@.-]+$/.test(serviceName)) return null;
-  if (serviceName.length > 256) return null;
-  return serviceName;
-}
-
-/**
- * Validate a port number
- * Must be a positive integer between 1 and 65535
- */
-function validatePort(port) {
-  const num = parseInt(port, 10);
-  if (isNaN(num) || num < 1 || num > 65535) return null;
-  return num;
-}
-
-/**
- * Validate a journalctl unit name
- */
-function validateUnitName(unit) {
-  if (typeof unit !== 'string') return null;
-  if (!/^[a-zA-Z0-9_@.-]+$/.test(unit)) return null;
-  if (unit.length > 256) return null;
-  return unit;
-}
+// Note: Input validation helpers (validateSessionName, validateServiceName, etc.)
+// are now imported from ./utils/validators.js
 
 // =============================================================================
 // SHPOOL SESSION MANAGEMENT
@@ -1393,300 +1082,8 @@ function buildAICommand(config) {
   }
 }
 
-/**
- * Get most recent modification time in a directory (recursive, limited depth)
- */
-function getLastModifiedTime(dirPath, maxDepth = 2, currentDepth = 0) {
-  if (currentDepth >= maxDepth) return null;
-
-  try {
-    const entries = readdirSync(dirPath);
-    let mostRecent = null;
-
-    for (const entry of entries) {
-      // Skip hidden files and common non-source directories
-      if (entry.startsWith('.') || ['node_modules', 'dist', 'build', '.git', 'coverage', '__pycache__'].includes(entry)) {
-        continue;
-      }
-
-      const fullPath = join(dirPath, entry);
-      try {
-        const stat = statSync(fullPath);
-        const mtime = stat.mtime;
-
-        if (!mostRecent || mtime > mostRecent) {
-          mostRecent = mtime;
-        }
-
-        // Recurse into directories
-        if (stat.isDirectory()) {
-          const subMostRecent = getLastModifiedTime(fullPath, maxDepth, currentDepth + 1);
-          if (subMostRecent && (!mostRecent || subMostRecent > mostRecent)) {
-            mostRecent = subMostRecent;
-          }
-        }
-      } catch {
-        // Skip inaccessible files
-      }
-    }
-
-    return mostRecent;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Calculate project completion percentage (10 factors like projects-portfolio)
- */
-function calculateProjectCompletion(projectPath) {
-  const scores = {
-    readme: 0,
-    packageJson: 0,
-    buildConfig: 0,
-    tests: 0,
-    documentation: 0,
-    cicd: 0,
-    license: 0,
-    envExample: 0,
-    sourceStructure: 0,
-    claudeMd: 0
-  };
-
-  const weights = {
-    readme: 12,
-    packageJson: 10,
-    buildConfig: 8,
-    tests: 15,
-    documentation: 10,
-    cicd: 10,
-    license: 5,
-    envExample: 5,
-    sourceStructure: 10,
-    claudeMd: 15
-  };
-
-  const missing = [];
-
-  try {
-    // README quality
-    const readmePath = join(projectPath, 'README.md');
-    if (existsSync(readmePath)) {
-      const content = readFileSync(readmePath, 'utf-8');
-      const lines = content.split('\n').length;
-      if (lines > 100) scores.readme = 1.0;
-      else if (lines > 50) scores.readme = 0.8;
-      else if (lines > 20) scores.readme = 0.6;
-      else if (lines > 5) scores.readme = 0.4;
-      else scores.readme = 0.2;
-    } else {
-      missing.push('README.md');
-    }
-
-    // Package.json completeness
-    const pkgPath = join(projectPath, 'package.json');
-    if (existsSync(pkgPath)) {
-      try {
-        const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
-        let pkgScore = 0;
-        if (pkg.name) pkgScore += 0.15;
-        if (pkg.version) pkgScore += 0.1;
-        if (pkg.description) pkgScore += 0.15;
-        if (pkg.scripts && Object.keys(pkg.scripts).length > 0) pkgScore += 0.2;
-        if (pkg.dependencies && Object.keys(pkg.dependencies).length > 0) pkgScore += 0.15;
-        if (pkg.devDependencies && Object.keys(pkg.devDependencies).length > 0) pkgScore += 0.1;
-        if (pkg.author || pkg.contributors) pkgScore += 0.1;
-        if (pkg.license) pkgScore += 0.05;
-        scores.packageJson = Math.min(pkgScore, 1.0);
-      } catch {
-        scores.packageJson = 0.3;
-      }
-    } else {
-      // Check for other project types
-      if (existsSync(join(projectPath, 'requirements.txt')) ||
-          existsSync(join(projectPath, 'pyproject.toml')) ||
-          existsSync(join(projectPath, 'Cargo.toml')) ||
-          existsSync(join(projectPath, 'go.mod'))) {
-        scores.packageJson = 0.8;
-      } else {
-        missing.push('package.json');
-      }
-    }
-
-    // Build config
-    const buildConfigs = ['vite.config.js', 'vite.config.ts', 'webpack.config.js', 'tsconfig.json',
-                          'rollup.config.js', 'esbuild.config.js', 'next.config.js', 'next.config.mjs'];
-    const hasBuildConfig = buildConfigs.some(f => existsSync(join(projectPath, f)));
-    if (hasBuildConfig) {
-      scores.buildConfig = 1.0;
-    } else {
-      missing.push('Build config');
-    }
-
-    // Tests
-    const hasTestDir = existsSync(join(projectPath, 'tests')) ||
-                       existsSync(join(projectPath, 'test')) ||
-                       existsSync(join(projectPath, '__tests__')) ||
-                       existsSync(join(projectPath, 'spec'));
-    const testConfigs = ['jest.config.js', 'jest.config.ts', 'vitest.config.js', 'vitest.config.ts',
-                         'pytest.ini', '.pytest.ini', 'karma.conf.js'];
-    const hasTestConfig = testConfigs.some(f => existsSync(join(projectPath, f)));
-
-    if (hasTestDir && hasTestConfig) scores.tests = 1.0;
-    else if (hasTestDir) scores.tests = 0.7;
-    else if (hasTestConfig) scores.tests = 0.4;
-    else missing.push('Tests');
-
-    // Documentation
-    const hasDocsDir = existsSync(join(projectPath, 'docs')) || existsSync(join(projectPath, 'documentation'));
-    let mdFileCount = 0;
-    try {
-      const entries = readdirSync(projectPath);
-      mdFileCount = entries.filter(e => e.endsWith('.md') && e !== 'README.md' && e !== 'CLAUDE.md').length;
-    } catch {
-      // Directory read failed, use default count
-    }
-
-    if (hasDocsDir && mdFileCount > 2) scores.documentation = 1.0;
-    else if (hasDocsDir || mdFileCount > 2) scores.documentation = 0.7;
-    else if (mdFileCount > 0) scores.documentation = 0.4;
-    else missing.push('Documentation');
-
-    // CI/CD
-    const hasGithubWorkflows = existsSync(join(projectPath, '.github', 'workflows'));
-    const hasGitlabCI = existsSync(join(projectPath, '.gitlab-ci.yml'));
-    if (hasGithubWorkflows || hasGitlabCI) {
-      scores.cicd = 1.0;
-    } else {
-      missing.push('CI/CD');
-    }
-
-    // License
-    if (existsSync(join(projectPath, 'LICENSE')) || existsSync(join(projectPath, 'LICENSE.md'))) {
-      scores.license = 1.0;
-    } else {
-      missing.push('LICENSE');
-    }
-
-    // Environment example
-    if (existsSync(join(projectPath, '.env.example')) ||
-        existsSync(join(projectPath, '.env.sample')) ||
-        existsSync(join(projectPath, '.env.template'))) {
-      scores.envExample = 1.0;
-    } else {
-      missing.push('.env.example');
-    }
-
-    // Source structure
-    const srcDirs = ['src', 'lib', 'app', 'components', 'server', 'client', 'frontend', 'backend', 'pages'];
-    const presentSrcDirs = srcDirs.filter(d => existsSync(join(projectPath, d)));
-    if (presentSrcDirs.length >= 2) scores.sourceStructure = 1.0;
-    else if (presentSrcDirs.length === 1) scores.sourceStructure = 0.7;
-    else missing.push('Source structure (src/, lib/, etc.)');
-
-    // CLAUDE.md (project-specific instructions)
-    if (existsSync(join(projectPath, 'CLAUDE.md'))) {
-      scores.claudeMd = 1.0;
-    } else {
-      missing.push('CLAUDE.md');
-    }
-
-  } catch (error) {
-    log.error({ error: error.message, projectPath }, 'error calculating completion');
-  }
-
-  // Calculate total percentage
-  let totalScore = 0;
-  let totalWeight = 0;
-  for (const [key, score] of Object.entries(scores)) {
-    totalScore += score * weights[key];
-    totalWeight += weights[key];
-  }
-
-  const percentage = Math.round((totalScore / totalWeight) * 100);
-
-  return {
-    percentage,
-    scores,
-    weights,
-    missing
-  };
-}
-
-/**
- * Detect technologies used in a project
- */
-function detectTechnologies(projectPath) {
-  const technologies = [];
-
-  try {
-    // Check package.json for JS/TS projects
-    const pkgPath = join(projectPath, 'package.json');
-    if (existsSync(pkgPath)) {
-      const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
-      const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
-
-      // Frameworks
-      if (allDeps.react) technologies.push('React');
-      if (allDeps.vue) technologies.push('Vue');
-      if (allDeps.angular) technologies.push('Angular');
-      if (allDeps.svelte) technologies.push('Svelte');
-      if (allDeps.next) technologies.push('Next.js');
-      if (allDeps.nuxt) technologies.push('Nuxt');
-
-      // Backend
-      if (allDeps.express) technologies.push('Express');
-      if (allDeps.fastify) technologies.push('Fastify');
-      if (allDeps.koa) technologies.push('Koa');
-      if (allDeps.hono) technologies.push('Hono');
-
-      // Languages
-      if (allDeps.typescript || existsSync(join(projectPath, 'tsconfig.json'))) {
-        technologies.push('TypeScript');
-      } else {
-        technologies.push('JavaScript');
-      }
-
-      // Database/ORM
-      if (allDeps.prisma || allDeps['@prisma/client']) technologies.push('Prisma');
-      if (allDeps.mongoose) technologies.push('MongoDB');
-      if (allDeps.pg) technologies.push('PostgreSQL');
-      if (allDeps.sqlite3 || allDeps['better-sqlite3']) technologies.push('SQLite');
-
-      // Tools
-      if (allDeps.vite) technologies.push('Vite');
-      if (allDeps.webpack) technologies.push('Webpack');
-      if (allDeps.tailwindcss) technologies.push('Tailwind');
-      if (allDeps.electron) technologies.push('Electron');
-      if (allDeps['socket.io']) technologies.push('Socket.IO');
-    }
-
-    // Python projects
-    if (existsSync(join(projectPath, 'requirements.txt')) || existsSync(join(projectPath, 'pyproject.toml'))) {
-      technologies.push('Python');
-    }
-
-    // Rust projects
-    if (existsSync(join(projectPath, 'Cargo.toml'))) {
-      technologies.push('Rust');
-    }
-
-    // Go projects
-    if (existsSync(join(projectPath, 'go.mod'))) {
-      technologies.push('Go');
-    }
-
-    // Docker
-    if (existsSync(join(projectPath, 'Dockerfile')) || existsSync(join(projectPath, 'docker-compose.yml'))) {
-      technologies.push('Docker');
-    }
-
-  } catch {
-    // Ignore errors
-  }
-
-  return technologies;
-}
+// Note: getLastModifiedTime, calculateProjectCompletion, detectTechnologies
+// are now imported from ./services/projectAnalyzer.js
 
 /**
  * Get project list from PROJECTS_DIR
