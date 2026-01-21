@@ -211,6 +211,10 @@ model Project {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  // Session tracking - when was a session first started?
+  firstOpenedAt DateTime?                    // Set when first session is created
+  hasBeenOpened Boolean   @default(false)    // Quick filter for sidebar
+
   // Project settings
   autoStart       Boolean   @default(false)
   favorited       Boolean   @default(false)
@@ -224,10 +228,14 @@ model Project {
   githubRepo    GitHubRepo?
   tags          ProjectTagAssignment[]
   notes         ProjectNote[]
+  portRange     PortRange?
+  ports         PortAllocation[]
 
   @@index([name])
   @@index([lastAccessed])
   @@index([priority])
+  @@index([hasBeenOpened])
+  @@index([firstOpenedAt])
 }
 
 enum ProjectPriority {
@@ -330,10 +338,14 @@ model UserSettings {
   sessionTimeout Int      @default(3600) // seconds
 
   // AI Solution preferences
-  preferredAISolution   String    @default("claude-code")  // claude-code, code-puppy, hybrid
+  preferredAISolution   String    @default("claude-code")  // claude-code, opencode, code-puppy, hybrid
   codePuppyModel        String?   // Default model for Code Puppy (e.g., claude-sonnet-4-20250514)
   codePuppyProvider     String?   // Default provider for Code Puppy (e.g., anthropic)
   hybridMode            String    @default("code-puppy-with-claude-tools")  // code-puppy-with-claude-tools, claude-with-puppy-agents
+
+  // OpenCode preferences (open-source multi-provider alternative)
+  openCodeProvider      String?   // Provider: anthropic, openai, google, local
+  openCodeModel         String?   // Model in provider/model format (e.g., anthropic/claude-sonnet-4-20250514)
 
   // Resource Control - Scan Settings
   // These prevent system overload from security/quality scans
@@ -1567,4 +1579,54 @@ model ClaudeFlowSwarm {
 
   @@index([status])
   @@index([createdAt])
+}
+
+// ============================================
+// Centralized Port Management
+// ============================================
+
+// Individual port allocations
+model PortAllocation {
+  id            String    @id @default(cuid())
+  port          Int       @unique
+  projectId     String?
+  project       Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  // What the port is used for
+  purpose       String?   // e.g., "frontend", "api", "database", "debug"
+  service       String?   // e.g., "vite", "fastify", "postgres"
+
+  // Status
+  isReserved    Boolean   @default(false)  // System-reserved port (e.g., 22, 80, 443)
+  isActive      Boolean   @default(false)  // Currently in use (process listening)
+
+  // Notes
+  description   String?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([projectId])
+  @@index([port])
+  @@index([isActive])
+  @@index([isReserved])
+}
+
+// Port range allocation per project
+model PortRange {
+  id            String    @id @default(cuid())
+  projectId     String    @unique
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Range definition
+  startPort     Int
+  endPort       Int
+
+  // Metadata
+  description   String?   // e.g., "Development ports for my-app"
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([startPort, endPort])
 }

@@ -20,6 +20,7 @@ export { createBackupsRouter } from './backups.js';
 export { createShareRouter, createActivityRouter, createCommentsRouter, createTeamRouter, createHandoffRouter } from './collaboration.js';
 export { createMetricsRouter, createUptimeRouter, createNetworkRouter, createCostRouter } from './monitoring.js';
 export { createPortsRouter, createEnvRouter, createDbBrowserRouter, createProxyRouter } from './devtools.js';
+export { createPortManagementRouter } from './ports.js';
 export { createMCPRouter } from './mcp.js';
 export { createContextsRouter } from './contexts.js';
 export { createCheckpointsRouter } from './checkpoints.js';
