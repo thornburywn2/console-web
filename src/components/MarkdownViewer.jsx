@@ -6,14 +6,29 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
+import DOMPurify from 'dompurify';
 import { filesContentApi } from '../services/api.js';
 
-// Simple markdown parser (no external dependencies)
+// Configure DOMPurify for safe markdown rendering
+const purifyConfig = {
+  ALLOWED_TAGS: [
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'hr',
+    'strong', 'em', 'del', 'code', 'pre', 'blockquote',
+    'ul', 'ol', 'li', 'a', 'img', 'table', 'tr', 'td', 'th',
+    'article', 'nav', 'div', 'span'
+  ],
+  ALLOWED_ATTR: [
+    'href', 'src', 'alt', 'class', 'id', 'target', 'rel', 'data-lang', 'style'
+  ],
+  ALLOW_DATA_ATTR: false,
+};
+
+// Simple markdown parser with DOMPurify sanitization
 const parseMarkdown = (md) => {
   if (!md) return '';
 
   let html = md
-    // Escape HTML
+    // Escape HTML first for security
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -161,7 +176,7 @@ export default function MarkdownViewer({
     fetchContent();
   }, [filePath, content, isOpen]);
 
-  const html = useMemo(() => parseMarkdown(markdown), [markdown]);
+  const html = useMemo(() => DOMPurify.sanitize(parseMarkdown(markdown), purifyConfig), [markdown]);
   const toc = useMemo(() => extractTOC(markdown), [markdown]);
 
   const scrollToHeader = (id) => {

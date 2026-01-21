@@ -1,10 +1,11 @@
 /**
  * AdminDashboard Component Tests
  * Phase 5.3: Unit tests for the main admin dashboard
+ * Updated for refactored AdminNav sidebar navigation
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import AdminDashboard from './AdminDashboard';
 
 // Mock all the child components to simplify testing
@@ -106,16 +107,26 @@ describe('AdminDashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockHasRole.mockReturnValue(true); // Allow all roles by default
+    // Mock localStorage for AdminNav section states
+    Storage.prototype.getItem = vi.fn(() => '{}');
+    Storage.prototype.setItem = vi.fn();
   });
 
-  describe('tab navigation', () => {
-    it('should render the main tab buttons', () => {
+  describe('sidebar navigation', () => {
+    it('should render the main navigation items', () => {
       render(<AdminDashboard onClose={mockOnClose} />);
 
-      expect(screen.getByText('PROJECTS')).toBeInTheDocument();
-      expect(screen.getByText('SETTINGS')).toBeInTheDocument();
-      expect(screen.getByText('AUTOMATION')).toBeInTheDocument();
-      expect(screen.getByText('HISTORY')).toBeInTheDocument();
+      // Navigation sidebar items are title-case in AdminNav
+      expect(screen.getByText('Projects')).toBeInTheDocument();
+      expect(screen.getByText('Settings')).toBeInTheDocument();
+      expect(screen.getByText('History')).toBeInTheDocument();
+    });
+
+    it('should render automation section items', () => {
+      render(<AdminDashboard onClose={mockOnClose} />);
+
+      expect(screen.getByText('Agents')).toBeInTheDocument();
+      expect(screen.getByText('MCP Servers')).toBeInTheDocument();
     });
 
     it('should show PROJECTS tab content by default', () => {
@@ -127,61 +138,92 @@ describe('AdminDashboard', () => {
     it('should switch to SETTINGS tab when clicked', async () => {
       render(<AdminDashboard onClose={mockOnClose} />);
 
-      fireEvent.click(screen.getByText('SETTINGS'));
+      fireEvent.click(screen.getByText('Settings'));
 
       await waitFor(() => {
         expect(screen.getByTestId('settings-tab')).toBeInTheDocument();
       });
     });
 
-    it('should switch to AUTOMATION tab when clicked', async () => {
-      render(<AdminDashboard onClose={mockOnClose} />);
-
-      fireEvent.click(screen.getByText('AUTOMATION'));
-
-      await waitFor(() => {
-        expect(screen.getByTestId('automation-tab')).toBeInTheDocument();
-      });
-    });
-
     it('should switch to HISTORY tab when clicked', async () => {
       render(<AdminDashboard onClose={mockOnClose} />);
 
-      fireEvent.click(screen.getByText('HISTORY'));
+      fireEvent.click(screen.getByText('History'));
 
       await waitFor(() => {
         expect(screen.getByTestId('history-tab')).toBeInTheDocument();
       });
     });
+
+    it('should switch to AUTOMATION/Agents tab when clicked', async () => {
+      render(<AdminDashboard onClose={mockOnClose} />);
+
+      fireEvent.click(screen.getByText('Agents'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('automation-tab')).toBeInTheDocument();
+      });
+    });
   });
 
   describe('RBAC tab visibility', () => {
-    it('should show SERVER tab when user has admin role', () => {
+    it('should show Server section header when user has admin role', () => {
       mockHasRole.mockReturnValue(true);
       render(<AdminDashboard onClose={mockOnClose} />);
 
-      expect(screen.getByText('SERVER')).toBeInTheDocument();
+      // Server section header should be visible (items are in collapsed section)
+      expect(screen.getByText('Server')).toBeInTheDocument();
     });
 
-    it('should show SECURITY tab when user has admin role', () => {
+    it('should show Server section items when expanded', async () => {
       mockHasRole.mockReturnValue(true);
       render(<AdminDashboard onClose={mockOnClose} />);
 
-      expect(screen.getByText('SECURITY')).toBeInTheDocument();
+      // Click on Server section to expand it
+      fireEvent.click(screen.getByText('Server'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Overview')).toBeInTheDocument();
+        expect(screen.getByText('Services')).toBeInTheDocument();
+        expect(screen.getByText('Docker')).toBeInTheDocument();
+      });
     });
 
-    it('should hide SERVER tab when user lacks admin role', () => {
+    it('should show Security section header when user has admin role', () => {
+      mockHasRole.mockReturnValue(true);
+      render(<AdminDashboard onClose={mockOnClose} />);
+
+      // Security section header should be visible
+      expect(screen.getByText('Security')).toBeInTheDocument();
+    });
+
+    it('should show Security section items when expanded', async () => {
+      mockHasRole.mockReturnValue(true);
+      render(<AdminDashboard onClose={mockOnClose} />);
+
+      // Click on Security section to expand it
+      fireEvent.click(screen.getByText('Security'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Scans')).toBeInTheDocument();
+        expect(screen.getByText('Firewall')).toBeInTheDocument();
+      });
+    });
+
+    it('should hide Server section when user lacks admin role', () => {
       mockHasRole.mockImplementation((role) => role !== 'ADMIN' && role !== 'SUPERADMIN');
       render(<AdminDashboard onClose={mockOnClose} />);
 
-      expect(screen.queryByText('SERVER')).not.toBeInTheDocument();
+      // Server section should not be visible at all
+      expect(screen.queryByText('Server')).not.toBeInTheDocument();
     });
 
-    it('should hide SECURITY tab when user lacks admin role', () => {
+    it('should hide Security section when user lacks admin role', () => {
       mockHasRole.mockImplementation((role) => role !== 'ADMIN' && role !== 'SUPERADMIN');
       render(<AdminDashboard onClose={mockOnClose} />);
 
-      expect(screen.queryByText('SECURITY')).not.toBeInTheDocument();
+      // Security section should not be visible at all
+      expect(screen.queryByText('Security')).not.toBeInTheDocument();
     });
   });
 
@@ -190,7 +232,14 @@ describe('AdminDashboard', () => {
       mockHasRole.mockReturnValue(true);
       render(<AdminDashboard onClose={mockOnClose} />);
 
-      fireEvent.click(screen.getByText('SERVER'));
+      // First expand the Server section
+      fireEvent.click(screen.getByText('Server'));
+      await waitFor(() => {
+        expect(screen.getByText('Overview')).toBeInTheDocument();
+      });
+
+      // Then click on Overview
+      fireEvent.click(screen.getByText('Overview'));
 
       await waitFor(() => {
         expect(screen.getByTestId('server-tab')).toBeInTheDocument();
@@ -201,7 +250,14 @@ describe('AdminDashboard', () => {
       mockHasRole.mockReturnValue(true);
       render(<AdminDashboard onClose={mockOnClose} />);
 
-      fireEvent.click(screen.getByText('SECURITY'));
+      // First expand the Security section
+      fireEvent.click(screen.getByText('Security'));
+      await waitFor(() => {
+        expect(screen.getByText('Scans')).toBeInTheDocument();
+      });
+
+      // Then click on Scans
+      fireEvent.click(screen.getByText('Scans'));
 
       await waitFor(() => {
         expect(screen.getByTestId('security-tab')).toBeInTheDocument();
@@ -210,63 +266,99 @@ describe('AdminDashboard', () => {
   });
 
   describe('header', () => {
-    it('should display the Command Portal title', () => {
+    it('should display the active tab name in header', () => {
       render(<AdminDashboard onClose={mockOnClose} />);
 
-      expect(screen.getByText('Command Portal')).toBeInTheDocument();
+      // Header shows the active tab name (PROJECTS by default)
+      const header = screen.getByRole('heading', { level: 1 });
+      expect(header).toHaveTextContent(/projects/i);
     });
 
     it('should display the close button', () => {
       render(<AdminDashboard onClose={mockOnClose} />);
 
-      expect(screen.getByText('[ESC]')).toBeInTheDocument();
+      expect(screen.getByText('Close')).toBeInTheDocument();
     });
 
     it('should call onClose when close button is clicked', () => {
       render(<AdminDashboard onClose={mockOnClose} />);
 
-      fireEvent.click(screen.getByText('[ESC]'));
+      fireEvent.click(screen.getByText('Close'));
 
       expect(mockOnClose).toHaveBeenCalled();
     });
   });
 
-  describe('footer', () => {
-    it('should display the version number', () => {
+  describe('sidebar header', () => {
+    it('should display ADMIN label', () => {
       render(<AdminDashboard onClose={mockOnClose} />);
 
-      expect(screen.getByText('v1.0.24')).toBeInTheDocument();
-    });
-
-    it('should display the system label', () => {
-      render(<AdminDashboard onClose={mockOnClose} />);
-
-      expect(screen.getByText('CP://SYSTEM')).toBeInTheDocument();
-    });
-
-    it('should display the current date', () => {
-      render(<AdminDashboard onClose={mockOnClose} />);
-
-      const today = new Date().toLocaleDateString();
-      expect(screen.getByText(today)).toBeInTheDocument();
+      expect(screen.getByText('ADMIN')).toBeInTheDocument();
     });
   });
 
-  describe('active tab indicator', () => {
-    it('should show PROJECTS as the initial active tab in footer', () => {
+  describe('version display', () => {
+    it('should display the version number in sidebar', () => {
       render(<AdminDashboard onClose={mockOnClose} />);
 
-      expect(screen.getByText('TAB: PROJECTS')).toBeInTheDocument();
+      expect(screen.getByText('v1.0.27')).toBeInTheDocument();
     });
+  });
 
-    it('should update footer when switching tabs', async () => {
+  describe('header updates on tab change', () => {
+    it('should update header when switching tabs', async () => {
       render(<AdminDashboard onClose={mockOnClose} />);
 
-      fireEvent.click(screen.getByText('SETTINGS'));
+      fireEvent.click(screen.getByText('Settings'));
 
       await waitFor(() => {
-        expect(screen.getByText('TAB: SETTINGS')).toBeInTheDocument();
+        const header = screen.getByRole('heading', { level: 1 });
+        expect(header).toHaveTextContent(/settings/i);
       });
+    });
+
+    it('should update header when switching to History', async () => {
+      render(<AdminDashboard onClose={mockOnClose} />);
+
+      fireEvent.click(screen.getByText('History'));
+
+      await waitFor(() => {
+        const header = screen.getByRole('heading', { level: 1 });
+        expect(header).toHaveTextContent(/history/i);
+      });
+    });
+  });
+
+  describe('navigation sections', () => {
+    it('should have Main section with Projects, Settings, History', () => {
+      render(<AdminDashboard onClose={mockOnClose} />);
+
+      expect(screen.getByText('Main')).toBeInTheDocument();
+      expect(screen.getByText('Projects')).toBeInTheDocument();
+      expect(screen.getByText('Settings')).toBeInTheDocument();
+      expect(screen.getByText('History')).toBeInTheDocument();
+    });
+
+    it('should have Automation section with Agents and MCP Servers', () => {
+      render(<AdminDashboard onClose={mockOnClose} />);
+
+      expect(screen.getByText('Automation')).toBeInTheDocument();
+      expect(screen.getByText('Agents')).toBeInTheDocument();
+      expect(screen.getByText('MCP Servers')).toBeInTheDocument();
+    });
+
+    it('should have Server section for admin users', () => {
+      mockHasRole.mockReturnValue(true);
+      render(<AdminDashboard onClose={mockOnClose} />);
+
+      expect(screen.getByText('Server')).toBeInTheDocument();
+    });
+
+    it('should have Security section for admin users', () => {
+      mockHasRole.mockReturnValue(true);
+      render(<AdminDashboard onClose={mockOnClose} />);
+
+      expect(screen.getByText('Security')).toBeInTheDocument();
     });
   });
 });
