@@ -9,11 +9,10 @@ import { io } from 'socket.io-client';
 import { projectsApi, systemApi, notesApi, sessionsPersistedApi } from './services/api.js';
 
 // Core components (always loaded - essential for initial render)
-import LeftSidebar from './components/LeftSidebar';
+import { LeftSidebar, RightSidebar } from './components/sidebar';
 import Terminal from './components/Terminal';
 import { TerminalTabBar } from './components/terminal';
 import { useTerminalTabs } from './hooks/useTerminalTabs';
-import RightSidebar from './components/RightSidebar';
 import CommandPalette from './components/CommandPalette';
 import BulkActionBar from './components/BulkActionBar';
 import HomeDashboard from './components/HomeDashboard';
@@ -121,6 +120,7 @@ function App() {
   const [showPromptLibrary, setShowPromptLibrary] = useState(false);
   const [showSnippetPalette, setShowSnippetPalette] = useState(false);
   const [showCreateProject, setShowCreateProject] = useState(false);
+  const [createProjectPrompt, setCreateProjectPrompt] = useState('');
   const [showCheckpointPanel, setShowCheckpointPanel] = useState(false);
   const [sessionNotes, setSessionNotes] = useState([]);
   const [customTemplates, setCustomTemplates] = useState([]);
@@ -218,6 +218,19 @@ function App() {
         // Get the most recent session (already sorted by lastActiveAt desc)
         const lastSession = sessions[0];
         if (lastSession && lastSession.project) {
+          // Validate the project path - skip if it's the parent Projects directory
+          const projectPath = lastSession.project.path;
+          const projectName = lastSession.project.name;
+          const PROJECTS_DIR = import.meta.env.VITE_PROJECTS_DIR || '/home/thornburywn/Projects';
+          const normalizedPath = projectPath?.replace(/\/$/, '');
+
+          if (!projectPath || !projectName ||
+              projectName === 'Home' || projectName === 'Projects' ||
+              normalizedPath === PROJECTS_DIR) {
+            console.log('Skipping invalid project path for auto-reconnect:', projectPath);
+            return;
+          }
+
           console.log('Auto-reconnecting to last active session:', lastSession.project.path);
           // Set the selected project in state so UI shows correctly
           setSelectedProject({
@@ -358,7 +371,7 @@ function App() {
     : null;
 
   // Handle project selection
-  const handleSelectProject = useCallback((project) => {
+  const handleSelectProject = useCallback((project, overrideAI = null) => {
     if (!socket || !isConnected) {
       setError('Not connected to server');
       return;
@@ -380,15 +393,25 @@ function App() {
     // Regular project selection - close home dashboard if open
     setShowHomeDashboard(false);
 
-    if (selectedProject?.path === project.path) {
-      // Already selected, do nothing
+    if (selectedProject?.path === project.path && !overrideAI) {
+      // Already selected, do nothing (unless overriding AI)
       return;
     }
 
     setTerminalReady(false);
     setSelectedProject(project);
-    socket.emit('select-project', project.path);
+    // Pass override AI solution if specified
+    if (overrideAI) {
+      socket.emit('select-project', project.path, { overrideAI });
+    } else {
+      socket.emit('select-project', project.path);
+    }
   }, [socket, isConnected, selectedProject, projectsDir]);
+
+  // Handle project selection with specific AI solution
+  const handleSelectProjectWithAI = useCallback((project, aiSolution) => {
+    handleSelectProject(project, aiSolution);
+  }, [handleSelectProject]);
 
   // Handle killing a session
   const handleKillSession = useCallback((projectPath) => {
@@ -797,11 +820,15 @@ function App() {
             projects={projects}
             selectedProject={selectedProject}
             onSelectProject={handleSelectProject}
+            onSelectProjectWithAI={handleSelectProjectWithAI}
             onKillSession={handleKillSession}
             onRefresh={fetchProjects}
             isLoading={isLoading}
             onOpenAdmin={handleOpenAdmin}
-            onCreateProject={() => setShowCreateProject(true)}
+            onCreateProject={() => {
+              setCreateProjectPrompt('');
+              setShowCreateProject(true);
+            }}
             onOpenGitHubRepos={() => setShowGitHubRepos(true)}
             projectsDir={projectsDir}
           />
@@ -932,6 +959,10 @@ function App() {
                 onSelectProject={(project) => {
                   setShowHomeDashboard(false);
                   handleSelectProject(project);
+                }}
+                onCreateProject={(data) => {
+                  setCreateProjectPrompt(data?.initialPrompt || '');
+                  setShowCreateProject(true);
                 }}
                 projects={projects}
               />
@@ -1184,7 +1215,11 @@ function App() {
       {showCreateProject && (
         <Suspense fallback={<LoadingFallback />}>
           <CreateProjectModal
-            onClose={() => setShowCreateProject(false)}
+            initialPrompt={createProjectPrompt}
+            onClose={() => {
+              setShowCreateProject(false);
+              setCreateProjectPrompt('');
+            }}
             onCreated={(newProject) => {
               // Refresh projects list and select the new project
               fetchProjects().then(() => {

@@ -10,7 +10,9 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { spawn } from 'node-pty';
+import fs from 'fs';
 import { readdirSync, statSync, existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import path from 'path';
 import { join, basename, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execSync, execFileSync, exec } from 'child_process';
@@ -20,6 +22,7 @@ const execAsync = promisify(exec);
 import { createReadStream } from 'fs';
 import { createInterface } from 'readline';
 import os from 'os';
+import yaml from 'js-yaml';
 import Docker from 'dockerode';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -100,6 +103,7 @@ import {
   createNetworkRouter,
   createCostRouter,
   createPortsRouter,
+  createPortManagementRouter,
   createEnvRouter,
   createDbBrowserRouter,
   createProxyRouter,
@@ -693,8 +697,11 @@ app.use('/api/network', createNetworkRouter(prisma));
 // Monitoring: API cost tracking
 app.use('/api/ai/costs', createCostRouter(prisma));
 
-// DevTools: Port management
+// DevTools: Port scanning (active ports on system)
 app.use('/api/ports', createPortsRouter());
+
+// Port Management: Database-backed port allocations and ranges
+app.use('/api/port-allocations', createPortManagementRouter(prisma));
 
 // DevTools: Environment files
 app.use('/api/env', createEnvRouter());
@@ -1056,8 +1063,8 @@ async function updateUserSettings(data) {
  */
 function validateSessionName(sessionName) {
   if (typeof sessionName !== 'string') return null;
-  // Session names must start with sp- and only contain safe characters
-  if (!/^sp-[a-zA-Z0-9_-]+$/.test(sessionName)) return null;
+  // Session names must start with sp- or cp- (legacy) and only contain safe characters
+  if (!/^(sp|cp)-[a-zA-Z0-9_-]+$/.test(sessionName)) return null;
   if (sessionName.length > 100) return null;
   return sessionName;
 }
@@ -1163,7 +1170,9 @@ function createPtySession(projectPath, socket, options = {}) {
     aiSolution = 'claude-code',
     codePuppyModel,
     codePuppyProvider,
-    hybridMode = 'code-puppy-with-claude-tools'
+    hybridMode = 'code-puppy-with-claude-tools',
+    openCodeProvider,
+    openCodeModel
   } = options;
   const sessionName = getSessionName(projectPath);
   const sessionExists = shpoolSessionExists(sessionName);
@@ -1200,7 +1209,9 @@ function createPtySession(projectPath, socket, options = {}) {
           codePuppyModel,
           codePuppyProvider,
           hybridMode,
-          projectPath
+          projectPath,
+          openCodeProvider,
+          openCodeModel
         });
         ptyProcess.write(`${aiCmd}\r`);
       }, 100);
@@ -1230,7 +1241,9 @@ function createPtySessionForTab(tabSessionName, projectPath, socket, options = {
     aiSolution = 'claude-code',
     codePuppyModel,
     codePuppyProvider,
-    hybridMode = 'code-puppy-with-claude-tools'
+    hybridMode = 'code-puppy-with-claude-tools',
+    openCodeProvider,
+    openCodeModel
   } = options;
 
   // Validate the session name
@@ -1273,7 +1286,9 @@ function createPtySessionForTab(tabSessionName, projectPath, socket, options = {
           codePuppyModel,
           codePuppyProvider,
           hybridMode,
-          projectPath
+          projectPath,
+          openCodeProvider,
+          openCodeModel
         });
         ptyProcess.write(`${aiCmd}\r`);
       }, 100);
@@ -1301,7 +1316,9 @@ function buildAICommand(config) {
     codePuppyModel,
     codePuppyProvider,
     hybridMode,
-    projectPath
+    projectPath,
+    openCodeModel,
+    openCodeProvider
   } = config;
 
   // Path to uvx (may be in ~/.local/bin)
@@ -1309,6 +1326,27 @@ function buildAICommand(config) {
   const uvxCmd = existsSync(uvxPath) ? uvxPath : 'uvx';
 
   switch (aiSolution) {
+    case 'opencode': {
+      // OpenCode - open-source multi-provider AI coding agent
+      // Supports: anthropic, openai, google, local models
+      let cmd = 'opencode';
+
+      // If model is specified in provider/model format (e.g., "anthropic/claude-sonnet-4-20250514")
+      if (openCodeModel) {
+        if (openCodeProvider && !openCodeModel.includes('/')) {
+          // Combine provider and model
+          cmd += ` -m ${openCodeProvider}/${openCodeModel}`;
+        } else {
+          cmd += ` -m ${openCodeModel}`;
+        }
+      } else if (openCodeProvider) {
+        // Just provider, use default model for that provider
+        cmd += ` -m ${openCodeProvider}/`;
+      }
+
+      return cmd;
+    }
+
     case 'code-puppy': {
       // Run Code Puppy in interactive mode
       let cmd = `${uvxCmd} code-puppy -i`;
@@ -1675,7 +1713,10 @@ async function getProjects() {
               path: fullPath,
               hasActiveSession: shpoolSessionExists(sessionName),
               sessionName,
-              lastModified: lastModified ? lastModified.toISOString() : null
+              lastModified: lastModified ? lastModified.toISOString() : null,
+              // Filesystem dates as fallbacks for createdAt/updatedAt
+              fsCreatedAt: stat.birthtime?.toISOString() || stat.ctime?.toISOString() || null,
+              fsUpdatedAt: stat.mtime?.toISOString() || null
             };
           }
         } catch {
@@ -1694,6 +1735,10 @@ async function getProjects() {
         path: true,
         skipPermissions: true,
         priority: true,
+        createdAt: true,
+        updatedAt: true,
+        firstOpenedAt: true,
+        hasBeenOpened: true,
         tags: {
           include: {
             tag: true
@@ -1706,6 +1751,10 @@ async function getProjects() {
     const dbProjectMap = new Map(dbProjects.map(p => [p.path, {
       skipPermissions: p.skipPermissions,
       priority: p.priority,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+      firstOpenedAt: p.firstOpenedAt,
+      hasBeenOpened: p.hasBeenOpened,
       tags: p.tags.map(t => t.tag)
     }]));
 
@@ -1716,6 +1765,11 @@ async function getProjects() {
         ...p,
         skipPermissions: dbData?.skipPermissions || false,
         priority: dbData?.priority || null,
+        // Use database dates, fall back to filesystem dates
+        createdAt: dbData?.createdAt?.toISOString?.() || dbData?.createdAt || p.fsCreatedAt || null,
+        updatedAt: dbData?.updatedAt?.toISOString?.() || dbData?.updatedAt || p.fsUpdatedAt || p.lastModified || null,
+        firstOpenedAt: dbData?.firstOpenedAt || null,
+        hasBeenOpened: dbData?.hasBeenOpened || false,
         tags: dbData?.tags || []
       };
     });
@@ -2776,7 +2830,13 @@ app.get('/api/settings', async (req, res) => {
  */
 app.put('/api/settings', async (req, res) => {
   try {
-    const { appName, theme, sidebarWidth, rightSidebarCollapsed, expandedPanels, autoReconnect, keepSessionsAlive, sessionTimeout } = req.body;
+    const {
+      appName, theme, sidebarWidth, rightSidebarCollapsed, expandedPanels,
+      autoReconnect, keepSessionsAlive, sessionTimeout,
+      // AI solution preferences
+      preferredAISolution, codePuppyProvider, codePuppyModel, hybridMode,
+      openCodeProvider, openCodeModel, showExperimentalFeatures
+    } = req.body;
     const settings = await updateUserSettings({
       ...(appName !== undefined && { appName }),
       ...(theme !== undefined && { theme }),
@@ -2786,6 +2846,14 @@ app.put('/api/settings', async (req, res) => {
       ...(autoReconnect !== undefined && { autoReconnect }),
       ...(keepSessionsAlive !== undefined && { keepSessionsAlive }),
       ...(sessionTimeout !== undefined && { sessionTimeout }),
+      // AI solution preferences
+      ...(preferredAISolution !== undefined && { preferredAISolution }),
+      ...(codePuppyProvider !== undefined && { codePuppyProvider }),
+      ...(codePuppyModel !== undefined && { codePuppyModel }),
+      ...(hybridMode !== undefined && { hybridMode }),
+      ...(openCodeProvider !== undefined && { openCodeProvider }),
+      ...(openCodeModel !== undefined && { openCodeModel }),
+      ...(showExperimentalFeatures !== undefined && { showExperimentalFeatures }),
     });
     res.json(settings);
   } catch (error) {
@@ -3456,6 +3524,292 @@ app.get('/api/docker/networks', async (req, res) => {
   } catch (error) {
     log.error({ error: error.message }, 'docker networks list error');
     res.status(500).json({ error: 'Failed to list networks', details: error.message });
+  }
+});
+
+/**
+ * Get project-specific Docker info (docker-compose services)
+ */
+app.get('/api/docker/project', async (req, res) => {
+  try {
+    const projectPath = req.query.path;
+    if (!projectPath) {
+      return res.status(400).json({ error: 'path query parameter required' });
+    }
+    const fullPath = projectPath.startsWith('/') ? projectPath : path.join(PROJECTS_DIR, projectPath);
+
+    // Reject if the path is the parent Projects directory itself
+    const normalizedPath = path.normalize(fullPath);
+    const normalizedProjectsDir = path.normalize(PROJECTS_DIR);
+    if (normalizedPath === normalizedProjectsDir) {
+      return res.json({ hasDockerCompose: false, services: [], containers: [] });
+    }
+
+    // Check for docker-compose files
+    const composeFiles = ['docker-compose.yml', 'docker-compose.yaml', 'compose.yml', 'compose.yaml'];
+    let composePath = null;
+    let composeContent = null;
+
+    for (const file of composeFiles) {
+      const filePath = path.join(fullPath, file);
+      if (fs.existsSync(filePath)) {
+        composePath = filePath;
+        composeContent = fs.readFileSync(filePath, 'utf-8');
+        break;
+      }
+    }
+
+    if (!composePath) {
+      return res.json({ hasDockerCompose: false, services: [], containers: [] });
+    }
+
+    // Parse docker-compose.yml
+    let composeData;
+    try {
+      composeData = yaml.load(composeContent);
+    } catch (e) {
+      return res.json({ hasDockerCompose: true, parseError: e.message, services: [], containers: [] });
+    }
+
+    // Extract service names as simple array for frontend display
+    const services = Object.keys(composeData.services || {});
+
+    // Try to get container status for project containers
+    const projectName = path.basename(fullPath).toLowerCase().replace(/[^a-z0-9]/g, '');
+    let containers = [];
+    try {
+      const allContainers = await docker.listContainers({ all: true });
+      containers = allContainers
+        .filter(c => {
+          const containerName = c.Names[0]?.replace(/^\//, '') || '';
+          const labels = c.Labels || {};
+          // Match by compose project label or name prefix
+          return labels['com.docker.compose.project'] === projectName ||
+                 containerName.startsWith(projectName + '-') ||
+                 containerName.startsWith(projectName + '_');
+        })
+        .map(c => ({
+          id: c.Id.substring(0, 12),
+          name: c.Names[0]?.replace(/^\//, '') || 'unnamed',
+          service: c.Labels?.['com.docker.compose.service'] || 'unknown',
+          state: c.State,
+          status: c.Status,
+          ports: c.Ports?.map(p => ({ private: p.PrivatePort, public: p.PublicPort, type: p.Type })) || [],
+        }));
+    } catch (e) {
+      log.warn({ error: e.message }, 'failed to get project containers');
+    }
+
+    res.json({
+      hasDockerCompose: true,
+      composeFile: path.basename(composePath),
+      services,
+      containers,
+    });
+  } catch (error) {
+    log.error({ error: error.message }, 'project docker info error');
+    res.status(500).json({ error: 'Failed to get project Docker info', details: error.message });
+  }
+});
+
+/**
+ * Get project-specific port usage
+ */
+app.get('/api/ports/project', async (req, res) => {
+  try {
+    const projectPath = req.query.path;
+    if (!projectPath) {
+      return res.status(400).json({ error: 'path query parameter required' });
+    }
+    const fullPath = projectPath.startsWith('/') ? projectPath : path.join(PROJECTS_DIR, projectPath);
+    const projectName = path.basename(fullPath);
+
+    // Get configured ports from CLAUDE.md
+    let configuredPorts = [];
+    const claudeMdPath = path.join(fullPath, 'CLAUDE.md');
+    if (fs.existsSync(claudeMdPath)) {
+      const content = fs.readFileSync(claudeMdPath, 'utf-8');
+      // Match **Port:** or Port: patterns
+      const portMatch = content.match(/\*?\*?Port\*?\*?:?\s*(\d+)/i);
+      if (portMatch) {
+        configuredPorts.push({ port: parseInt(portMatch[1]), source: 'CLAUDE.md', type: 'frontend' });
+      }
+      // Match API port patterns
+      const apiPortMatch = content.match(/API.*?(\d{4,5})/i);
+      if (apiPortMatch && apiPortMatch[1] !== portMatch?.[1]) {
+        configuredPorts.push({ port: parseInt(apiPortMatch[1]), source: 'CLAUDE.md', type: 'api' });
+      }
+    }
+
+    // Get ports from package.json scripts
+    const pkgPath = path.join(fullPath, 'package.json');
+    if (fs.existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+        const scripts = pkg.scripts || {};
+        for (const [name, cmd] of Object.entries(scripts)) {
+          const portMatches = cmd.match(/(?:--port|PORT=|:)(\d{4,5})/g);
+          if (portMatches) {
+            portMatches.forEach(m => {
+              const port = parseInt(m.match(/(\d+)/)[1]);
+              if (!configuredPorts.find(p => p.port === port)) {
+                configuredPorts.push({ port, source: `package.json (${name})`, type: 'configured' });
+              }
+            });
+          }
+        }
+      } catch (e) {
+        log.warn({ error: e.message }, 'failed to parse package.json for ports');
+      }
+    }
+
+    // Check active ports using lsof
+    let activePorts = [];
+    try {
+      const output = execSync(`lsof -iTCP -sTCP:LISTEN -P -n 2>/dev/null || true`, { encoding: 'utf-8' });
+      const lines = output.trim().split('\n').slice(1); // Skip header
+
+      const portSet = new Set();
+      for (const line of lines) {
+        const parts = line.split(/\s+/);
+        const name = parts[0];
+        const pid = parts[1];
+        const portMatch = parts[8]?.match(/:(\d+)$/);
+        if (portMatch) {
+          const port = parseInt(portMatch[1]);
+          if (!portSet.has(port)) {
+            portSet.add(port);
+            // Check if this port belongs to our project
+            const isProjectPort = configuredPorts.some(p => p.port === port);
+            if (isProjectPort) {
+              activePorts.push({ port, process: name, pid: parseInt(pid), active: true });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      log.warn({ error: e.message }, 'failed to check active ports');
+    }
+
+    // Merge configured and active status
+    const ports = configuredPorts.map(cp => {
+      const active = activePorts.find(ap => ap.port === cp.port);
+      return {
+        ...cp,
+        active: !!active,
+        process: active?.process || null,
+        pid: active?.pid || null,
+      };
+    });
+
+    res.json({ projectName, ports });
+  } catch (error) {
+    log.error({ error: error.message }, 'project ports info error');
+    res.status(500).json({ error: 'Failed to get project ports info', details: error.message });
+  }
+});
+
+/**
+ * Get project-specific Cloudflare tunnel info
+ */
+app.get('/api/cloudflare/project', async (req, res) => {
+  try {
+    const projectPath = req.query.path;
+    if (!projectPath) {
+      return res.status(400).json({ error: 'path query parameter required' });
+    }
+    const fullPath = projectPath.startsWith('/') ? projectPath : path.join(PROJECTS_DIR, projectPath);
+    const projectName = path.basename(fullPath);
+
+    // Check for cloudflared config in project
+    let tunnelConfig = null;
+    const configPaths = [
+      path.join(fullPath, '.cloudflared', 'config.yml'),
+      path.join(fullPath, 'cloudflared.yml'),
+      path.join(process.env.HOME, '.cloudflared', 'config.yml'),
+    ];
+
+    for (const configPath of configPaths) {
+      if (fs.existsSync(configPath)) {
+        try {
+          const content = fs.readFileSync(configPath, 'utf-8');
+          tunnelConfig = yaml.load(content);
+          break;
+        } catch (e) {
+          log.warn({ error: e.message, path: configPath }, 'failed to parse cloudflared config');
+        }
+      }
+    }
+
+    // Get tunnel status from CLAUDE.md
+    let subdomain = null;
+    const claudeMdPath = path.join(fullPath, 'CLAUDE.md');
+    if (fs.existsSync(claudeMdPath)) {
+      const content = fs.readFileSync(claudeMdPath, 'utf-8');
+      const subdomainMatch = content.match(/\*?\*?Subdomain\*?\*?:?\s*(\S+)/i);
+      if (subdomainMatch) {
+        subdomain = subdomainMatch[1];
+      }
+    }
+
+    // Check if tunnel is running for this project
+    let tunnelStatus = 'unknown';
+    try {
+      const output = execSync('pgrep -a cloudflared 2>/dev/null || true', { encoding: 'utf-8' });
+      if (output.includes('tunnel') || output.includes('cloudflared')) {
+        tunnelStatus = 'running';
+      } else {
+        tunnelStatus = 'stopped';
+      }
+    } catch (e) {
+      tunnelStatus = 'error';
+    }
+
+    // Find ingress rules matching this project
+    let ingressRules = [];
+    if (tunnelConfig?.ingress) {
+      ingressRules = tunnelConfig.ingress
+        .filter(rule => {
+          if (!rule.hostname) return false;
+          // Check if hostname matches project subdomain
+          return subdomain && rule.hostname.includes(subdomain);
+        })
+        .map(rule => ({
+          hostname: rule.hostname,
+          service: rule.service,
+        }));
+    }
+
+    // Get domain from env or extract from CLIENT_URL
+    const cloudflaredDomain = process.env.CLOUDFLARE_DOMAIN ||
+      (process.env.CLIENT_URL ? new URL(process.env.CLIENT_URL).hostname.split('.').slice(-2).join('.') : 'wbtlabs.com');
+
+    // Build hostname from subdomain if we have one
+    const hostname = subdomain ? `${subdomain}.${cloudflaredDomain}` : ingressRules[0]?.hostname || null;
+
+    // Get configured port from CLAUDE.md
+    let port = null;
+    if (fs.existsSync(claudeMdPath)) {
+      const content = fs.readFileSync(claudeMdPath, 'utf-8');
+      const portMatch = content.match(/\*?\*?Port\*?\*?:?\s*(\d+)/i);
+      if (portMatch) {
+        port = parseInt(portMatch[1]);
+      }
+    }
+
+    res.json({
+      projectName,
+      hostname,
+      subdomain,
+      port,
+      domain: cloudflaredDomain,
+      status: tunnelStatus === 'running' ? 'active' : tunnelStatus,
+      configured: !!tunnelConfig || !!subdomain,
+      ingressRules,
+    });
+  } catch (error) {
+    log.error({ error: error.message }, 'project cloudflare info error');
+    res.status(500).json({ error: 'Failed to get project Cloudflare info', details: error.message });
   }
 });
 
@@ -4552,8 +4906,9 @@ io.on('connection', (socket) => {
   });
 
   // Handle project selection
-  socket.on('select-project', async (projectPath) => {
-    sockLog.info({ projectPath }, 'selecting project');
+  socket.on('select-project', async (projectPath, options = {}) => {
+    const { overrideAI } = options || {};
+    sockLog.info({ projectPath, overrideAI }, 'selecting project');
 
     // Add Sentry breadcrumb for project selection
     addBreadcrumb({
@@ -4590,7 +4945,9 @@ io.on('connection', (socket) => {
       preferredAISolution: 'claude-code',
       codePuppyModel: null,
       codePuppyProvider: null,
-      hybridMode: 'code-puppy-with-claude-tools'
+      hybridMode: 'code-puppy-with-claude-tools',
+      openCodeProvider: null,
+      openCodeModel: null
     };
     try {
       const settings = await prisma.userSettings.findUnique({ where: { id: 'default' } });
@@ -4599,16 +4956,19 @@ io.on('connection', (socket) => {
         userSettings.codePuppyModel = settings.codePuppyModel;
         userSettings.codePuppyProvider = settings.codePuppyProvider;
         userSettings.hybridMode = settings.hybridMode || 'code-puppy-with-claude-tools';
+        userSettings.openCodeProvider = settings.openCodeProvider;
+        userSettings.openCodeModel = settings.openCodeModel;
       }
     } catch (err) {
       sockLog.error({ error: err.message }, 'failed to fetch user settings');
     }
 
-    // Find the first/default tab for this project
+    // Find the first/default tab for this project, or create one if none exists
     let tabSessionName;
+    let tabId;
     try {
       if (project) {
-        const firstTab = await prisma.session.findFirst({
+        let firstTab = await prisma.session.findFirst({
           where: {
             projectId: project.id,
             isOpen: { not: false }
@@ -4617,16 +4977,60 @@ io.on('connection', (socket) => {
           select: { sessionName: true, id: true }
         });
 
-        if (firstTab) {
-          tabSessionName = firstTab.sessionName;
-          socketActiveTabs.set(socket.id, firstTab.id);
+        // If no tab exists, create a default one
+        if (!firstTab) {
+          const projectName = project.name.replace(/[^a-zA-Z0-9_-]/g, '-');
+          const defaultSessionName = `sp-${projectName}`;
+
+          firstTab = await prisma.session.upsert({
+            where: {
+              projectId_sessionName: {
+                projectId: project.id,
+                sessionName: defaultSessionName,
+              }
+            },
+            create: {
+              projectId: project.id,
+              sessionName: defaultSessionName,
+              displayName: null, // Will show project name in UI
+              tabColor: null,
+              tabOrder: 0,
+              isOpen: true,
+              status: 'ACTIVE',
+            },
+            update: {
+              isOpen: true,
+            },
+            select: { sessionName: true, id: true }
+          });
+          sockLog.info({ projectPath, sessionName: firstTab.sessionName }, 'created default tab for project');
+        }
+
+        tabSessionName = firstTab.sessionName;
+        tabId = firstTab.id;
+        socketActiveTabs.set(socket.id, firstTab.id);
+
+        // Mark project as opened if this is the first time
+        if (!project.hasBeenOpened) {
+          try {
+            await prisma.project.update({
+              where: { id: project.id },
+              data: {
+                hasBeenOpened: true,
+                firstOpenedAt: new Date(),
+              },
+            });
+            sockLog.info({ projectPath }, 'marked project as opened for first time');
+          } catch (updateErr) {
+            sockLog.error({ error: updateErr.message, projectPath }, 'failed to update project hasBeenOpened');
+          }
         }
       }
     } catch (err) {
-      sockLog.error({ error: err.message, projectPath }, 'failed to fetch first tab');
+      sockLog.error({ error: err.message, projectPath }, 'failed to fetch/create first tab');
     }
 
-    // If no tab found, generate default session name
+    // Fallback: if no project found, generate default session name
     if (!tabSessionName) {
       tabSessionName = `sp-${basename(projectPath).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
     }
@@ -4634,14 +5038,38 @@ io.on('connection', (socket) => {
     // Check if we already have a PTY session for this tab
     let session = sessions.get(tabSessionName);
 
+    // If overrideAI is specified and a session exists, kill it to start fresh with new AI
+    if (session && overrideAI) {
+      sockLog.info({ tabSessionName, overrideAI, currentAI: session.aiSolution }, 'killing existing session to switch AI solution');
+      try {
+        // Kill the PTY process
+        session.pty.kill();
+        // Notify all watching sockets
+        session.sockets.forEach(socketId => {
+          io.to(socketId).emit('terminal-exit', { exitCode: 0, projectPath, reason: 'AI switch' });
+        });
+        // Remove from sessions map
+        sessions.delete(tabSessionName);
+        session = null;
+      } catch (err) {
+        sockLog.error({ error: err.message, tabSessionName }, 'failed to kill session for AI switch');
+      }
+    }
+
     if (!session) {
+      // Determine AI solution - use override if provided, otherwise use user preference
+      const aiSolution = overrideAI || userSettings.preferredAISolution;
+      sockLog.info({ tabSessionName, aiSolution, overrideAI }, 'creating PTY session with AI solution');
+
       // Create new PTY session for this tab
       const ptySession = createPtySessionForTab(tabSessionName, projectPath, socket, {
         skipPermissions: projectSettings.skipPermissions,
-        aiSolution: userSettings.preferredAISolution,
+        aiSolution,
         codePuppyModel: userSettings.codePuppyModel,
         codePuppyProvider: userSettings.codePuppyProvider,
-        hybridMode: userSettings.hybridMode
+        hybridMode: userSettings.hybridMode,
+        openCodeProvider: userSettings.openCodeProvider,
+        openCodeModel: userSettings.openCodeModel
       });
 
       if (!ptySession) {
@@ -4651,6 +5079,7 @@ io.on('connection', (socket) => {
 
       session = {
         ...ptySession,
+        aiSolution,
         sockets: new Set([socket.id]),
         cols: 120,
         rows: 30,
@@ -4987,15 +5416,17 @@ io.on('connection', (socket) => {
 
   // Handle kill session request
   socket.on('kill-session', (projectPath) => {
-    // Find session by sessionName (try active session first, then default)
-    const activeSessionName = socketSessions.get(socket.id);
-    let session = activeSessionName ? sessions.get(activeSessionName) : null;
-    let sessionName = activeSessionName;
+    // Find session by projectPath first (allows killing specific sessions from sidebar)
+    let sessionName = getSessionName(projectPath);
+    let session = sessions.get(sessionName);
 
-    // Fallback to default session name if no active session
+    // Fallback to active session if projectPath session not found
     if (!session) {
-      sessionName = getSessionName(projectPath);
-      session = sessions.get(sessionName);
+      const activeSessionName = socketSessions.get(socket.id);
+      if (activeSessionName) {
+        sessionName = activeSessionName;
+        session = sessions.get(activeSessionName);
+      }
     }
 
     if (session) {
@@ -5108,7 +5539,9 @@ io.on('connection', (socket) => {
           preferredAISolution: 'claude-code',
           codePuppyModel: null,
           codePuppyProvider: null,
-          hybridMode: 'code-puppy-with-claude-tools'
+          hybridMode: 'code-puppy-with-claude-tools',
+          openCodeProvider: null,
+          openCodeModel: null
         };
         try {
           const settings = await prisma.userSettings.findUnique({ where: { id: 'default' } });
@@ -5117,6 +5550,8 @@ io.on('connection', (socket) => {
             userSettings.codePuppyModel = settings.codePuppyModel;
             userSettings.codePuppyProvider = settings.codePuppyProvider;
             userSettings.hybridMode = settings.hybridMode || 'code-puppy-with-claude-tools';
+            userSettings.openCodeProvider = settings.openCodeProvider;
+            userSettings.openCodeModel = settings.openCodeModel;
           }
         } catch (err) {
           sockLog.error({ error: err.message }, 'failed to fetch user settings for tab');
@@ -5128,7 +5563,9 @@ io.on('connection', (socket) => {
           aiSolution: userSettings.preferredAISolution,
           codePuppyModel: userSettings.codePuppyModel,
           codePuppyProvider: userSettings.codePuppyProvider,
-          hybridMode: userSettings.hybridMode
+          hybridMode: userSettings.hybridMode,
+          openCodeProvider: userSettings.openCodeProvider,
+          openCodeModel: userSettings.openCodeModel
         });
 
         if (!ptySession) {

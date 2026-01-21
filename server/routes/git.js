@@ -17,15 +17,26 @@ export function createGitRouter(prisma) {
   const router = Router();
   const PROJECTS_DIR = process.env.PROJECTS_DIR || path.join(process.env.HOME || '/home', 'Projects');
 
-  // Execute git command helper
+  // Execute git command helper - use full path to git binary
+  const GIT_PATH = '/usr/bin/git';
   const execGit = (args, cwd) => {
     return new Promise((resolve, reject) => {
-      const git = spawn('git', args, { cwd });
+      let git;
+      try {
+        git = spawn(GIT_PATH, args, { cwd });
+      } catch (err) {
+        return reject(new Error(`Failed to spawn git: ${err.message}`));
+      }
       let stdout = '';
       let stderr = '';
 
       git.stdout.on('data', (data) => { stdout += data; });
       git.stderr.on('data', (data) => { stderr += data; });
+
+      // Handle spawn errors (e.g., ENOENT when git not found)
+      git.on('error', (err) => {
+        reject(new Error(`Git spawn error: ${err.message}`));
+      });
 
       git.on('close', (code) => {
         if (code === 0) {
@@ -44,10 +55,41 @@ export function createGitRouter(prisma) {
       : path.join(PROJECTS_DIR, projectPath);
   };
 
+  // Check if directory is a valid git repository
+  const isGitRepo = async (dirPath) => {
+    try {
+      await execGit(['rev-parse', '--git-dir'], dirPath);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // Check if path is the parent Projects directory (not a valid project)
+  const isParentProjectsDir = (projectPath) => {
+    const resolvedPath = getRepoPath(projectPath);
+    const normalized = path.normalize(resolvedPath);
+    const projectsNormalized = path.normalize(PROJECTS_DIR);
+    return normalized === projectsNormalized;
+  };
+
   // Get git status
   router.get('/:projectPath(*)/status', async (req, res) => {
     try {
-      const repoPath = getRepoPath(decodeURIComponent(req.params.projectPath));
+      const projectPath = decodeURIComponent(req.params.projectPath);
+
+      // Reject invalid project paths like "Home" or the parent Projects directory
+      if (projectPath === 'Home' || projectPath === 'home' || !projectPath ||
+          projectPath === 'Projects' || isParentProjectsDir(projectPath)) {
+        return res.status(400).json({ error: 'Invalid project path' });
+      }
+
+      const repoPath = getRepoPath(projectPath);
+
+      // Check if it's actually a git repository before running commands
+      if (!await isGitRepo(repoPath)) {
+        return res.status(400).json({ error: 'Not a git repository' });
+      }
 
       // Get current branch
       const { output: branch } = await execGit(['rev-parse', '--abbrev-ref', 'HEAD'], repoPath);
@@ -75,6 +117,21 @@ export function createGitRouter(prisma) {
       const { output: untrackedRaw } = await execGit(['ls-files', '--others', '--exclude-standard'], repoPath);
       const untracked = untrackedRaw ? untrackedRaw.split('\n').filter(Boolean) : [];
 
+      // Get remote URL (for GitHub link)
+      let remoteUrl = null;
+      try {
+        const { output: remote } = await execGit(['remote', 'get-url', 'origin'], repoPath);
+        remoteUrl = remote.trim();
+        // Convert SSH URL to HTTPS for browser link
+        if (remoteUrl.startsWith('git@github.com:')) {
+          remoteUrl = remoteUrl.replace('git@github.com:', 'https://github.com/').replace(/\.git$/, '');
+        } else if (remoteUrl.endsWith('.git')) {
+          remoteUrl = remoteUrl.replace(/\.git$/, '');
+        }
+      } catch (e) {
+        // No remote configured
+      }
+
       res.json({
         branch,
         ahead,
@@ -82,6 +139,7 @@ export function createGitRouter(prisma) {
         staged,
         unstaged,
         untracked,
+        remoteUrl,
       });
     } catch (error) {
       return sendSafeError(res, error, {
