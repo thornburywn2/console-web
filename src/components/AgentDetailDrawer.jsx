@@ -2,11 +2,14 @@
  * AgentDetailDrawer Component
  * Slide-out drawer showing agent details, live output, and execution history
  * Phase 3.5: Mission Control - Agent Observability
+ * Enhanced with granular action visualization
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { agentsApi } from '../services/api.js';
-import { useAgentSocket } from '../hooks/useAgentSocket.js';
+import { useAgentSocket, ActionStatus } from '../hooks/useAgentSocket.js';
+import AgentExecutionFlow from './AgentExecutionFlow.jsx';
+import ToolCallViewer from './ToolCallViewer.jsx';
 
 // Status configuration
 const STATUS_CONFIG = {
@@ -57,11 +60,15 @@ export default function AgentDetailDrawer({ agentId, onClose }) {
   const {
     getRunningAgent,
     getAgentOutput,
+    getActionStates,
     isConnected,
   } = useAgentSocket();
 
   const runningState = getRunningAgent(agentId);
   const liveOutput = runningState ? getAgentOutput(runningState.executionId) : [];
+  const actionStates = runningState ? getActionStates(runningState.executionId) : [];
+  const [selectedAction, setSelectedAction] = useState(null);
+  const [viewMode, setViewMode] = useState('flow'); // 'flow' | 'raw'
 
   // Fetch agent details
   const fetchAgent = useCallback(async () => {
@@ -367,39 +374,84 @@ export default function AgentDetailDrawer({ agentId, onClose }) {
                 </div>
               )}
 
-              {/* Output Tab */}
+              {/* Output Tab - Enhanced with Visualization */}
               {activeTab === 'output' && (
                 <div className="h-full flex flex-col">
                   {runningState ? (
                     <>
-                      {/* Running status */}
-                      <div className="p-3 border-b border-hacker-border bg-green-500/10">
+                      {/* View mode toggle */}
+                      <div className="flex items-center justify-between p-2 border-b border-hacker-border bg-hacker-surface/30">
                         <div className="flex items-center gap-2 text-sm font-mono text-green-400">
                           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                           Running for {formatDuration(runningState.startedAt)}
+                          {runningState.totalActions > 0 && (
+                            <span className="text-hacker-text-dim">
+                              • Step {(runningState.currentActionIndex || 0) + 1}/{runningState.totalActions}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setViewMode('flow')}
+                            className={`px-2 py-1 text-xs font-mono rounded transition-colors ${
+                              viewMode === 'flow'
+                                ? 'bg-cyan-500/20 text-cyan-400'
+                                : 'text-hacker-text-dim hover:text-hacker-text hover:bg-hacker-surface'
+                            }`}
+                          >
+                            Flow
+                          </button>
+                          <button
+                            onClick={() => setViewMode('raw')}
+                            className={`px-2 py-1 text-xs font-mono rounded transition-colors ${
+                              viewMode === 'raw'
+                                ? 'bg-cyan-500/20 text-cyan-400'
+                                : 'text-hacker-text-dim hover:text-hacker-text hover:bg-hacker-surface'
+                            }`}
+                          >
+                            Raw
+                          </button>
                         </div>
                       </div>
-                      {/* Live output */}
-                      <div
-                        ref={outputRef}
-                        className="flex-1 p-4 font-mono text-xs overflow-y-auto bg-black/30"
-                        style={{ minHeight: 200 }}
-                      >
-                        {liveOutput.length === 0 ? (
-                          <p className="text-hacker-text-dim">Waiting for output...</p>
-                        ) : (
-                          liveOutput.map((item, index) => (
-                            <div key={index} className="mb-2">
-                              <div className="text-hacker-text-dim text-[10px] mb-0.5">
-                                Action #{item.actionIndex + 1} • {new Date(item.timestamp).toLocaleTimeString()}
+
+                      {/* Visualization or Raw output */}
+                      {viewMode === 'flow' ? (
+                        <div className="flex-1 overflow-hidden">
+                          {selectedAction ? (
+                            <ToolCallViewer
+                              action={selectedAction}
+                              onClose={() => setSelectedAction(null)}
+                            />
+                          ) : (
+                            <AgentExecutionFlow
+                              agentId={agentId}
+                              executionId={runningState.executionId}
+                              totalActions={runningState.totalActions || agent?.actions?.length || 0}
+                            />
+                          )}
+                        </div>
+                      ) : (
+                        <div
+                          ref={outputRef}
+                          className="flex-1 p-4 font-mono text-xs overflow-y-auto bg-black/30"
+                          style={{ minHeight: 200 }}
+                        >
+                          {liveOutput.length === 0 ? (
+                            <p className="text-hacker-text-dim">Waiting for output...</p>
+                          ) : (
+                            liveOutput.map((item, index) => (
+                              <div key={index} className="mb-2">
+                                <div className="text-hacker-text-dim text-[10px] mb-0.5">
+                                  Action #{item.actionIndex + 1} • {new Date(item.timestamp).toLocaleTimeString()}
+                                </div>
+                                <pre className="text-hacker-text whitespace-pre-wrap break-all">
+                                  {item.output}
+                                </pre>
                               </div>
-                              <pre className="text-hacker-text whitespace-pre-wrap break-all">
-                                {item.output}
-                              </pre>
-                            </div>
-                          ))
-                        )}
-                      </div>
+                            ))
+                          )}
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="flex-1 flex flex-col items-center justify-center py-12 text-center">
@@ -408,7 +460,7 @@ export default function AgentDetailDrawer({ agentId, onClose }) {
                         No agent running
                       </p>
                       <p className="text-hacker-text-dim font-mono text-xs mt-1">
-                        Run the agent to see live output
+                        Run the agent to see live execution flow
                       </p>
                       <button
                         onClick={handleRun}

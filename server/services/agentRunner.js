@@ -10,12 +10,11 @@
  * - Concurrent agent limit (5 max)
  */
 
-import { fork } from 'child_process';
+import { fork, spawn } from 'child_process';
 import { EventEmitter } from 'events';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { watch } from 'chokidar';
-import { execSync } from 'child_process';
 import { createLogger } from './logger.js';
 
 const log = createLogger('agent-runner');
@@ -254,103 +253,283 @@ export class AgentRunner extends EventEmitter {
   }
 
   /**
-   * Execute agent actions sequentially
+   * Execute agent actions sequentially with granular event streaming
    */
   async executeAgentActions(agent, context, executionId) {
     const actions = agent.actions || [];
     const outputs = [];
+    const actionResults = [];
     const projectPath = agent.project?.path || process.cwd();
 
     // Mark agent as running
     this.runningAgents.set(agent.id, {
       executionId,
-      startedAt: new Date()
+      startedAt: new Date(),
+      currentActionIndex: 0,
+      totalActions: actions.length
     });
 
     for (let i = 0; i < actions.length; i++) {
       const action = actions[i];
-      const actionOutput = await this.executeAction(action, projectPath, context, executionId);
-      outputs.push(actionOutput);
+      const actionId = `${executionId}-action-${i}`;
+      const actionStartedAt = new Date();
 
-      // Stream output in real-time
-      this.io.emit('agent:output', {
+      // Update current action index
+      this.runningAgents.get(agent.id).currentActionIndex = i;
+
+      // Emit action start event
+      this.io.emit('agent:action-start', {
         agentId: agent.id,
         executionId,
+        actionId,
         actionIndex: i,
-        output: actionOutput
+        actionType: action.type,
+        actionConfig: this.sanitizeActionConfig(action.config),
+        totalActions: actions.length,
+        startedAt: actionStartedAt.toISOString()
       });
+
+      try {
+        const actionOutput = await this.executeAction(action, projectPath, context, executionId, (chunk) => {
+          // Stream output chunks in real-time
+          this.io.emit('agent:action-output', {
+            agentId: agent.id,
+            executionId,
+            actionId,
+            actionIndex: i,
+            chunk,
+            timestamp: new Date().toISOString()
+          });
+        });
+
+        outputs.push(actionOutput);
+        const actionEndedAt = new Date();
+        const duration = actionEndedAt - actionStartedAt;
+
+        // Record action result
+        const actionResult = {
+          actionId,
+          actionIndex: i,
+          actionType: action.type,
+          status: 'COMPLETED',
+          output: actionOutput,
+          startedAt: actionStartedAt.toISOString(),
+          endedAt: actionEndedAt.toISOString(),
+          duration
+        };
+        actionResults.push(actionResult);
+
+        // Emit action complete event
+        this.io.emit('agent:action-complete', {
+          agentId: agent.id,
+          executionId,
+          actionId,
+          actionIndex: i,
+          actionType: action.type,
+          status: 'COMPLETED',
+          output: actionOutput,
+          duration,
+          endedAt: actionEndedAt.toISOString()
+        });
+
+        // Legacy event for backward compatibility
+        this.io.emit('agent:output', {
+          agentId: agent.id,
+          executionId,
+          actionIndex: i,
+          output: actionOutput
+        });
+
+      } catch (actionError) {
+        const actionEndedAt = new Date();
+        const duration = actionEndedAt - actionStartedAt;
+
+        // Record failed action
+        const actionResult = {
+          actionId,
+          actionIndex: i,
+          actionType: action.type,
+          status: 'FAILED',
+          error: actionError.message,
+          startedAt: actionStartedAt.toISOString(),
+          endedAt: actionEndedAt.toISOString(),
+          duration
+        };
+        actionResults.push(actionResult);
+
+        // Emit action error event
+        this.io.emit('agent:action-error', {
+          agentId: agent.id,
+          executionId,
+          actionId,
+          actionIndex: i,
+          actionType: action.type,
+          status: 'FAILED',
+          error: actionError.message,
+          duration,
+          endedAt: actionEndedAt.toISOString()
+        });
+
+        // Continue to next action (log and continue as per original spec)
+        outputs.push(`Error in action ${i}: ${actionError.message}`);
+        log.error({ error: actionError.message, actionIndex: i, agentId: agent.id }, 'action execution failed');
+      }
     }
+
+    // Store action results in execution metadata
+    await this.prisma.agentExecution.update({
+      where: { id: executionId },
+      data: {
+        triggerContext: {
+          ...(context || {}),
+          actionResults
+        }
+      }
+    });
 
     return outputs.join('\n\n');
   }
 
   /**
-   * Execute a single action
+   * Sanitize action config for client display (remove sensitive data)
    */
-  async executeAction(action, projectPath, context, executionId) {
+  sanitizeActionConfig(config) {
+    if (!config) return {};
+    const sanitized = { ...config };
+    // Remove sensitive fields
+    const sensitiveKeys = ['password', 'secret', 'token', 'apiKey', 'api_key', 'auth'];
+    for (const key of sensitiveKeys) {
+      if (sanitized[key]) {
+        sanitized[key] = '***';
+      }
+    }
+    return sanitized;
+  }
+
+  /**
+   * Execute a single action
+   * @param {Object} action - Action configuration
+   * @param {string} projectPath - Working directory
+   * @param {Object} context - Trigger context
+   * @param {string} executionId - Execution ID
+   * @param {Function} onChunk - Callback for streaming output chunks
+   */
+  async executeAction(action, projectPath, context, executionId, onChunk) {
     const { type, config } = action;
 
     switch (type) {
       case 'shell':
-        return this.executeShellAction(config, projectPath);
+        return this.executeShellAction(config, projectPath, onChunk);
       case 'api':
-        return this.executeApiAction(config);
+        return this.executeApiAction(config, onChunk);
       case 'mcp':
-        return this.executeMcpAction(config);
+        return this.executeMcpAction(config, onChunk);
       default:
         throw new Error(`Unknown action type: ${type}`);
     }
   }
 
   /**
-   * Execute a shell command action
+   * Execute a shell command action with streaming output
    */
-  async executeShellAction(config, projectPath) {
+  async executeShellAction(config, projectPath, onChunk) {
     const { command } = config;
 
-    return new Promise((resolve, reject) => {
-      try {
-        const output = execSync(command, {
-          cwd: projectPath,
-          encoding: 'utf8',
-          timeout: 300000, // 5 minute timeout
-          maxBuffer: 10 * 1024 * 1024, // 10MB buffer
-          env: { ...process.env }
-        });
-        resolve(output);
-      } catch (error) {
-        // Log and continue (as per spec)
-        log.error({ error: error.message, command: config.command }, 'shell command failed');
-        resolve(`Error: ${error.message}\n${error.stderr || ''}`);
-      }
+    return new Promise((resolve) => {
+      const outputChunks = [];
+
+      // Use shell to support complex commands
+      const proc = spawn('sh', ['-c', command], {
+        cwd: projectPath,
+        env: { ...process.env },
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+
+      // Set timeout
+      const timeout = setTimeout(() => {
+        proc.kill('SIGTERM');
+        const timeoutMsg = '\n[Process killed: timeout after 5 minutes]';
+        outputChunks.push(timeoutMsg);
+        if (onChunk) onChunk(timeoutMsg);
+      }, 300000);
+
+      proc.stdout.on('data', (data) => {
+        const chunk = data.toString();
+        outputChunks.push(chunk);
+        if (onChunk) onChunk(chunk);
+      });
+
+      proc.stderr.on('data', (data) => {
+        const chunk = data.toString();
+        outputChunks.push(chunk);
+        if (onChunk) onChunk(chunk);
+      });
+
+      proc.on('close', (code) => {
+        clearTimeout(timeout);
+        const output = outputChunks.join('');
+        if (code !== 0) {
+          log.warn({ code, command }, 'shell command exited with non-zero code');
+        }
+        resolve(output || `(Process exited with code ${code})`);
+      });
+
+      proc.on('error', (error) => {
+        clearTimeout(timeout);
+        log.error({ error: error.message, command }, 'shell command failed');
+        resolve(`Error: ${error.message}`);
+      });
     });
   }
 
   /**
-   * Execute an API call action
+   * Execute an API call action with streaming support
    */
-  async executeApiAction(config) {
-    const { url, method = 'GET' } = config;
+  async executeApiAction(config, onChunk) {
+    const { url, method = 'GET', headers = {}, body } = config;
 
     try {
-      const response = await fetch(url, { method });
+      const fetchOptions = {
+        method,
+        headers: { ...headers }
+      };
+
+      if (body && method !== 'GET') {
+        fetchOptions.body = typeof body === 'string' ? body : JSON.stringify(body);
+        if (!headers['Content-Type']) {
+          fetchOptions.headers['Content-Type'] = 'application/json';
+        }
+      }
+
+      if (onChunk) onChunk(`Calling ${method} ${url}...\n`);
+
+      const response = await fetch(url, fetchOptions);
       const text = await response.text();
-      return `${response.status} ${response.statusText}\n${text}`;
+      const output = `${response.status} ${response.statusText}\n${text}`;
+
+      if (onChunk) onChunk(output);
+      return output;
     } catch (error) {
       log.error({ error: error.message, url: config.url }, 'API call failed');
-      return `Error: ${error.message}`;
+      const errorMsg = `Error: ${error.message}`;
+      if (onChunk) onChunk(errorMsg);
+      return errorMsg;
     }
   }
 
   /**
-   * Execute an MCP tool action
+   * Execute an MCP tool action with streaming support
    */
-  async executeMcpAction(config) {
+  async executeMcpAction(config, onChunk) {
     const { serverId, toolName, args } = config;
+
+    if (onChunk) onChunk(`Invoking MCP tool: ${toolName}\n`);
 
     // This will be implemented when MCP manager is ready
     // For now, return a placeholder
-    return `MCP Tool: ${toolName} on server ${serverId} (not yet implemented)`;
+    const output = `MCP Tool: ${toolName} on server ${serverId} (not yet implemented)`;
+    if (onChunk) onChunk(output);
+    return output;
   }
 
   /**
